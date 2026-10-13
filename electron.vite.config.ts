@@ -9,6 +9,8 @@ export default defineConfig({
   renderer: {
     root: "src/renderer",
     resolve: { alias },
+    // Not Vite's default 5173, which ftl-arena uses.
+    server: { port: 5190, strictPort: true },
     // Pixi is awaited at the top level, so the target must be ES2022, and Pixi sits in its own chunk
     // (otherwise the entry and Pixi's renderer chunks wait on each other).
     build: {
