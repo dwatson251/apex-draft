@@ -37,6 +37,7 @@ export class Sky {
 
   /** Clouds and birds only show while the sky is active. */
   setActive(on: boolean): void { this.on = on; }
+  isOn(): boolean { return this.on; }
 
   private rebuildClouds(): void {
     for (const c of this.clouds) { c.air.destroy(); c.shadow.destroy(); }

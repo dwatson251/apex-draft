@@ -19,7 +19,7 @@ const GHOST_LINGER = 1200;
 /** How close two cars are predicted to be before the one with less right of way backs off. */
 const PREDICT_GAP = 10;
 /** A car that has been stuck this long ignores other cars for a while, so a rare jam cannot freeze the race. */
-const DEADLOCK_TICKS = 480;
+const DEADLOCK_TICKS = 1200;
 const MAX_TIME = 900;
 
 /** Full tank. */
@@ -144,6 +144,10 @@ export class Race {
   tick = 0;
   private profiles = new Map<string, Profile>();
   private lapLen: number;
+  /** how long each pair of cars has been holding each other up, in ticks */
+  private holds = new Map<string, number>();
+  /** pairs that have held each other for too long: they pass through one another until clear */
+  private phase = new Set<string>();
 
   /** `entrants` are placed on the grid in qualifying order: fastest ideal lap first. */
   constructor(readonly track: Track, entrants: Entrant[], readonly laps: number, readonly rules: RaceRules = { realism: true }) {
@@ -200,6 +204,8 @@ export class Race {
     for (const k of [...this.profiles.keys()]) if (k.startsWith(`${id}:`)) this.profiles.delete(k);
   }
 
+  private pairKey(a: RaceCar, b: RaceCar): string { return a.slot < b.slot ? `${a.slot}|${b.slot}` : `${b.slot}|${a.slot}`; }
+
   private fuelPerLapOf(c: RaceCar): number { return c.perUnit * this.lapLen; }
 
   /** Whether this car drives into the pits at the end of the lap. The player says so in advance; bots work it out. */
@@ -212,7 +218,9 @@ export class Race {
     const left = this.laps - lap;
     const atLine = c.fuel - perLap * 1.05;
     if (atLine < 0) return false; // will not make it round: too late
-    if (atLine < perLap * 1.05) return true; // could not do one more lap after this one
+    // only stop if the tank cannot get to the flag. Then go when it could not take another lap, or a little before:
+    // slots take turns, so the pit lane is not one long queue
+    if (c.fuel < perLap * 1.05 * left && atLine < perLap * (1.05 + (c.slot % 3) * 0.55)) return true;
     return c.tyre < 0.45 && left >= 3;
   }
 
@@ -231,7 +239,8 @@ export class Race {
     c.y = sampleAt(p, p.y, c.s);
     const x1 = sampleAt(p, p.x, c.s + 1), y1 = sampleAt(p, p.y, c.s + 1);
     const x0 = sampleAt(p, p.x, c.s - 1), y0 = sampleAt(p, p.y, c.s - 1);
-    c.h = Math.atan2(y1 - y0, x1 - x0);
+    // at the very end of an open lap the last samples can coincide: keep the heading we had
+    if (Math.hypot(x1 - x0, y1 - y0) > 0.05) c.h = Math.atan2(y1 - y0, x1 - x0);
     const power = p.ghost[indexAt(p, c.s)] === 1;
     // A ghost only turns solid once nobody is inside it, so the power-up never ends with two cars overlapping.
     const sitting = c.ghost && this.cars.some((o) => o !== c && this.alive(o) && Math.hypot(o.x - c.x, o.y - c.y) < SAFE_GAP + 2);
@@ -275,7 +284,7 @@ export class Race {
     const reach = (c.v * c.v) / (2 * b) + SAFE_GAP + 20;
     const mine = this.prio(c);
     for (const o of racing) {
-      if (o === c || o.ghost || o.freeUntil > this.tick) continue;
+      if (o === c || o.ghost || o.freeUntil > this.tick || this.phase.has(this.pairKey(c, o))) continue;
       const dx = o.x - c.x, dy = o.y - c.y;
       if (dx * dx + dy * dy > (reach + LATERAL) * (reach + LATERAL)) continue;
       // First point of my path, in the next `reach` units, where the other car is in the way: either it is sitting
@@ -301,7 +310,8 @@ export class Race {
       if (hit === 0 && along <= 0) continue; // behind me
       const ax = sampleAt(p, p.x, c.s + hit + 1) - sampleAt(p, p.x, c.s + hit - 1);
       const ay = sampleAt(p, p.y, c.s + hit + 1) - sampleAt(p, p.y, c.s + hit - 1);
-      const cos = Math.cos(o.h - Math.atan2(ay, ax));
+      // (at the very end of an open lap the path ahead has run out, so use the car's own heading)
+      const cos = Math.cos(o.h - (Math.hypot(ax, ay) > 1e-6 ? Math.atan2(ay, ax) : c.h));
       // Only a car clearly ahead is followed. Alongside, or crossing, the car further round the race has right of
       // way, which is a strict order and so can never leave two cars each waiting for the other. A car behind me
       // is its own driver's problem.
@@ -323,7 +333,7 @@ export class Race {
       for (let i = 0; i < racing.length; i++) {
         for (let j = i + 1; j < racing.length; j++) {
           const A = racing[i]!, B = racing[j]!;
-          if (A.ghost || B.ghost || A.freeUntil > this.tick || B.freeUntil > this.tick) continue;
+          if (A.ghost || B.ghost || A.freeUntil > this.tick || B.freeUntil > this.tick || this.phase.has(this.pairKey(A, B))) continue;
           const pa = this.posAt(A, next.get(A)!.s), pb = this.posAt(B, next.get(B)!.s);
           if (Math.hypot(pa.x - pb.x, pa.y - pb.y) >= HARD_GAP) continue;
           const loser = this.prio(A) < this.prio(B) ? A : B;
@@ -332,6 +342,12 @@ export class Race {
           const target = ln.v === 0 && ln.s === loser.s ? winner : loser;
           next.set(target, { v: 0, s: target.s });
           changed = true;
+          if (target === winner) {
+            // both held: if it goes on for two seconds, let them through each other
+            const k = this.pairKey(A, B), n = (this.holds.get(k) ?? 0) + 1;
+            this.holds.set(k, n);
+            if (n > 120) { this.phase.add(k); this.holds.delete(k); }
+          }
         }
       }
       if (!changed) break;
@@ -429,6 +445,12 @@ export class Race {
       else { c.dwell = STOP_TICKS; this.emit(c.entrant.id, "pitStart"); }
     }
     for (const c of racing) if (c.dwell > 0 && !arrived.includes(c) && --c.dwell === 0) this.finishStop(c);
+    for (const k of [...this.phase]) {
+      const [a, b] = k.split("|").map(Number) as [number, number];
+      const A = this.cars.find((c) => c.slot === a)!, B = this.cars.find((c) => c.slot === b)!;
+      if (!this.alive(A) || !this.alive(B) || Math.hypot(A.x - B.x, A.y - B.y) > SAFE_GAP + 6) this.phase.delete(k);
+    }
+    if (this.tick % 60 === 0) this.holds.clear();
     this.record();
   }
 

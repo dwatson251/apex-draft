@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from "pixi.js";
 import {
-  PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LAT, PIT_LIMIT_A, PIT_SPEED, ROAD_HALF, Rng, centreAt, cross, dot, laneCentre, pitPoint, sub,
+  PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, PIT_LIMIT_A, PIT_SPEED, ROAD_HALF, Rng, centreAt, cross, dot, laneCentre, pitPoint, sub,
   type Segment, type Track, type Vec2,
 } from "@apex/sim";
 
@@ -232,70 +232,106 @@ function startLine(s: Segment): Container {
 
 const TEAM = [0xd8393a, 0x2f6fd0, 0xf2c744, 0x4fd28a, 0xe86bb5, 0xff9a3c];
 
-/** The pit lane and garages. Each of the two straights draws its own half, split at the start line. */
+/** The pit lane, wall and garages, tacked on beside the straight. Each straight draws its own half, split at the start line. */
 function pitArt(track: Track, head: boolean): Container {
   const c = new Container(), pit = track.pit;
   const a0 = head ? 0 : PIT_ENTRY_A, a1 = head ? PIT_EXIT_A : 0;
   const P = (a: number, lat: number) => pitPoint(pit, a, lat);
   const angle = Math.atan2(pit.dir.y, pit.dir.x);
+  const poly = (pts: Vec2[]) => pts.flatMap((p) => [p.x, p.y]);
+  // the lane never draws over the road: its inner edge stops at the road's edge, so the ramps simply start there
+  const edge = ROAD_HALF + 2.6;
 
   const lane = new Graphics();
-  const left: number[] = [], right: number[] = [];
-  for (let a = a0; a <= a1; a += 2) {
-    const m = laneCentre(a);
-    const l = P(a, m + PIT_HALF), r = P(a, m - PIT_HALF);
-    left.push(l.x, l.y); right.unshift(r.x, r.y);
+  const inner: Vec2[] = [], outer: Vec2[] = [];
+  for (let a = a0; a <= a1; a += 1) {
+    const m = laneCentre(a), lo = Math.max(m - PIT_HALF, edge), hi = m + PIT_HALF;
+    if (hi - lo < 1.2) continue;
+    inner.push(P(a, lo)); outer.push(P(a, hi));
   }
-  lane.poly([...left, ...right]).fill(0x44474f);
-  // white line on the outer edge, dashes between the lane and the road
-  const edge = (offset: number, dashed: boolean, color: number, alpha: number) => {
-    for (let a = a0; a < a1; a += 2) {
-      if (dashed && Math.floor((a - a0) / 2) % 2) continue;
-      const p = P(a, laneCentre(a) + offset), q = P(a + 2, laneCentre(a + 2) + offset);
-      lane.moveTo(p.x, p.y).lineTo(q.x, q.y);
-    }
-    lane.stroke({ width: 0.9, color, alpha });
-  };
-  edge(PIT_HALF, false, PAL.paint, 0.9);
-  edge(-PIT_HALF, true, PAL.paint, 0.75);
+  if (inner.length > 1) {
+    lane.poly(poly([...inner, ...outer.reverse()])).fill(0x464952);
+    // paint: a white line along the outer edge, yellow dashes along the inner edge
+    const line = (pts: Vec2[], color: number, dashed: boolean, width: number) => {
+      pts.forEach((p, i) => { if (i && (!dashed || Math.floor(i / 3) % 2 === 0)) lane.moveTo(pts[i - 1]!.x, pts[i - 1]!.y).lineTo(p.x, p.y); });
+      lane.stroke({ width, color, alpha: 0.9 });
+    };
+    line(outer.slice().reverse(), PAL.paint, false, 0.8);
+    line(inner, 0xf2c744, true, 0.8);
+  }
   c.addChild(lane);
 
-  // the box the cars stop in, and a speed-limit roundel at the start of the lane
+  // the pit wall between the road and the lane, with a barrier stripe
+  const wall = new Graphics();
+  const wa0 = Math.max(a0, PIT_LANE_FROM - 6), wa1 = Math.min(a1, PIT_LANE_TO + 6);
+  for (let a = wa0; a < wa1; a += 3) {
+    const q = (lat: number) => [P(a, lat), P(Math.min(a + 3, wa1), lat)];
+    const [p0, p1] = q(ROAD_HALF + 3.1), [p2, p3] = q(ROAD_HALF + 5.6);
+    wall.poly(poly([p0!, p1!, p3!, p2!])).fill(Math.floor(a / 3) % 2 ? PAL.kerbRed : PAL.kerbWhite);
+  }
+  if (wa1 > wa0) {
+    const a = P(wa0, ROAD_HALF + 3.1), b = P(wa1, ROAD_HALF + 3.1), d = P(wa0, ROAD_HALF + 5.6), e = P(wa1, ROAD_HALF + 5.6);
+    wall.moveTo(a.x, a.y).lineTo(b.x, b.y).moveTo(d.x, d.y).lineTo(e.x, e.y).stroke({ width: 0.5, color: 0x1c1d24, alpha: 0.8 });
+  }
+  c.addChild(wall);
+
+  // the stopping box: team colour, with corner marks
   const marks = new Graphics();
   if (PIT_BOX_A >= a0 && PIT_BOX_A <= a1) {
-    const pts = [[-6, -4.5], [6, -4.5], [6, 4.5], [-6, 4.5]].map(([da, dl]) => P(PIT_BOX_A + da!, PIT_LAT + dl!));
-    marks.poly(pts.flatMap((p) => [p.x, p.y])).stroke({ width: 0.9, color: 0xf2c744 });
+    const box = [[-6.5, -5], [6.5, -5], [6.5, 5], [-6.5, 5]].map(([da, dl]) => P(PIT_BOX_A + da!, PIT_LAT + dl!));
+    marks.poly(poly(box)).fill({ color: TEAM[0]!, alpha: 0.28 }).stroke({ width: 0.9, color: 0xf2c744 });
+    for (const [da, dl] of [[-6.5, -5], [6.5, -5], [6.5, 5], [-6.5, 5]] as const) {
+      const p = P(PIT_BOX_A + da, PIT_LAT + dl);
+      marks.circle(p.x, p.y, 0.9).fill(0xf2c744);
+    }
   }
   c.addChild(marks);
-  const sign = -PIT_LIMIT_A + 4;
+
+  // the speed-limit roundel where the lane starts, and the word PIT on the tarmac
+  const sign = -PIT_LIMIT_A + 3;
   if (sign >= a0 && sign <= a1) {
     const p = P(sign, PIT_LAT);
     const g = new Container();
-    g.addChild(new Graphics().circle(0, 0, 4.2).fill({ color: 0xf1f1ee, alpha: 0.9 }).stroke({ width: 1, color: 0xd8393a }));
+    g.addChild(new Graphics().circle(0, 0, 4.2).fill({ color: 0xf1f1ee, alpha: 0.92 }).stroke({ width: 1, color: 0xd8393a }));
     const t = new Text({ text: String(PIT_SPEED), style: { fontSize: 5.4, fill: 0x14161c, fontWeight: "700" } });
     t.anchor.set(0.5);
     g.addChild(t);
     g.position.set(p.x, p.y); g.rotation = angle;
     c.addChild(g);
   }
-  const word = head ? 18 : -34;
+  const word = head ? 22 : -40;
   if (word >= a0 && word <= a1) {
     const p = P(word, PIT_LAT);
     const t = new Text({ text: "PIT", style: { fontSize: 7, fill: 0xf1f1ee, fontWeight: "700", letterSpacing: 1.5 } });
-    t.anchor.set(0.5); t.alpha = 0.6; t.rotation = angle + Math.PI / 2; t.position.set(p.x, p.y);
+    t.anchor.set(0.5); t.alpha = 0.55; t.rotation = angle + Math.PI / 2; t.position.set(p.x, p.y);
     c.addChild(t);
   }
 
-  // garages along the outer edge
+  // the pit building: a row of bays with team-coloured doors, a roof ridge, lights; tyre stacks at each end
   const gar = new Graphics();
+  const bay = PIT_LAT + PIT_HALF + 1.4, depth = 6.4;
   for (let k = 0; k < 6; k++) {
     const ga = -31.5 + k * 10.5;
     if ((ga >= 0) !== head) continue;
     const q = (da: number, dl: number) => P(ga + da, dl);
-    const poly = (dl0: number, dl1: number) => [q(0, dl0), q(9, dl0), q(9, dl1), q(0, dl1)].flatMap((p) => [p.x, p.y]);
-    gar.poly(poly(PIT_LAT + PIT_HALF + 1.5, PIT_LAT + PIT_HALF + 8)).fill(0x5c6272).stroke({ width: 0.7, color: 0x343845 });
-    gar.poly(poly(PIT_LAT + PIT_HALF + 1.5, PIT_LAT + PIT_HALF + 3.5)).fill(TEAM[k % TEAM.length]!);
-    gar.poly(poly(PIT_LAT + PIT_HALF + 5, PIT_LAT + PIT_HALF + 8)).fill({ color: 0xffffff, alpha: 0.12 });
+    const box = (d0: number, d1: number, l0: number, l1: number) => poly([q(d0, l0), q(d1, l0), q(d1, l1), q(d0, l1)]);
+    gar.poly(box(0.4, 9.6, bay + 0.8, bay + depth + 0.8)).fill({ color: 0x000000, alpha: 0.25 });
+    gar.poly(box(0, 9.2, bay, bay + depth)).fill(0x646b7c).stroke({ width: 0.6, color: 0x2f333f });
+    gar.poly(box(0.6, 8.6, bay + 0.2, bay + 2.4)).fill(TEAM[k % TEAM.length]!);         // the door, facing the lane
+    gar.poly(box(0.6, 8.6, bay + 0.2, bay + 0.8)).fill({ color: 0xffffff, alpha: 0.28 });
+    gar.poly(box(0, 9.2, bay + depth * 0.45, bay + depth * 0.55)).fill({ color: 0xffffff, alpha: 0.2 }); // roof ridge
+    const lamp = q(4.6, bay - 0.7);
+    gar.circle(lamp.x, lamp.y, 0.7).fill(k % 2 ? 0x4fd28a : 0xff5d6c);
+  }
+  // tyre stacks at the start of the wall
+  for (const [a, row] of [[-PIT_LANE_FROM + 2, 0], [-PIT_LANE_FROM + 2, 1], [PIT_LANE_FROM - 2, 0], [PIT_LANE_FROM - 2, 1]] as const) {
+    const aa = head ? -PIT_LANE_FROM - 4 + row * 3.4 - 0 : PIT_LANE_FROM + 2 + row * 3.4;
+    void a;
+    if ((aa >= 0) !== head) continue;
+    const p = P(aa, ROAD_HALF + 8);
+    gar.circle(p.x + 0.5, p.y + 0.7, 1.9).fill({ color: 0x000000, alpha: 0.3 });
+    gar.circle(p.x, p.y, 1.9).fill(0x1a1b20).stroke({ width: 0.4, color: 0xf2f2f2 });
+    gar.circle(p.x, p.y, 0.7).fill(0x3a3d46);
   }
   c.addChild(gar);
   return c;

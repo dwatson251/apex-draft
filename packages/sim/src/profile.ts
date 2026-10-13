@@ -34,6 +34,8 @@ export interface Profile {
   kap: Float64Array;
   /** inside the speed-limited part of the pit lane */
   lane: Uint8Array;
+  /** a lap that starts in the pit lane or ends in it: its end does not join its start, so it is not a loop */
+  open: boolean;
   /** where the car stops in its pit box, when this lap pits */
   pitS?: number;
   /** distance along the lap where the pit lane starts, when this lap pits */
@@ -146,11 +148,16 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   for (let k = 0; k < n; k++) ideal += ds / Math.max((v[k]! + v[(k + 1) % n]!) / 2, 1);
   let pitFromS: number | undefined;
   if (pitIn) for (let i = 0; i < n; i++) if (lane[i] && i > n / 2) { pitFromS = i * ds; break; }
-  return { n, ds, length: total, x, y, h, seg, vLim, accelMul, ghost, ideal, pickups, kap, lane, pitS, pitFromS };
+  return { n, ds, length: total, x, y, h, seg, vLim, accelMul, ghost, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
 }
 
-/** Linear lookup into a per-sample array at arclength s (wrapping). */
+/** Linear lookup into a per-sample array at arclength s (wrapping, unless the lap is open: then it stops at the ends). */
 export function sampleAt(p: Profile, arr: Float64Array, s: number): number {
+  if (p.open) {
+    const f = Math.min(Math.max(s, 0), p.length - 1e-6) / p.ds;
+    const i = Math.min(Math.floor(f), p.n - 1), j = Math.min(i + 1, p.n - 1);
+    return arr[i]! + (arr[j]! - arr[i]!) * (f - Math.floor(f));
+  }
   const f = (((s % p.length) + p.length) % p.length) / p.ds;
   const i = Math.floor(f) % p.n;
   const u = f - Math.floor(f);
@@ -159,5 +166,6 @@ export function sampleAt(p: Profile, arr: Float64Array, s: number): number {
 
 /** Nearest-sample lookup for flags. */
 export function indexAt(p: Profile, s: number): number {
+  if (p.open) return Math.min(p.n - 1, Math.max(0, Math.floor(s / p.ds + 0.5)));
   return Math.floor((((s % p.length) + p.length) % p.length) / p.ds + 0.5) % p.n;
 }

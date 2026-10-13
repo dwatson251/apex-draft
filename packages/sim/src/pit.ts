@@ -5,14 +5,14 @@ import { add, dot, mul, sub, v2, type Vec2 } from "./vec.ts";
 export const PIT_LAT = 36;
 export const PIT_HALF = 6;
 /** where the cars leave the road, drive at the lane speed, stop, and rejoin */
-export const PIT_ENTRY_A = -48;
-export const PIT_LANE_FROM = -30;
-export const PIT_LANE_TO = 30;
-export const PIT_EXIT_A = 48;
+export const PIT_ENTRY_A = -60;
+export const PIT_LANE_FROM = -32;
+export const PIT_LANE_TO = 32;
+export const PIT_EXIT_A = 60;
 export const PIT_BOX_A = -12;
-/** speed limit between a = -36 and a = +36, units/s */
+/** speed limit between a = -38 and a = +38, units/s */
 export const PIT_SPEED = 40;
-export const PIT_LIMIT_A = 36;
+export const PIT_LIMIT_A = 38;
 /** seconds stopped in the box: tyres and fuel */
 export const PIT_STOP_TIME = 2;
 /** time added to a finish if the car never pitted (with tyres and fuel on) */

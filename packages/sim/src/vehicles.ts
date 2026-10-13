@@ -29,11 +29,11 @@ export interface Vehicle {
 
 export const VEHICLES: Record<VehicleId, Vehicle> = {
   kart: { id: "kart", name: "Go-kart", plural: "go-karts", blurb: "Tiny, sticky and slow in a straight line. Sips fuel, barely wears its tyres.", accel: 1.15, top: 0.72, grip: 1.3, brake: 1, wear: 0.6, fuel: 0.55, length: 6.5, width: 4.2, pitch: 1.5, buzz: 0.9, weight: 20 },
-  formula: { id: "formula", name: "Formula car", plural: "formula cars", blurb: "Huge grip, huge brakes, huge top speed. Eats tyres and fuel.", accel: 1.25, top: 1.3, grip: 1.35, brake: 1.25, wear: 1.6, fuel: 1.3, length: 10, width: 4.6, pitch: 2, buzz: 0.6, weight: 15 },
+  formula: { id: "formula", name: "Formula car", plural: "formula cars", blurb: "Huge grip, huge brakes, huge top speed. Eats tyres and fuel.", accel: 1.25, top: 1.3, grip: 1.35, brake: 1.25, wear: 1.6, fuel: 1.2, length: 10, width: 4.6, pitch: 2, buzz: 0.6, weight: 15 },
   rally: { id: "rally", name: "Rally car", plural: "rally cars", blurb: "A good all-rounder with nothing to apologise for.", accel: 1, top: 1, grip: 1, brake: 1, wear: 1, fuel: 1, length: 8.6, width: 5.2, pitch: 1, buzz: 0.4, weight: 20 },
-  muscle: { id: "muscle", name: "Muscle car", plural: "muscle cars", blurb: "Fast in a line, loose in the corners, and thirsty.", accel: 1.1, top: 1.12, grip: 0.8, brake: 0.85, wear: 1.2, fuel: 1.5, length: 9.6, width: 5.6, pitch: 0.7, buzz: 0.3, weight: 15 },
-  truck: { id: "truck", name: "Truck", plural: "trucks", blurb: "Slow to get going and slow to stop, but it keeps going.", accel: 0.7, top: 0.88, grip: 0.72, brake: 0.7, wear: 0.8, fuel: 1.6, length: 9.6, width: 6.2, pitch: 0.55, buzz: 0.2, weight: 15 },
-  tank: { id: "tank", name: "Tank", plural: "tanks", blurb: "Crawls. Barely wears its tracks. Drinks fuel.", accel: 0.55, top: 0.55, grip: 0.6, brake: 0.85, wear: 0.1, fuel: 2, length: 9.6, width: 7, pitch: 0.4, buzz: 0.1, weight: 15 },
+  muscle: { id: "muscle", name: "Muscle car", plural: "muscle cars", blurb: "Fast in a line, loose in the corners, and thirsty.", accel: 1.1, top: 1.12, grip: 0.8, brake: 0.85, wear: 1.2, fuel: 1.3, length: 9.6, width: 5.6, pitch: 0.7, buzz: 0.3, weight: 15 },
+  truck: { id: "truck", name: "Truck", plural: "trucks", blurb: "Slow to get going and slow to stop, but it keeps going.", accel: 0.7, top: 0.88, grip: 0.72, brake: 0.7, wear: 0.8, fuel: 1.4, length: 9.6, width: 6.2, pitch: 0.55, buzz: 0.2, weight: 15 },
+  tank: { id: "tank", name: "Tank", plural: "tanks", blurb: "Crawls. Barely wears its tracks. Drinks fuel.", accel: 0.55, top: 0.55, grip: 0.6, brake: 0.85, wear: 0.1, fuel: 1.5, length: 9.6, width: 7, pitch: 0.4, buzz: 0.1, weight: 15 },
 };
 
 export const VEHICLE_IDS = Object.keys(VEHICLES) as VehicleId[];

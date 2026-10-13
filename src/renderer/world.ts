@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, RenderTexture, Sprite } from "pixi.js";
 import { CELL, ROAD_HALF, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
 import { buildCar, type CarShape } from "./cars.ts";
-import { buildGround, MARGIN_CELLS } from "./scenery.ts";
+import { buildScenery, MARGIN_CELLS, type PlaneState, type Scenery } from "./scenery.ts";
 import { Sky } from "./sky.ts";
 import { buildSegmentArt, type SegmentArt } from "./trackart.ts";
 
@@ -44,6 +44,7 @@ export class WorldView {
   private skidBrush = new Graphics();
   private arts = new Map<number, SegmentArt>();
   private decor: Container | null = null;
+  private scenery: Scenery | null = null;
   private trackRef: Track | null = null;
   private cars = new Map<string, CarView>();
   private size = { w: 700, h: 500 };
@@ -201,6 +202,7 @@ export class WorldView {
       a.crowdB.forEach((g) => { g.visible = frame; });
       a.pulses.forEach((p) => p.scale.set(1 + Math.sin(this.clock * 4) * 0.08));
     }
+    if (this.decor?.visible) this.scenery?.update(dt, this.sky.isOn());
     this.sky.update(dt);
   }
 
@@ -209,6 +211,8 @@ export class WorldView {
     this.groundLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.segLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.arts.clear();
+    this.scenery?.dispose();
+    this.scenery = null;
     this.decor = null;
     this.trackRef = null;
     this.skidTex?.destroy(true);
@@ -232,9 +236,11 @@ export class WorldView {
     this.trackRef = track;
     const b = trackBounds(track);
     this.setBounds(b.w, b.h);
-    const ground = buildGround(track.cols, track.rows, new Set(track.cellIndex.keys()), track.seed);
+    const ground = buildScenery(track.cols, track.rows, new Set(track.cellIndex.keys()), track.seed);
     this.groundLayer.addChild(ground.grass, ground.decor);
     this.decor = ground.decor;
+    this.scenery = ground;
+    ground.attach(this.sky);
     this.drawGrid(track.cols, track.rows);
     for (const s of track.segments) {
       const art = buildSegmentArt(track, s);
@@ -252,8 +258,11 @@ export class WorldView {
     this.clearCars();
     this.lines.clear();
     this.setBounds(700, 500);
-    const ground = buildGround(7, 5, new Set(), 12345);
+    const ground = buildScenery(7, 5, new Set(), 12345);
     this.groundLayer.addChild(ground.grass, ground.decor);
+    this.decor = ground.decor;
+    this.scenery = ground;
+    ground.attach(this.sky);
     this.drawGrid(7, 5);
     this.resetCamera();
   }
@@ -297,6 +306,12 @@ export class WorldView {
   }
 
   clearLines(): void { this.lines.clear(); }
+
+  /** The aeroplane, if one is in the air (or on the runway) right now. */
+  planeState(): PlaneState | null { return this.decor?.visible ? this.scenery?.planeState() ?? null : null; }
+
+  /** Where the camera is looking, in world units. */
+  get focus(): Vec2 { return { x: this.cam.x, y: this.cam.y }; }
 
   // ---------- skid marks ----------
   addSkids(list: Skid[]): void {
