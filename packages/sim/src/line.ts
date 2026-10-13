@@ -42,6 +42,30 @@ export function drawSegment(track: Track, line: Line, i: number, pts: Vec2[]): L
   return { start: line.start, segs };
 }
 
+/** Replace segment i. `truncate` drops every segment after it (drawing a lap in order); otherwise they stay. */
+export function setSegment(line: Line, i: number, inner: Vec2[], end: Vec2, truncate: boolean): Line {
+  const segs = truncate ? line.segs.slice(0, i) : line.segs.slice();
+  segs[i] = [...inner, end];
+  return { start: line.start, segs };
+}
+
+/**
+ * Slide the join where segment k begins along its gate (k = 0 is the start line). The point is shared by the
+ * segment before it, so both stay joined; moving the start line also moves the end of the last segment.
+ */
+export function moveJoin(track: Track, line: Line, k: number, p: Vec2): Line {
+  const n = track.segments.length;
+  const q = projectToGate(track.segments[k]!.entry, p);
+  const segs = line.segs.slice();
+  const retarget = (i: number) => { const s = segs[i]; if (s && s.length) segs[i] = [...s.slice(0, -1), q]; };
+  if (k === 0) {
+    if (segs.length === n) retarget(n - 1);
+    return { start: q, segs };
+  }
+  retarget(k - 1);
+  return { start: line.start, segs };
+}
+
 /** Redraw the middle of an already drawn segment. Both joins stay where they are. */
 export function amendSegment(line: Line, i: number, inner: Vec2[]): Line {
   const segs = line.segs.map((s, k) => (k === i ? [...inner, s.at(-1)!] : s));

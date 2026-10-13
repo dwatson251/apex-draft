@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAX_AMENDS, Race, amendSegment, beginLine, botLine, changedSegments, defaultCar, drawSegment, generateTrack, isComplete,
+  MAX_AMENDS, Race, amendSegment, moveJoin, setSegment, beginLine, botLine, changedSegments, defaultCar, drawSegment, generateTrack, isComplete,
   validateLine, type Line, type Vec2,
 } from "@apex/sim";
 
@@ -36,5 +36,36 @@ describe("a whole game, the way the UI drives the sim", () => {
     const res = race.results();
     expect(res).toHaveLength(4);
     expect(res.every((r) => r.finishTime !== null && r.lapTimes.length === 3)).toBe(true);
+  });
+});
+
+describe("moving points that are already drawn", () => {
+  const t = generateTrack("brave-owl-rides-melons");
+  const guide = botLine(t, 5, 1);
+  const n = t.segments.length;
+
+  it("slides a join along its gate and keeps both neighbours joined", () => {
+    const moved = moveJoin(t, guide, 4, { x: guide.segs[3]!.at(-1)!.x + 3, y: guide.segs[3]!.at(-1)!.y + 3 });
+    const q = moved.segs[3]!.at(-1)!;
+    const g = t.segments[4]!.entry;
+    // still on the gate line
+    expect(Math.abs((q.x - g.mid.x) * g.dir.x + (q.y - g.mid.y) * g.dir.y)).toBeLessThan(1e-6);
+    expect(changedSegments(guide, moved)).toEqual([3]);
+  });
+
+  it("moves the start line and the end of the last segment together", () => {
+    const g0 = t.segments[0]!.entry;
+    const moved = moveJoin(t, guide, 0, { x: g0.mid.x + g0.n.x * 9, y: g0.mid.y + g0.n.y * 9 });
+    expect(moved.segs[n - 1]!.at(-1)).toEqual(moved.start);
+    expect(moved.start).not.toEqual(guide.start);
+    expect(changedSegments(guide, moved)).toEqual([n - 1]);
+  });
+
+  it("sets a segment's end node, which becomes the next segment's start", () => {
+    const g = t.segments[6]!.exit;
+    const end = { x: g.mid.x + g.n.x * 5, y: g.mid.y + g.n.y * 5 };
+    const next = setSegment(guide, 6, guide.segs[6]!.slice(0, -1), end, false);
+    expect(next.segs[6]!.at(-1)).toEqual(end);
+    expect(next.segs.length).toBe(n);
   });
 });

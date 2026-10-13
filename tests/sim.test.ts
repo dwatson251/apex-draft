@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  Rng, Race, botLine, buildProfile, checkTrack, defaultCar, generateTrack, normalizePhrase, parseLineFile,
+  Rng, Race, HARD_GAP, botLine, buildProfile, checkTrack, defaultCar, generateTrack, normalizePhrase, parseLineFile,
   phraseToSeed, randomPhrase, serializeLineFile, validateCar, validateLine, type Entrant,
 } from "@apex/sim";
 
@@ -62,18 +62,22 @@ describe("racing", () => {
     expect(res.every((x) => x.finishTime !== null && x.lapTimes.length === 2)).toBe(true);
     expect(res.map((x) => x.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
-  it("keeps cars apart", () => {
-    const r = new Race(t, entrants(t, 8), 2); r.runToEnd();
-    let min = Infinity;
-    for (let k = 0; k < r.tick; k++) {
-      for (let a = 0; a < r.cars.length; a++) for (let b = a + 1; b < r.cars.length; b++) {
-        const A = r.cars[a]!.trace, B = r.cars[b]!.trace;
-        const done = (c: (typeof r.cars)[number]) => c.finishTime !== null && k * (1 / 60) >= c.finishTime;
-        if (done(r.cars[a]!) || done(r.cars[b]!)) continue;
-        min = Math.min(min, Math.hypot(A[k * 3]! - B[k * 3]!, A[k * 3 + 1]! - B[k * 3 + 1]!));
+  it("never lets solid cars touch, and never needs the deadlock failsafe", () => {
+    let worst = Infinity;
+    for (const phrase of phrases(15)) {
+      const tr = generateTrack(phrase);
+      const r = new Race(tr, entrants(tr, 8), 3);
+      while (!r.over) {
+        r.step();
+        for (let a = 0; a < r.cars.length; a++) for (let b = a + 1; b < r.cars.length; b++) {
+          const A = r.cars[a]!, B = r.cars[b]!;
+          if (A.finishTime !== null || B.finishTime !== null || A.ghost || B.ghost) continue;
+          worst = Math.min(worst, Math.hypot(A.x - B.x, A.y - B.y));
+        }
       }
+      expect(r.cars.filter((c) => c.freeUntil > 0), phrase).toEqual([]);
     }
-    expect(min).toBeGreaterThan(3);
+    expect(worst).toBeGreaterThanOrEqual(HARD_GAP - 0.1);
   });
   it("gives the same car a different time against different rivals", () => {
     const solo = new Race(t, entrants(t, 1), 2); solo.runToEnd();
