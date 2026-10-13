@@ -1,0 +1,64 @@
+# A tag (v0.1.0-alpha.1, v1.0.0, ...) builds installers for Windows, Linux and macOS and publishes them as a
+# GitHub release. Tags with alpha/beta/rc are marked as pre-releases. Builds are unsigned.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      # The version in the app is the tag without its "v".
+      - run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
+        shell: bash
+      - run: npm run dist -- --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.zip
+            release/*.AppImage
+            release/*.tar.gz
+            release/*.dmg
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: Release notes from CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '/^## /{ if (on) exit; on = index($0, v) > 0; next } on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Apex Draft $v" > notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Apex Draft ${{ github.ref_name }}
+          body_path: notes.md
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: dist/**/*
+          fail_on_unmatched_files: true
