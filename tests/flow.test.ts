@@ -24,7 +24,7 @@ describe("a whole game, the way the UI drives the sim", () => {
 
     // amend three segments: the joins stay, so the lap stays closed
     let next = line;
-    for (const i of [2, 3, 4]) next = amendSegment(next, i, clicksFor(guide, i).filter((_, k) => k % 2 === 0 || k === 6).slice(0, -1));
+    for (const i of [2, 3, 4]) next = amendSegment(next, i, clicksFor(guide, i).slice(0, -1).map((q) => ({ x: q.x + 0.5, y: q.y })));
     expect(changedSegments(line, next)).toEqual([2, 3, 4]);
     expect(changedSegments(line, next).length).toBeLessThanOrEqual(MAX_AMENDS);
     expect(validateLine(t, next).ok).toBe(true);

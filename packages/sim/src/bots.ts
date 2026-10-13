@@ -80,14 +80,20 @@ const turn = (a: Vec2, b: Vec2, c: Vec2): number => {
 
 /** Drop inner waypoints that make the line double back on itself (sharp corners can leave one just past a gate). */
 function pruneKinks(start: Vec2, segs: Vec2[][]): Vec2[][] {
-  // first drop inner waypoints crowded up against the one before them
-  let prev = start;
-  const out = segs.map((s) => s.filter((p, k) => {
+  // first merge inner waypoints crowded up against the one before them (or the gate) into their midpoint
+  let prevEnd = start;
+  const out = segs.map((s) => {
     const gate = s[s.length - 1]!;
-    const keep = k === s.length - 1 || (Math.hypot(p.x - prev.x, p.y - prev.y) >= 7 && Math.hypot(p.x - gate.x, p.y - gate.y) >= 7);
-    if (keep) prev = p;
-    return keep;
-  }));
+    const kept: Vec2[] = [];
+    for (let k = 0; k < s.length - 1; k++) {
+      const p = s[k]!, ref = kept.at(-1) ?? prevEnd;
+      if (Math.hypot(p.x - ref.x, p.y - ref.y) < 7 && kept.length) kept[kept.length - 1] = { x: (ref.x + p.x) / 2, y: (ref.y + p.y) / 2 };
+      else if (Math.hypot(p.x - ref.x, p.y - ref.y) >= 7 && Math.hypot(p.x - gate.x, p.y - gate.y) >= 7) kept.push(p);
+    }
+    kept.push(gate);
+    prevEnd = gate;
+    return kept;
+  });
   const MAX_TURN = 1.0;
   for (let pass = 0; pass < 6; pass++) {
     let changed = false;

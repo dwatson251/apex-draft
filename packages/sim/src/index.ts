@@ -8,3 +8,5 @@ export * from "./profile.ts";
 export * from "./race.ts";
 export * from "./bots.ts";
 export * from "./lineFile.ts";
+export * from "./pit.ts";
+export * from "./pitpath.ts";

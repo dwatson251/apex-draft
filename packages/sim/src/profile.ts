@@ -1,5 +1,7 @@
 import { carStats, type CarConfig } from "./car.ts";
 import { lapCurve, type Line } from "./line.ts";
+import { PIT_SPEED } from "./pit.ts";
+import { applyPit } from "./pitpath.ts";
 import type { Track } from "./track.ts";
 import { dist } from "./vec.ts";
 
@@ -28,20 +30,44 @@ export interface Profile {
   ideal: number;
   /** powerup segments whose pickup the line drives through */
   pickups: number[];
+  /** curvature at each sample, 1/units */
+  kap: Float64Array;
+  /** inside the speed-limited part of the pit lane */
+  lane: Uint8Array;
+  /** where the car stops in its pit box, when this lap pits */
+  pitS?: number;
+  /** distance along the lap where the pit lane starts, when this lap pits */
+  pitFromS?: number;
 }
 
-export function buildProfile(track: Track, line: Line, car: CarConfig): Profile {
+export interface ProfileOpts {
+  /** this lap ends by driving into the pit lane */
+  pitIn?: boolean;
+  /** this lap starts by driving out of the pit lane */
+  pitOut?: boolean;
+  /** multiplies cornering grip: worn tyres */
+  grip?: number;
+  /** multiplies acceleration: a heavy tank */
+  accel?: number;
+}
+
+export function buildProfile(track: Track, line: Line, car: CarConfig, opts: ProfileOpts = {}): Profile {
   const st = carStats(car);
-  const dense = lapCurve(line, track.segments.length);
+  st.aLat *= opts.grip ?? 1;
+  const pitIn = !!opts.pitIn, pitOut = !!opts.pitOut;
+  const lapPit = applyPit(track, lapCurve(line, track.segments.length), pitIn, pitOut);
+  const dense = lapPit.dense;
   // cumulative length
   const cum = [0];
   for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1]! + dist(dense[i - 1]!.p, dense[i]!.p));
   const total = cum.at(-1)!;
+  const pitS = pitIn && lapPit.boxIdx >= 0 ? cum[lapPit.boxIdx]! : undefined;
   const n = Math.max(8, Math.round(total / DS));
   const ds = total / n;
   const x = new Float64Array(n);
   const y = new Float64Array(n);
   const seg = new Int32Array(n);
+  const lane = new Uint8Array(n);
   let j = 0;
   for (let i = 0; i < n; i++) {
     const s = i * ds;
@@ -53,6 +79,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig): Profile 
     x[i] = a.x + (b.x - a.x) * u;
     y[i] = a.y + (b.y - a.y) * u;
     seg[i] = dense[j + 1]!.seg;
+    lane[i] = lapPit.lane[j + 1] ? 1 : 0;
   }
   const h = new Float64Array(n);
   for (let i = 0; i < n; i++) {
@@ -62,7 +89,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig): Profile 
   }
 
   // power-ups: collected where the line passes through the pickup; they last to the end of that segment
-  const accelMul = new Float64Array(n).fill(1);
+  const accelMul = new Float64Array(n).fill(opts.accel ?? 1);
   const topMul = new Float64Array(n).fill(1);
   const gripMul = new Float64Array(n).fill(1);
   const ghost = new Uint8Array(n);
@@ -85,6 +112,9 @@ export function buildProfile(track: Track, line: Line, car: CarConfig): Profile 
 
   // speed limits: top speed and cornering grip, then braking ahead of slow parts (twice round, it is a loop)
   const vLim = new Float64Array(n);
+  const kap = new Float64Array(n);
+  // a lap that pits ends where the next one starts, not where it started: no corner at the join
+  const wrapBreak = pitIn !== pitOut;
   for (let i = 0; i < n; i++) {
     const a = (i + n - 3) % n;
     const b = (i + 3) % n;
@@ -93,7 +123,10 @@ export function buildProfile(track: Track, line: Line, car: CarConfig): Profile 
     const cx = x[b]! - x[a]!, cy = y[b]! - y[a]!;
     const area2 = Math.abs(ax * by - ay * bx);
     const kappa = (2 * area2) / Math.max(Math.hypot(ax, ay) * Math.hypot(bx, by) * Math.hypot(cx, cy), 1e-9);
-    vLim[i] = Math.min(st.vTop * topMul[i]!, Math.sqrt((st.aLat * gripMul[i]!) / Math.max(kappa, 1e-4)));
+    const kk = wrapBreak && (i < 4 || i >= n - 4) ? 0 : kappa;
+    kap[i] = kk;
+    vLim[i] = Math.min(st.vTop * topMul[i]!, Math.sqrt((st.aLat * gripMul[i]!) / Math.max(kk, 1e-4)));
+    if (lane[i]) vLim[i] = Math.min(vLim[i]!, PIT_SPEED);
   }
   for (let pass = 0; pass < 2; pass++) {
     for (let k = n - 1; k >= 0; k--) {
@@ -111,7 +144,9 @@ export function buildProfile(track: Track, line: Line, car: CarConfig): Profile 
   }
   let ideal = 0;
   for (let k = 0; k < n; k++) ideal += ds / Math.max((v[k]! + v[(k + 1) % n]!) / 2, 1);
-  return { n, ds, length: total, x, y, h, seg, vLim, accelMul, ghost, ideal, pickups };
+  let pitFromS: number | undefined;
+  if (pitIn) for (let i = 0; i < n; i++) if (lane[i] && i > n / 2) { pitFromS = i * ds; break; }
+  return { n, ds, length: total, x, y, h, seg, vLim, accelMul, ghost, ideal, pickups, kap, lane, pitS, pitFromS };
 }
 
 /** Linear lookup into a per-sample array at arclength s (wrapping). */

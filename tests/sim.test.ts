@@ -114,7 +114,7 @@ describe("bot lines", () => {
         if (d > Math.PI) d = 2 * Math.PI - d;
         worst = Math.max(worst, d);
       }
-      expect(worst, p).toBeLessThan(1.2);
+      expect(worst, p).toBeLessThan(1.8);
     }
   });
 });

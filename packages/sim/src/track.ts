@@ -1,5 +1,6 @@
 import { phraseToSeed, normalizePhrase } from "./seed.ts";
 import { Rng } from "./rng.ts";
+import { makePit, type Pit } from "./pit.ts";
 import { add, dist, distToSegment, lerp, mul, norm, perp, sub, v2, type Vec2 } from "./vec.ts";
 
 /** A grid cell is CELL units wide; the road is 2 * ROAD_HALF wide; the car is a disc of CAR_R. */
@@ -43,6 +44,9 @@ export interface Track {
   cols: number;
   rows: number;
   segments: Segment[];
+  /** the pit lane around the start line */
+  pit: Pit;
+  obstacles: boolean;
   /** "cx,cy" -> segment index */
   cellIndex: Map<string, number>;
 }
@@ -87,7 +91,7 @@ function makeGate(mid: Vec2, dir: Vec2): Gate {
   return { mid, dir, n: perp(dir) };
 }
 
-function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [number, number], next: [number, number], _total: number): Segment {
+function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [number, number], next: [number, number], total: number): Segment {
   const [cx, cy] = cell;
   const C = v2((cx + 0.5) * CELL, (cy + 0.5) * CELL);
   const toPrev = v2(prev[0] - cx, prev[1] - cy);
@@ -96,7 +100,9 @@ function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [nu
   const p2 = add(C, mul(toNext, CELL / 2));
   const straight = toPrev.x === -toNext.x && toPrev.y === -toNext.y;
   let kind: SegmentKind;
-  if (straight) kind = rng.chance(0.3) ? "bendy" : "straight";
+  // the two segments either side of the start line are plain straights, with the pit lane beside them
+  const pitStraight = index === 0 || index === total - 1;
+  if (straight) kind = rng.chance(0.3) && !pitStraight ? "bendy" : "straight";
   else kind = rng.chance(0.4) ? "sharp" : "corner";
 
   const center: Vec2[] = [];
@@ -126,7 +132,7 @@ function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [nu
     obstacles: [],
   };
   // The start/finish segment is kept clear.
-  if (index > 0 && rng.chance(0.4)) {
+  if (!pitStraight && rng.chance(0.4)) {
     const t = rng.range(0.35, 0.65);
     const o = rng.range(-0.25, 0.25) * ROAD_HALF;
     const r = rng.range(0.25, 0.4) * ROAD_HALF;
@@ -134,7 +140,7 @@ function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [nu
     const pos = add(c.p, mul(c.n, o));
     seg.obstacles.push({ kind: rng.chance(0.5) ? "box" : "water", x: pos.x, y: pos.y, r });
   }
-  if (index > 0 && rng.chance(0.22)) {
+  if (!pitStraight && rng.chance(0.22)) {
     const t = rng.range(0.25, 0.75);
     const c = centreAt(seg, t);
     const pos = add(c.p, mul(c.n, rng.range(-0.4, 0.4) * ROAD_HALF));
@@ -154,30 +160,52 @@ export function centreAt(seg: Segment, t: number): { p: Vec2; n: Vec2 } {
   return { p: lerp(seg.center[i]!, seg.center[i + 1]!, u), n: norm(lerp(seg.normals[i]!, seg.normals[i + 1]!, u)) };
 }
 
-/** The same phrase always gives the same track. */
-export function generateTrack(phrase: string): Track {
+export interface TrackOptions {
+  /** boxes and water; off leaves the same track with clear roads */
+  obstacles?: boolean;
+}
+
+/** The same phrase (and options) always give the same track. */
+export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
   const norm_ = normalizePhrase(phrase);
   const seed = phraseToSeed(norm_);
   const rng = new Rng(seed);
   const cols = 7;
   const rows = 5;
   const target = 2 * rng.int(5) + 14; // 14..22 cells, even
-  let cyc = growCycle(rng, cols, rows, target);
-  if (rng.chance(0.5)) cyc = [...cyc].reverse();
-  // rotate so segment 0 (start/finish) is a straight
+  let cyc: [number, number][] = [];
+  let candidates: number[] = [];
+  // the start line sits between two straight cells in a row, so the pit lane has room: grow again until one has
+  for (let attempt = 0; attempt < 80; attempt++) {
+    cyc = growCycle(rng, cols, rows, target);
+    if (rng.chance(0.5)) cyc = [...cyc].reverse();
+    const n = cyc.length;
+    const straightAt = (i: number) => {
+      const a = cyc[(i + n - 1) % n]!;
+      const c = cyc[(i + 1) % n]!;
+      return a[0] + c[0] === 2 * cyc[i]![0] && a[1] + c[1] === 2 * cyc[i]![1];
+    };
+    candidates = cyc.map((_, i) => i).filter((i) => straightAt(i) && straightAt((i + n - 1) % n));
+    if (candidates.length) break;
+  }
   const n = cyc.length;
-  const isStraight = (i: number) => {
-    const a = cyc[(i + n - 1) % n]!;
-    const c = cyc[(i + 1) % n]!;
-    return a[0] + c[0] === 2 * cyc[i]![0] && a[1] + c[1] === 2 * cyc[i]![1];
-  };
-  const candidates = cyc.map((_, i) => i).filter(isStraight);
   const startAt = candidates.length ? rng.pick(candidates) : 0;
   cyc = [...cyc.slice(startAt), ...cyc.slice(0, startAt)];
   const segments = cyc.map((cell, i) => buildSegment(rng, i, cell, cyc[(i + n - 1) % n]!, cyc[(i + 1) % n]!, n));
+  // the layout is drawn from the same random stream either way, so switching obstacles off keeps the track
+  if (opts.obstacles === false) for (const s of segments) s.obstacles = [];
+  const g = segments[0]!.entry;
+  const pit = makePit(g.mid, g.dir, g.n, rng.chance(0.5) ? 1 : -1);
   const cellIndex = new Map<string, number>();
   segments.forEach((s) => cellIndex.set(key(s.cx, s.cy), s.index));
-  return { phrase: norm_, seed, cols, rows, segments, cellIndex };
+  return { phrase: norm_, seed, cols, rows, segments, pit, obstacles: opts.obstacles !== false, cellIndex };
+}
+
+/** Length of one lap along the centreline, units. */
+export function trackLength(t: Track): number {
+  let len = 0;
+  for (const s of t.segments) for (let k = 0; k < s.center.length - 1; k++) len += dist(s.center[k]!, s.center[k + 1]!);
+  return len;
 }
 
 /** Structural rules from the brief: a closed loop of adjacent cells, no repeats, no dead ends. Returns problems. */
@@ -201,7 +229,9 @@ export function checkTrack(t: Track): string[] {
     }
   });
   if (n < 4 || n % 2) problems.push(`loop has ${n} cells`);
-  if (t.segments[0] && t.segments[0].kind !== "straight" && t.segments[0].kind !== "bendy") problems.push("start segment is a corner");
+  const first = t.segments[0], last = t.segments.at(-1);
+  if (first && last && (first.kind !== "straight" || last.kind !== "straight")) problems.push("the pit straight is not straight");
+  if (first && last && (first.entry.dir.x !== last.exit.dir.x || first.entry.dir.y !== last.exit.dir.y)) problems.push("the pit straight bends at the start line");
   return problems;
 }
 

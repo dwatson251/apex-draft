@@ -1,0 +1,96 @@
+import { describe, expect, it } from "vitest";
+import {
+  PIT_PENALTY, PIT_STOP_TIME, Race, Rng, TANK, TYRE_WEAR_PER_LAP, botLine, checkTrack, defaultCar, fuelPerLap, generateTrack,
+  randomPhrase, type Entrant,
+} from "@apex/sim";
+
+const phrases = (n: number, seed = 1) => Array.from({ length: n }, (_, i) => randomPhrase(new Rng(i + seed)));
+const field = (t: ReturnType<typeof generateTrack>, n: number, pit?: (i: number) => boolean[] | undefined): Entrant[] =>
+  Array.from({ length: n }, (_, i) => ({ id: `b${i}`, name: `B${i}`, car: defaultCar(), lines: [botLine(t, i + 1, 0.55 + 0.05 * i)], isPlayer: i === 0, pit: pit?.(i) }));
+
+describe("tracks with a pit lane", () => {
+  it("always have a clear straight either side of the start line", () => {
+    for (const p of phrases(300, 50)) expect(checkTrack(generateTrack(p)), p).toEqual([]);
+  });
+  it("keep the same layout with obstacles off", () => {
+    const a = generateTrack("quiet-fox-hugs-kites"), b = generateTrack("quiet-fox-hugs-kites", { obstacles: false });
+    expect(b.segments.every((s) => s.obstacles.length === 0)).toBe(true);
+    expect(b.segments.map((s) => [s.cx, s.cy, s.kind, s.powerup?.kind])).toEqual(a.segments.map((s) => [s.cx, s.cy, s.kind, s.powerup?.kind]));
+  });
+});
+
+describe("tyres and fuel", () => {
+  const t = generateTrack("brave-owl-rides-melons");
+  it("wear tyres by about the stated amount a lap, and burn about a third of a tank", () => {
+    const r = new Race(t, field(t, 1), 2); r.runLap("b0", 0);
+    const c = r.cars[0]!;
+    expect(1 - c.tyre).toBeGreaterThan(TYRE_WEAR_PER_LAP * 0.6);
+    expect(1 - c.tyre).toBeLessThan(TYRE_WEAR_PER_LAP * 1.5);
+    expect(c.fuel).toBeCloseTo(TANK - fuelPerLap(defaultCar()), -1);
+  });
+  it("slow the car as the tyres wear (grip changes at the start of each lap)", () => {
+    const worn = new Race(t, field(t, 1), 3); worn.cars[0]!.tyre = 0.05; worn.runToEnd();
+    const fresh = new Race(t, field(t, 1), 3); fresh.runToEnd();
+    expect(worn.results()[0]!.lapTimes[1]!).toBeGreaterThan(fresh.results()[0]!.lapTimes[1]! + 0.3);
+  });
+  it("can be switched off", () => {
+    const r = new Race(t, field(t, 2), 3, { realism: false }); r.runToEnd();
+    expect(r.cars.every((c) => c.fuel === TANK && c.tyre === 1 && c.pits === 0)).toBe(true);
+    expect(r.results().every((x) => x.penalty === 0 && !x.dnf)).toBe(true);
+  });
+});
+
+describe("pit stops", () => {
+  it("a lap with a stop is slower by roughly the stop plus the slow lane, and the car stops in its box", () => {
+    const t = generateTrack("brave-owl-rides-melons");
+    const plain = new Race(t, field(t, 1), 3); plain.runToEnd();
+    const pitted = new Race(t, field(t, 1, () => [true, false, false]), 3); pitted.runToEnd();
+    const p = pitted.cars[0]!;
+    expect(p.pits).toBe(1);
+    expect(p.fuel).toBeGreaterThan(TANK - 2 * fuelPerLap(defaultCar()) - 1);
+    const cost = pitted.cars[0]!.finishTime! - plain.cars[0]!.finishTime!;
+    expect(cost).toBeGreaterThan(PIT_STOP_TIME);
+    expect(cost).toBeLessThan(PIT_STOP_TIME + 5);
+    expect(pitted.events.filter((e) => e.type === "pitStart").length).toBe(1);
+    expect(pitted.events.filter((e) => e.type === "pitEnd").length).toBe(1);
+    const stopped = p.vtrace.filter((v, k) => v === 0 && p.ptrace[k] === 2).length;
+    expect(stopped / 60).toBeGreaterThanOrEqual(PIT_STOP_TIME - 0.1);
+  });
+  it("never pitting costs the penalty, pitting does not", () => {
+    const t = generateTrack("brave-owl-rides-melons");
+    const r = new Race(t, field(t, 2, (i) => (i === 0 ? [true, false, false] : undefined)), 3); r.runToEnd();
+    const res = r.results();
+    expect(res.find((x) => x.id === "b0")!.penalty).toBe(0);
+    expect(res.find((x) => x.id === "b1")!.penalty).toBe(PIT_PENALTY);
+  });
+  it("running dry retires the car in the pits, last, while the rest finish", () => {
+    const t = generateTrack("brave-owl-rides-melons");
+    const r = new Race(t, field(t, 4), 5); // five laps is more than a tank, and the player never pits
+    r.runToEnd();
+    const res = r.results();
+    const me = res.find((x) => x.id === "b0")!;
+    expect(me.dnf).toBe(true);
+    expect(res.at(-1)!.id).toBe("b0");
+    expect(res.filter((x) => !x.dnf).every((x) => x.pits >= 1)).toBe(true); // the bots pitted by themselves
+    expect(r.events.some((e) => e.id === "b0" && e.type === "dry")).toBe(true);
+    expect(r.events.some((e) => e.id === "b0" && e.type === "out")).toBe(true);
+  });
+  it("a full field with stops never touches and never needs the failsafe", () => {
+    let worst = Infinity;
+    for (const p of phrases(8, 300)) {
+      const t = generateTrack(p);
+      const r = new Race(t, field(t, 8, (i) => (i % 2 ? undefined : [false, true, false, false])), 4);
+      while (!r.over) {
+        r.step();
+        for (let a = 0; a < 8; a++) for (let b = a + 1; b < 8; b++) {
+          const A = r.cars[a]!, B = r.cars[b]!;
+          if (!(A.finishTime === null && !A.out && B.finishTime === null && !B.out) || A.ghost || B.ghost) continue;
+          worst = Math.min(worst, Math.hypot(A.x - B.x, A.y - B.y));
+        }
+      }
+      expect(r.cars.filter((c) => c.freeUntil > 0).map((c) => c.entrant.id), p).toEqual([]);
+      expect(r.cars.filter((c) => !c.out && c.finishTime === null), p).toEqual([]);
+    }
+    expect(worst).toBeGreaterThanOrEqual(7.9);
+  });
+});

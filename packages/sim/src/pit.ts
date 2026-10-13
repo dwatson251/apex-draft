@@ -1,0 +1,59 @@
+import { add, dot, mul, sub, v2, type Vec2 } from "./vec.ts";
+
+/** The pit lane runs alongside the two straights either side of the start line. Distances are along the road from
+ *  the start line (negative = before it) and across it, toward the pit side. */
+export const PIT_LAT = 36;
+export const PIT_HALF = 6;
+/** where the cars leave the road, drive at the lane speed, stop, and rejoin */
+export const PIT_ENTRY_A = -48;
+export const PIT_LANE_FROM = -30;
+export const PIT_LANE_TO = 30;
+export const PIT_EXIT_A = 48;
+export const PIT_BOX_A = -12;
+/** speed limit between a = -36 and a = +36, units/s */
+export const PIT_SPEED = 40;
+export const PIT_LIMIT_A = 36;
+/** seconds stopped in the box: tyres and fuel */
+export const PIT_STOP_TIME = 2;
+/** time added to a finish if the car never pitted (with tyres and fuel on) */
+export const PIT_PENALTY = 2 * PIT_STOP_TIME;
+
+export interface Pit {
+  /** the start line, middle of the road */
+  origin: Vec2;
+  /** direction of travel over the line */
+  dir: Vec2;
+  /** unit vector across the road toward the pit lane */
+  n: Vec2;
+  side: 1 | -1;
+}
+
+export function makePit(origin: Vec2, dir: Vec2, gateNormal: Vec2, side: 1 | -1): Pit {
+  return { origin, dir, n: mul(gateNormal, side), side };
+}
+
+export const along = (pit: Pit, p: Vec2): number => dot(sub(p, pit.origin), pit.dir);
+export const across = (pit: Pit, p: Vec2): number => dot(sub(p, pit.origin), pit.n);
+
+export function pitPoint(pit: Pit, a: number, lat: number): Vec2 {
+  return add(add(pit.origin, mul(pit.dir, a)), mul(pit.n, lat));
+}
+
+const smooth01 = (t: number) => { const u = Math.min(1, Math.max(0, t)); return u * u * (3 - 2 * u); };
+
+/** Lateral position of the pit lane's middle at `a`, as a blend from where the car was (`from`) into the lane. */
+export function laneIn(a: number, aFrom: number, from: number): number {
+  return from + (PIT_LAT - from) * smooth01((a - aFrom) / (PIT_LANE_FROM - aFrom));
+}
+/** ...and back out to `to` by the end of the exit ramp. */
+export function laneOut(a: number, to: number): number {
+  return PIT_LAT + (to - PIT_LAT) * smooth01((a - PIT_LANE_TO) / (PIT_EXIT_A - PIT_LANE_TO));
+}
+
+/** Centre of the lane for drawing, 0 where it has merged into the road. */
+export function laneCentre(a: number): number {
+  return a < PIT_LANE_FROM ? laneIn(a, PIT_ENTRY_A, 0) : a <= PIT_LANE_TO ? PIT_LAT : laneOut(a, 0);
+}
+
+export const pitBox = (pit: Pit): Vec2 => pitPoint(pit, PIT_BOX_A, PIT_LAT);
+export { v2 };
