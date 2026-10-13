@@ -33,6 +33,10 @@ export interface RaceCar {
   y: number;
   h: number;
   ghost: boolean;
+  /** ticks spent held up by another car while nearly stopped */
+  held: number;
+  /** until this tick the car ignores others (a failsafe against two cars waiting on each other) */
+  freeUntil: number;
   /** race times at which each lap began (the moment of crossing the line) */
   lapStart: number[];
   finishTime: number | null;
@@ -67,7 +71,7 @@ export class Race {
       const c: RaceCar = {
         entrant: e, slot, lap: slot === 0 ? 0 : -1,
         s: slot === 0 ? 0 : p0.length - GRID_GAP * slot, v: 0, x: 0, y: 0, h: 0,
-        ghost: false, lapStart: slot === 0 ? [0] : [], finishTime: null, trace: [], prog: [],
+        ghost: false, held: 0, freeUntil: 0, lapStart: slot === 0 ? [0] : [], finishTime: null, trace: [], prog: [],
       };
       this.place(c);
       this.cars.push(c);
@@ -124,16 +128,20 @@ export class Race {
       if (!c.ghost) {
         const hx = Math.cos(c.h), hy = Math.sin(c.h);
         for (const o of racing) {
-          if (o === c || o.ghost) continue;
+          if (o === c || o.ghost || c.freeUntil > this.tick) continue;
           const rx = o.x - c.x, ry = o.y - c.y;
           const along = rx * hx + ry * hy;
           if (along <= 0.5 || along > LOOK_AHEAD) continue;
           if (Math.abs(rx * hy - ry * hx) > LANE_WIDTH) continue;
+          if (Math.cos(o.h - c.h) < 0.3) continue; // not travelling the same way
           const vo = Math.max(0, o.v * Math.cos(o.h - c.h));
           target = Math.min(target, vo + Math.sqrt(2 * st.brake * Math.max(0, along - MIN_GAP)));
         }
       }
       let v = c.v;
+      if (c.v < 1 && target < 1 && sampleAt(p, p.vLim, c.s) > 5) {
+        if (++c.held > 90) { c.freeUntil = this.tick + 120; c.held = 0; }
+      } else c.held = 0;
       if (v > target) v = Math.max(target, v - st.brake * TICK);
       else v = Math.min(target, v + st.accel * p.accelMul[i]! * TICK);
       next.set(c, { v, s: c.s + v * TICK });

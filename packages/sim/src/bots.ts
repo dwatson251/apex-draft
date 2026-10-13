@@ -39,7 +39,7 @@ const position = (track: Track, w: Wp): Vec2 => {
  */
 export function botLine(track: Track, seed: number, skill: number): Line {
   const rng = new Rng(seed);
-  const build = (noise: number, iterations: number): Line | null => {
+  const build = (noise: number, iterations: number, prune = true): Line | null => {
     const wps: Wp[] = [];
     for (const s of track.segments) {
       for (const t of TS) {
@@ -65,12 +65,49 @@ export function botLine(track: Track, seed: number, skill: number): Line {
     const segs: Vec2[][] = [];
     let k = 0;
     for (const s of track.segments) { segs.push(pts.slice(k, k + TS.length)); k += TS.length; void s; }
-    const line: Line = { start, segs };
+    const line: Line = { start, segs: prune ? pruneKinks(start, segs) : segs };
     return validateLine(track, line).ok ? line : null;
   };
   const iterations = Math.round(8 + 60 * skill);
   const noise = (1 - skill) * 6;
-  return build(noise, iterations) ?? build(0, iterations) ?? build(0, 0) ?? fallbackLine(track);
+  return build(noise, iterations) ?? build(0, iterations) ?? build(0, iterations, false) ?? build(0, 0, false) ?? fallbackLine(track);
+}
+
+const turn = (a: Vec2, b: Vec2, c: Vec2): number => {
+  const u = sub(b, a), v = sub(c, b);
+  return Math.abs(Math.atan2(u.x * v.y - u.y * v.x, dot(u, v)));
+};
+
+/** Drop inner waypoints that make the line double back on itself (sharp corners can leave one just past a gate). */
+function pruneKinks(start: Vec2, segs: Vec2[][]): Vec2[][] {
+  // first drop inner waypoints crowded up against the one before them
+  let prev = start;
+  const out = segs.map((s) => s.filter((p, k) => {
+    const gate = s[s.length - 1]!;
+    const keep = k === s.length - 1 || (Math.hypot(p.x - prev.x, p.y - prev.y) >= 7 && Math.hypot(p.x - gate.x, p.y - gate.y) >= 7);
+    if (keep) prev = p;
+    return keep;
+  }));
+  const MAX_TURN = 1.0;
+  for (let pass = 0; pass < 6; pass++) {
+    let changed = false;
+    const flat: { si: number; ki: number; p: Vec2 }[] = [];
+    out.forEach((s, si) => s.forEach((p, ki) => flat.push({ si, ki, p })));
+    for (let i = flat.length - 2; i >= 0; i--) {
+      const cur = flat[i]!;
+      if (cur.ki === out[cur.si]!.length - 1) continue; // gates stay
+      const before = i > 0 ? flat[i - 1]!.p : start;
+      const after = flat[i + 1]!.p;
+      const beforeBefore = i > 1 ? flat[i - 2]!.p : start;
+      if (turn(before, cur.p, after) > MAX_TURN || (i > 0 && turn(beforeBefore, before, cur.p) > MAX_TURN)) {
+        out[cur.si]!.splice(cur.ki, 1);
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) break;
+  }
+  return out;
 }
 
 /** Centreline detouring around obstacles: always valid by construction of the track. */

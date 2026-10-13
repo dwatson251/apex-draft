@@ -98,3 +98,19 @@ describe("line files and cars", () => {
     expect(validateCar({ name: "x", accel: 10, top: 10, grip: 10, brake: 10 })).toMatch(/budget/);
   });
 });
+
+describe("bot lines", () => {
+  it("never reverse direction (a tight bend is fine, a cusp is not)", () => {
+    for (const p of phrases(40)) {
+      const t = generateTrack(p);
+      const prof = buildProfile(t, botLine(t, 3, 0.9), defaultCar());
+      let worst = 0;
+      for (let i = 0; i < prof.n; i++) {
+        let d = Math.abs(prof.h[(i + 1) % prof.n]! - prof.h[i]!);
+        if (d > Math.PI) d = 2 * Math.PI - d;
+        worst = Math.max(worst, d);
+      }
+      expect(worst, p).toBeLessThan(1.2);
+    }
+  });
+});

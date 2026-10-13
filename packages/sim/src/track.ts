@@ -76,9 +76,11 @@ function growCycle(rng: Rng, cols: number, rows: number, target: number): [numbe
   return cyc;
 }
 
-function bezier(p0: Vec2, c: Vec2, p2: Vec2, t: number): Vec2 {
+/** Cubic Bezier, so the road leaves and enters every gate square-on. */
+function bezier(p0: Vec2, c1: Vec2, c2: Vec2, p3: Vec2, t: number): Vec2 {
   const u = 1 - t;
-  return v2(u * u * p0.x + 2 * u * t * c.x + t * t * p2.x, u * u * p0.y + 2 * u * t * c.y + t * t * p2.y);
+  const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+  return v2(a * p0.x + b * c1.x + c * c2.x + d * p3.x, a * p0.y + b * c1.y + c * c2.y + d * p3.y);
 }
 
 function makeGate(mid: Vec2, dir: Vec2): Gate {
@@ -99,16 +101,18 @@ function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [nu
 
   const center: Vec2[] = [];
   const bendSign = rng.chance(0.5) ? 1 : -1;
-  const k = kind === "sharp" ? 0.7 : 0.15;
-  const ctrl = add(C, mul(add(toPrev, toNext), (CELL / 2) * k));
+  // handle length: 27.6 draws a quarter circle; longer handles squeeze the bend toward the cell corner
+  const handle = kind === "sharp" ? 36 : 27.6;
+  const c1 = add(p0, mul(toPrev, -handle));
+  const c2 = sub(p2, mul(toNext, handle));
   for (let i = 0; i <= SAMPLES; i++) {
     const t = i / SAMPLES;
     if (kind === "straight") center.push(lerp(p0, p2, t));
     else if (kind === "bendy") {
       const base = lerp(p0, p2, t);
       const n = perp(norm(sub(p2, p0)));
-      center.push(add(base, mul(n, bendSign * 12 * Math.sin(2 * Math.PI * t))));
-    } else center.push(bezier(p0, ctrl, p2, t));
+      center.push(add(base, mul(n, bendSign * 20 * Math.sin(2 * Math.PI * t) * Math.sin(Math.PI * t))));
+    } else center.push(bezier(p0, c1, c2, p2, t));
   }
   const normals = center.map((_, i) => {
     const a = center[Math.max(0, i - 1)]!;
