@@ -1,5 +1,8 @@
 import { Container, Graphics, Text } from "pixi.js";
-import { ROAD_HALF, Rng, centreAt, cross, dot, sub, type Segment, type Track, type Vec2 } from "@apex/sim";
+import {
+  PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LAT, PIT_LIMIT_A, PIT_SPEED, ROAD_HALF, Rng, centreAt, cross, dot, laneCentre, pitPoint, sub,
+  type Segment, type Track, type Vec2,
+} from "@apex/sim";
 
 /** Retro palette: flat colours, a few tones each, light from the top left. */
 export const PAL = {
@@ -64,7 +67,11 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   }
 
   // grandstands: the start straight on both sides, other straights on one side now and then
-  const sides: (1 | -1)[] = s.index === 0 ? [1, -1] : s.kind === "straight" && rng.chance(0.5) ? [rng.chance(0.5) ? 1 : -1] : [];
+  // (the pit lane takes the other side of the two straights beside the start line)
+  const pitSeg = s.index === 0 || s.index === track.segments.length - 1;
+  const sides: (1 | -1)[] = pitSeg
+    ? (s.index === 0 || rng.chance(0.5) ? [(-track.pit.side) as 1 | -1] : [])
+    : s.kind === "straight" && rng.chance(0.5) ? [rng.chance(0.5) ? 1 : -1] : [];
   for (const side of sides) root.addChild(stand(art, s, side, rng));
 
   // tarmac
@@ -121,6 +128,7 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   root.addChild(apex);
 
   if (s.index === 0) root.addChild(startLine(s));
+  if (pitSeg) root.addChild(pitArt(track, s.index === 0));
 
   // obstacles
   for (const o of s.obstacles) {
@@ -219,5 +227,76 @@ function startLine(s: Segment): Container {
     gantry.circle(p[0]!, p[1]!, 2.2).fill(0x14161c);
   }
   c.addChild(gantry);
+  return c;
+}
+
+const TEAM = [0xd8393a, 0x2f6fd0, 0xf2c744, 0x4fd28a, 0xe86bb5, 0xff9a3c];
+
+/** The pit lane and garages. Each of the two straights draws its own half, split at the start line. */
+function pitArt(track: Track, head: boolean): Container {
+  const c = new Container(), pit = track.pit;
+  const a0 = head ? 0 : PIT_ENTRY_A, a1 = head ? PIT_EXIT_A : 0;
+  const P = (a: number, lat: number) => pitPoint(pit, a, lat);
+  const angle = Math.atan2(pit.dir.y, pit.dir.x);
+
+  const lane = new Graphics();
+  const left: number[] = [], right: number[] = [];
+  for (let a = a0; a <= a1; a += 2) {
+    const m = laneCentre(a);
+    const l = P(a, m + PIT_HALF), r = P(a, m - PIT_HALF);
+    left.push(l.x, l.y); right.unshift(r.x, r.y);
+  }
+  lane.poly([...left, ...right]).fill(0x44474f);
+  // white line on the outer edge, dashes between the lane and the road
+  const edge = (offset: number, dashed: boolean, color: number, alpha: number) => {
+    for (let a = a0; a < a1; a += 2) {
+      if (dashed && Math.floor((a - a0) / 2) % 2) continue;
+      const p = P(a, laneCentre(a) + offset), q = P(a + 2, laneCentre(a + 2) + offset);
+      lane.moveTo(p.x, p.y).lineTo(q.x, q.y);
+    }
+    lane.stroke({ width: 0.9, color, alpha });
+  };
+  edge(PIT_HALF, false, PAL.paint, 0.9);
+  edge(-PIT_HALF, true, PAL.paint, 0.75);
+  c.addChild(lane);
+
+  // the box the cars stop in, and a speed-limit roundel at the start of the lane
+  const marks = new Graphics();
+  if (PIT_BOX_A >= a0 && PIT_BOX_A <= a1) {
+    const pts = [[-6, -4.5], [6, -4.5], [6, 4.5], [-6, 4.5]].map(([da, dl]) => P(PIT_BOX_A + da!, PIT_LAT + dl!));
+    marks.poly(pts.flatMap((p) => [p.x, p.y])).stroke({ width: 0.9, color: 0xf2c744 });
+  }
+  c.addChild(marks);
+  const sign = -PIT_LIMIT_A + 4;
+  if (sign >= a0 && sign <= a1) {
+    const p = P(sign, PIT_LAT);
+    const g = new Container();
+    g.addChild(new Graphics().circle(0, 0, 4.2).fill({ color: 0xf1f1ee, alpha: 0.9 }).stroke({ width: 1, color: 0xd8393a }));
+    const t = new Text({ text: String(PIT_SPEED), style: { fontSize: 5.4, fill: 0x14161c, fontWeight: "700" } });
+    t.anchor.set(0.5);
+    g.addChild(t);
+    g.position.set(p.x, p.y); g.rotation = angle;
+    c.addChild(g);
+  }
+  const word = head ? 18 : -34;
+  if (word >= a0 && word <= a1) {
+    const p = P(word, PIT_LAT);
+    const t = new Text({ text: "PIT", style: { fontSize: 7, fill: 0xf1f1ee, fontWeight: "700", letterSpacing: 1.5 } });
+    t.anchor.set(0.5); t.alpha = 0.6; t.rotation = angle + Math.PI / 2; t.position.set(p.x, p.y);
+    c.addChild(t);
+  }
+
+  // garages along the outer edge
+  const gar = new Graphics();
+  for (let k = 0; k < 6; k++) {
+    const ga = -31.5 + k * 10.5;
+    if ((ga >= 0) !== head) continue;
+    const q = (da: number, dl: number) => P(ga + da, dl);
+    const poly = (dl0: number, dl1: number) => [q(0, dl0), q(9, dl0), q(9, dl1), q(0, dl1)].flatMap((p) => [p.x, p.y]);
+    gar.poly(poly(PIT_LAT + PIT_HALF + 1.5, PIT_LAT + PIT_HALF + 8)).fill(0x5c6272).stroke({ width: 0.7, color: 0x343845 });
+    gar.poly(poly(PIT_LAT + PIT_HALF + 1.5, PIT_LAT + PIT_HALF + 3.5)).fill(TEAM[k % TEAM.length]!);
+    gar.poly(poly(PIT_LAT + PIT_HALF + 5, PIT_LAT + PIT_HALF + 8)).fill({ color: 0xffffff, alpha: 0.12 });
+  }
+  c.addChild(gar);
   return c;
 }

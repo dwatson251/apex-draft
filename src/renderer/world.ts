@@ -1,5 +1,6 @@
 import { Application, Container, Graphics, RenderTexture, Sprite } from "pixi.js";
-import { CELL, ROAD_HALF, trackBounds, type Track, type Vec2 } from "@apex/sim";
+import { CELL, ROAD_HALF, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
+import { buildCar, type CarShape } from "./cars.ts";
 import { buildGround, MARGIN_CELLS } from "./scenery.ts";
 import { Sky } from "./sky.ts";
 import { buildSegmentArt, type SegmentArt } from "./trackart.ts";
@@ -25,7 +26,7 @@ const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 5;
 type CamMode = "overview" | "focus" | "follow";
 
-interface CarView { root: Container; body: Container; shadow: Graphics; brake: Graphics }
+type CarView = CarShape;
 
 /** Pixi side: draws the track and its surroundings, lines and cars, runs the camera, and maps the pointer to world units. */
 export class WorldView {
@@ -38,6 +39,7 @@ export class WorldView {
   private skidSprite = new Sprite();
   private lines = new Graphics();
   private carsLayer = new Container();
+  private crew = new Graphics();
   private skidTex: RenderTexture | null = null;
   private skidBrush = new Graphics();
   private arts = new Map<number, SegmentArt>();
@@ -54,7 +56,7 @@ export class WorldView {
   private clock = 0;
 
   constructor(readonly app: Application) {
-    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.highlight, this.skidSprite, this.sky.shadows, this.lines, this.carsLayer, this.sky.air);
+    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.highlight, this.skidSprite, this.sky.shadows, this.lines, this.carsLayer, this.crew, this.sky.air);
     app.stage.addChild(this.root);
     app.renderer.on("resize", () => this.applyCamera());
     this.setBounds(700, 500);
@@ -311,30 +313,33 @@ export class WorldView {
   }
 
   // ---------- cars ----------
-  setCar(id: string, x: number, y: number, h: number, color: number, ghost: boolean, isPlayer: boolean, braking: boolean): void {
+  setCar(id: string, type: VehicleId | undefined, x: number, y: number, h: number, color: number, ghost: boolean, isPlayer: boolean, braking: boolean, hidden = false): void {
     let c = this.cars.get(id);
     if (!c) {
-      const root = new Container(), body = new Container();
-      const shadow = new Graphics().roundRect(-5, -3, 10, 6, 1.5).fill({ color: 0x000000, alpha: 0.32 });
-      const hull = new Graphics()
-        .roundRect(-5, -3, 10, 6, 1.6).fill(color).stroke({ width: isPlayer ? 1.4 : 0.7, color: isPlayer ? 0xffffff : 0x14161c });
-      hull.rect(-4.2, -0.7, 8.4, 1.4).fill({ color: 0xffffff, alpha: 0.5 });
-      hull.roundRect(0.4, -2.2, 2.6, 4.4, 0.8).fill(0x14161c);
-      for (const [wx, wy] of [[-3.4, -3.4], [2.6, -3.4], [-3.4, 3.4], [2.6, 3.4]] as const) hull.rect(wx - 1, wy - 0.6, 2, 1.2).fill(0x14161c);
-      const brake = new Graphics().rect(-5.2, -2.6, 0.9, 1.6).rect(-5.2, 1, 0.9, 1.6).fill(0xff2a2a);
-      brake.visible = false;
-      body.addChild(hull, brake);
-      root.addChild(shadow, body);
-      this.carsLayer.addChild(root);
-      c = { root, body, shadow, brake };
+      c = buildCar(type ?? "rally", color, isPlayer);
+      this.carsLayer.addChild(c.root);
       this.cars.set(id, c);
     }
+    c.root.visible = !hidden;
     c.root.position.set(x, y);
     c.body.rotation = h;
     c.shadow.position.set(1.6, 2.2);
     c.shadow.rotation = h;
     c.brake.visible = braking;
     c.root.alpha = ghost ? 0.4 : 1;
+  }
+
+  /** Four mechanics around a car in its box. */
+  setCrew(p: { x: number; y: number; h: number } | null): void {
+    const g = this.crew.clear();
+    if (!p) return;
+    const t = this.clock * 9;
+    for (const [da, dl, col] of [[-3.6, -5.2, 0xffcf3f], [3.6, -5.2, 0x4fd2ff], [-3.6, 5.2, 0xff6a3d], [3.6, 5.2, 0xffffff]] as const) {
+      const wob = Math.sin(t + da) * 0.7;
+      const x = p.x + Math.cos(p.h) * da - Math.sin(p.h) * (dl + wob), y = p.y + Math.sin(p.h) * da + Math.cos(p.h) * (dl + wob);
+      g.circle(x + 0.5, y + 0.8, 1.7).fill({ color: 0x000000, alpha: 0.3 });
+      g.circle(x, y, 1.7).fill(col).stroke({ width: 0.4, color: 0x14161c });
+    }
   }
 
   clearCars(): void { this.carsLayer.removeChildren().forEach((c) => c.destroy({ children: true })); this.cars.clear(); }

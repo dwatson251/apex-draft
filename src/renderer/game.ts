@@ -1,9 +1,9 @@
 import type { Application } from "pixi.js";
 import {
-  CAR_BUDGET, CELL, MAX_AMENDS, Race, Rng, STATS, STAT_MAX, STAT_MIN, beginLine, botLine, carCost, carStats, changedSegments,
-  defaultCar, distToSegment, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
-  previewSegment, projectToGate, randomPhrase, serializeLineFile, setSegment, smooth, validateCar, validateLine,
-  type CarConfig, type Entrant, type Line, type LineFile, type RaceCar, type Stat, type Track, type Vec2,
+  CAR_BUDGET, CELL, MAX_AMENDS, PIT_PENALTY, PIT_STOP_TIME, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
+  defaultCar, distToSegment, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
+  phraseToSeed, previewSegment, projectToGate, randomPhrase, serializeLineFile, setSegment, smooth, validateCar, validateLine, vehicleForSeed,
+  type CarConfig, type Entrant, type Line, type LineFile, type RaceCar, type ShareState, type Stat, type Track, type Vec2, type VehicleId,
 } from "@apex/sim";
 import { CarAudio } from "./audio.ts";
 import { load, save, type Best, type Settings } from "./store.ts";
@@ -41,7 +41,7 @@ interface DrawState {
 interface Motion { v: number; acc: number; slip: number; braking: boolean }
 
 export class Game {
-  private settings: Settings = { phrase: "", laps: 3, mode: "race", rivals: 5, car: defaultCar() };
+  private settings: Settings = { phrase: "", laps: 3, mode: "race", rivals: 5, car: defaultCar(), realism: true, obstacles: true };
   private cars: CarConfig[] = [];
   private best: Best = {};
   private imported: LineFile[] = [];
@@ -61,6 +61,14 @@ export class Game {
   private audio = new CarAudio();
   private skidTick = 0;
   private clock = 0;
+  /** pit[lap]: the player drives into the pits at the end of that lap */
+  private pitPlan: boolean[] = [];
+  private eventIdx = 0;
+  /** the machines for this track's race day */
+  private vehicle: VehicleId = "rally";
+  /** what the share link remembers of the drawing */
+  private shareLine: Line | undefined;
+  private inGame = false;
   /** a drag that pans the overview, or turns out to be a click */
   private pan: { lx: number; ly: number; sx: number; sy: number; moved: boolean; button: number; world: Vec2 } | null = null;
 
@@ -68,11 +76,14 @@ export class Game {
 
   async start(): Promise<void> {
     this.settings = { ...this.settings, ...(await load<Partial<Settings>>("settings", {})) };
+    if (typeof this.settings.realism !== "boolean") this.settings.realism = true;
+    if (typeof this.settings.obstacles !== "boolean") this.settings.obstacles = true;
     if (!this.settings.phrase) this.settings.phrase = randomPhrase(new Rng((Math.random() * 2 ** 32) >>> 0));
     this.cars = await load<CarConfig[]>("cars", []);
     this.best = await load<Best>("best", {});
     this.version = (await window.apex?.version()) ?? "dev";
     this.audio.setMuted(!!this.settings.muted);
+    this.audio.setMusic(!this.settings.musicOff);
     const c = this.app.canvas;
     c.addEventListener("pointerdown", (e) => this.onPointerDown(e));
     c.addEventListener("pointermove", (e) => this.onPointerMove(e));
@@ -92,7 +103,33 @@ export class Game {
       else if (e.key === "Backspace" || (e.key === "z" && (e.ctrlKey || e.metaKey))) this.undo();
     });
     this.app.ticker.add((t) => this.onFrame(t.deltaMS / 1000));
-    this.showMenu();
+    // a link brings back the track, the settings and however much of the lap was drawn, never a race in progress
+    const link = this.readLink();
+    if (link?.playing) this.startGame(link.line ?? null, true);
+    else this.showMenu();
+  }
+
+  // ---------- share link ----------
+  private readLink(): ShareState | null {
+    const raw = location.hash.replace(/^#/, "");
+    if (!raw) return null;
+    const st = decodeShare(raw);
+    if (typeof st === "string") { this.note = `That link did not work: ${st}`; return null; }
+    const car: CarConfig = { name: st.car.name || "Standard", accel: st.car.accel, top: st.car.top, grip: st.car.grip, brake: st.car.brake };
+    Object.assign(this.settings, { phrase: st.phrase, laps: st.laps, mode: st.mode, rivals: st.rivals, realism: st.realism, obstacles: st.obstacles, car: validateCar(car) ? defaultCar() : car });
+    return st;
+  }
+
+  /** Keep the address in step with what is on screen: the track and settings, and the segments drawn so far. */
+  private syncHash(): void {
+    const s = this.settings;
+    try {
+      const code = encodeShare({
+        phrase: s.phrase, laps: s.laps, mode: s.mode, rivals: s.rivals, car: s.car, obstacles: s.obstacles, realism: s.realism,
+        playing: this.inGame, line: this.inGame ? this.shareLine : undefined,
+      });
+      history.replaceState(null, "", `#${code}`);
+    } catch { /* an address bar is a convenience */ }
   }
 
   // ---------- UI helpers ----------
@@ -103,7 +140,7 @@ export class Game {
   private on(el: HTMLElement, sel: string, fn: () => void): void {
     el.querySelector(sel)?.addEventListener("click", fn);
   }
-  private persist(): void { void save("settings", this.settings); }
+  private persist(): void { void save("settings", this.settings); this.syncHash(); }
   private toggleMute(): void {
     this.settings.muted = !this.audio.isMuted();
     this.audio.setMuted(this.settings.muted);
@@ -115,12 +152,13 @@ export class Game {
   // ---------- menu ----------
   private showMenu(): void {
     this.draw = null; this.pick = null; this.play = null; this.race = undefined;
+    this.inGame = false; this.shareLine = undefined;
     this.audio.stopAll();
     this.view.showBackdrop();
     this.view.sky.setActive(true);
     const s = this.settings;
     const phrase = normalizePhrase(s.phrase);
-    const bestKey = `${phrase}:${s.laps}`;
+    const bestKey = this.bestKey(phrase);
     const matching = this.imported.filter((f) => f.phrase === phrase);
     const el = this.show("center", `
       <h1>APEX <span>DRAFT</span></h1>
@@ -132,15 +170,25 @@ export class Game {
         <div><label>Mode</label><select id="mode"><option value="trial" ${s.mode === "trial" ? "selected" : ""}>Time trial</option><option value="race" ${s.mode === "race" ? "selected" : ""}>Race rivals</option></select></div>
         <div ${s.mode === "trial" ? 'style="display:none"' : ""}><label>Rivals</label><select id="rivals">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<option ${n === s.rivals ? "selected" : ""}>${n}</option>`).join("")}</select></div>
       </div>
+      <p class="dim">Race day: <b>${esc(VEHICLES[vehicleForSeed(phraseToSeed(phrase))].plural)}</b>. ${esc(VEHICLES[vehicleForSeed(phraseToSeed(phrase))].blurb)}</p>
+      <div class="checks">
+        <label><input type="checkbox" id="realism" ${s.realism ? "checked" : ""}/> Realism: tyre wear, fuel and pit stops</label>
+        <label><input type="checkbox" id="obstacles" ${s.obstacles ? "checked" : ""}/> Obstacles: boxes and water</label>
+      </div>
       <p class="dim">Car: <b>${esc(s.car.name)}</b> (${carCost(s.car)}/${CAR_BUDGET} points)
         ${s.mode === "race" ? `· Imported rival lines for this track: <b>${matching.length}</b>` : ""}
         ${this.best[bestKey] ? `· Best: <b>${fmt(this.best[bestKey])}</b>` : ""}</p>
       <p class="bad">${esc(this.note)}</p>
-      <button class="primary" id="go">Start</button><button id="garage">Garage</button><button id="import">Import rival lines…</button><button id="mute">${s.muted ? "Sound off" : "Sound on"}</button>
+      <button class="primary" id="go">Start</button><button id="garage">Garage</button><button id="import">Import rival lines…</button><button id="mute">${s.muted ? "Sound off" : "Sound on"}</button><button id="music">${s.musicOff ? "Music off" : "Music on"}</button>
       <p class="dim" style="margin-top:12px">v${esc(this.version)} · Click to place points. Drag any point to move it, start and end nodes included. Right-click a point to delete it. <kbd>Enter</kbd> finishes a segment, <kbd>Backspace</kbd> undoes, <kbd>M</kbd> mutes.</p>`);
     this.note = "";
+    this.syncHash();
     const input = el.querySelector<HTMLInputElement>("#phrase")!;
     input.addEventListener("input", () => { s.phrase = input.value; });
+    input.addEventListener("change", () => { s.phrase = input.value; this.persist(); this.showMenu(); });
+    el.querySelector("#realism")!.addEventListener("change", (e) => { s.realism = (e.target as HTMLInputElement).checked; this.persist(); });
+    el.querySelector("#obstacles")!.addEventListener("change", (e) => { s.obstacles = (e.target as HTMLInputElement).checked; this.persist(); });
+    this.on(el, "#music", () => { s.musicOff = !s.musicOff; this.audio.unlock(); this.audio.setMusic(!s.musicOff); this.persist(); this.showMenu(); });
     el.querySelector("#laps")!.addEventListener("change", (e) => { s.laps = Number((e.target as HTMLSelectElement).value); this.persist(); this.showMenu(); });
     el.querySelector("#mode")!.addEventListener("change", (e) => { s.mode = (e.target as HTMLSelectElement).value as Settings["mode"]; this.persist(); this.showMenu(); });
     el.querySelector("#rivals")?.addEventListener("change", (e) => { s.rivals = Number((e.target as HTMLSelectElement).value); this.persist(); });
@@ -155,6 +203,12 @@ export class Game {
       this.audio.unlock(); // a click is the moment the browser lets sound start
       this.startGame();
     });
+  }
+
+  /** Times only compare with times set under the same rules. */
+  private bestKey(phrase: string): string {
+    const s = this.settings;
+    return `${phrase}:${s.laps}:${s.realism ? "r" : "x"}${s.obstacles ? "o" : "c"}`;
   }
 
   private async importLines(phrase: string): Promise<void> {
@@ -177,6 +231,7 @@ export class Game {
     const el = this.show("center", `
       <h2>Garage</h2>
       <p class="dim">Spend up to ${CAR_BUDGET} points. Every stat helps somewhere and costs somewhere else.</p>
+      <p class="dim">For <b>${esc(this.settings.phrase)}</b> the field is <b>${esc(VEHICLES[vehicleForSeed(phraseToSeed(normalizePhrase(this.settings.phrase)))].plural)}</b>, and your levels are scaled to suit. ${esc(VEHICLES[vehicleForSeed(phraseToSeed(normalizePhrase(this.settings.phrase)))].blurb)}</p>
       <label>Name</label><input id="name" type="text" value="${esc(car.name)}" maxlength="30" />
       <div style="margin-top:10px">${STATS.map((st) => `
         <div class="stat"><b>${STAT_LABEL[st]}</b><button data-s="${st}" data-d="-1">−</button>
@@ -209,17 +264,37 @@ export class Game {
   }
 
   // ---------- a game ----------
-  private startGame(): void {
+  /** `resume`: the drawing a share link brought back, in which case the race itself starts from scratch. */
+  private startGame(resume: Line | null = null, fromLink = false): void {
     const s = this.settings;
-    this.track = generateTrack(s.phrase);
+    this.track = generateTrack(s.phrase, { obstacles: s.obstacles });
     const carErr = validateCar(s.car);
     if (carErr) { this.note = `Car: ${carErr}`; this.showMenu(); return; }
+    this.vehicle = vehicleForSeed(this.track.seed);
     this.rivalEntrants = s.mode === "trial" ? [] : this.makeRivals();
     this.race = undefined;
+    this.pitPlan = [];
+    this.eventIdx = 0;
+    this.pick = null;
     this.view.setTrack(this.track);
     this.view.resetCamera();
-    this.beginLapDraw();
+    this.inGame = true;
+    const n = this.track.segments.length;
+    const line = resume && resume.segs.length <= n && resume.start ? resume : null;
+    this.shareLine = line ?? undefined;
+    this.syncHash();
+    void fromLink;
+    if (line && line.segs.length === n) { this.currentLine = line; this.lapNo = 0; this.showPicker(null); }
+    else if (line && line.segs.length > 0) {
+      this.lapNo = 0;
+      this.view.sky.setActive(false);
+      this.draw = { mode: "lap", line, seg: line.segs.length, pts: [], end: null, queue: [], drag: null, warn: "" };
+      this.renderDraw();
+    } else this.beginLapDraw();
   }
+
+  /** What the player drives: their own stats in this track's kind of machine. */
+  private playerCar(): CarConfig { return { ...this.settings.car, type: this.vehicle }; }
 
   private makeRivals(): Entrant[] {
     const s = this.settings;
@@ -228,11 +303,11 @@ export class Game {
     const files = this.imported.filter((f) => f.phrase === this.track.phrase).slice(0, s.rivals);
     files.forEach((f, i) => {
       const lines = f.lines.filter((l) => isComplete(this.track, l) && validateLine(this.track, l).ok);
-      if (lines.length) out.push({ id: `file${i}`, name: f.name, car: f.car, lines });
+      if (lines.length) out.push({ id: `file${i}`, name: f.name, car: { ...f.car, type: f.car.type ?? this.vehicle }, lines });
     });
     const names = [...RIVAL_NAMES];
     for (let i = out.length; i < s.rivals; i++) {
-      const car: CarConfig = { name: "Bot", accel: 6, top: 6, grip: 6, brake: 6 };
+      const car: CarConfig = { name: "Bot", accel: 6, top: 6, grip: 6, brake: 6, type: this.vehicle };
       for (let k = 0; k < 8; k++) {
         const from = rng.pick(STATS.filter((x) => car[x] > 3));
         const to = rng.pick(STATS.filter((x) => car[x] < 9 && x !== from));
@@ -430,6 +505,8 @@ export class Game {
       d.seg--;
       d.pts = prev.slice(0, -1);
       d.end = prev.at(-1)!;
+      this.shareLine = d.line;
+      this.syncHash();
     } else if (d.mode === "lap" && d.seg === 0 && d.line) d.line = null;
     this.renderDraw();
   }
@@ -445,6 +522,8 @@ export class Game {
       d.line = setSegment(d.line!, d.seg, d.pts, end, true);
       d.pts = []; d.end = null;
       d.seg++;
+      this.shareLine = d.line;
+      this.syncHash();
       if (d.seg >= n) { this.draw = null; this.finishedLine(d.line); return; }
     } else {
       const candidate = setSegment(d.line!, d.seg, d.pts, end, false);
@@ -458,6 +537,8 @@ export class Game {
       }
       d.line = candidate;
       d.pts = [];
+      this.shareLine = candidate;
+      this.syncHash();
       const next = d.queue.shift();
       if (next === undefined) { this.draw = null; this.finishedLine(d.line); return; }
       d.seg = next;
@@ -470,6 +551,8 @@ export class Game {
 
   private finishedLine(line: Line): void {
     this.currentLine = line;
+    this.shareLine = line;
+    this.syncHash();
     this.showPicker(null);
   }
 
@@ -499,18 +582,37 @@ export class Game {
     this.view.drawTrack(this.track, { visibleUpTo: null, selected: sel, bad });
     this.view.drawCurves([{ pts: lapCurve(line, this.track.segments.length).map((x) => x.p), color: PLAYER_COLOR, width: 3 }]);
     if (this.race) this.drawCarsAt(this.race.tick);
-    const lapsLeft = this.settings.laps - this.lapNo;
+    // the lap about to be raced (lapNo is the one just finished)
+    const next = firstLap ? 0 : this.lapNo + 1;
+    const lapsLeft = this.settings.laps - next;
     const tooMany = !firstLap && changed.length > MAX_AMENDS;
+    const real = this.settings.realism;
+    const me = this.race?.cars.find((c) => c.entrant.id === ME);
+    const fuel = me ? me.fuel : TANK, tyre = me ? me.tyre : 1;
+    const perLap = fuelPerLap(this.playerCar());
+    const canPit = real && next < this.settings.laps - 1;
+    const planned = !!this.pitPlan[next];
+    const dryThisLap = real && !planned && fuel < perLap * 1.03;
+    const dryLater = real && !planned && !dryThisLap && fuel - perLap < perLap * 1.03 * Math.max(0, lapsLeft - 1);
+    const pitPanel = !real ? "" : `
+      <div class="gauge"><span>Fuel</span><b><i class="${fuel < perLap * 1.5 ? "low" : ""}" style="width:${Math.round(fuel)}%"></i></b><em>${Math.round(fuel)}%</em></div>
+      <div class="gauge"><span>Tyres</span><b><i class="${tyre < 0.4 ? "low" : ""}" style="width:${Math.round(tyre * 100)}%"></i></b><em>${Math.round(tyre * 100)}%</em></div>
+      <p class="dim">A lap uses about ${Math.round(perLap)}% fuel and ${Math.round(100 * 0.14 * (0.8 + 0.04 * this.settings.car.grip) * VEHICLES[this.vehicle].wear)}% of the tyres.</p>
+      ${dryThisLap ? '<p class="bad">Not enough fuel to finish this lap. Pit, or the car retires in the pits and finishes last.</p>' : dryLater ? '<p class="bad">You will run dry before the end. You need a stop.</p>' : ""}
+      ${canPit ? `<label class="check"><input type="checkbox" id="pit" ${planned ? "checked" : ""}/> Pit at the end of this lap (${PIT_STOP_TIME}s: fresh tyres and a full tank)</label>` : '<p class="dim">No stop on the final lap.</p>'}
+      ${!planned && (me?.pits ?? 0) === 0 && lapsLeft > 0 ? `<p class="dim">Finishing without a single stop adds ${PIT_PENALTY.toFixed(1)}s.</p>` : ""}`;
     const el = this.show("side", `
-      <h2>${firstLap ? "Your line" : `Lap ${this.lapNo + 1} of ${this.settings.laps}`}</h2>
+      <h2>${firstLap ? "Your line" : `Lap ${next + 1} of ${this.settings.laps}`}</h2>
       ${check.ok ? '<p class="good">Your line is clear all the way round.</p>' : `<p class="bad">The line leaves the road or hits something in the red segments. Select them and edit.</p>`}
-      <p class="dim">${firstLap ? "Click segments on the map to edit them, or race." : `You can change up to ${MAX_AMENDS} segments before lap ${this.lapNo + 1}. Click segments on the map to select them.`}</p>
+      <p class="dim">${firstLap ? "Click segments on the map to edit them, or race. Scroll to zoom, drag to pan." : `You can change up to ${MAX_AMENDS} segments before lap ${next + 1}. Click segments on the map to select them. Scroll to zoom, drag to pan.`}</p>
+      ${pitPanel}
       <p>${limit === Infinity ? `Selected: <b>${sel.size}</b>` : `Segments changed or selected: <b class="${used > limit ? "bad" : ""}">${used}</b> / ${limit}`}</p>
       ${tooMany ? `<p class="bad">Too many segments changed. Revert and try again.</p>` : ""}
       ${message ? `<p class="bad">${esc(message)}</p>` : ""}
       <button id="redraw" ${sel.size ? "" : "disabled"}>Edit selected</button>
       ${!firstLap && changed.length ? '<button id="revert">Revert changes</button>' : ""}
-      <button class="primary" id="race" ${check.ok && !tooMany ? "" : "disabled"}>${firstLap ? "Race!" : lapsLeft === 1 ? "Final lap!" : `Race lap ${this.lapNo + 1}`}</button>`);
+      <button class="primary" id="race" ${check.ok && !tooMany ? "" : "disabled"}>${firstLap ? "Race!" : lapsLeft === 1 ? "Final lap!" : `Race lap ${next + 1}`}</button>`);
+    el.querySelector("#pit")?.addEventListener("change", (e) => { this.pitPlan[next] = (e.target as HTMLInputElement).checked; this.showPicker(this.pickMessage); });
     this.on(el, "#redraw", () => {
       const queue = [...sel].sort((a, b) => a - b);
       const first = queue.shift()!;
@@ -519,14 +621,14 @@ export class Game {
       this.draw = { mode: "amend", line, seg: first, pts: line.segs[first]!.slice(0, -1), end: line.segs[first]!.at(-1)!, queue, drag: null, warn: "" };
       this.renderDraw();
     });
-    this.on(el, "#revert", () => { this.currentLine = this.me.lines[this.lapNo]!; this.pick = null; this.showPicker(null); });
+    this.on(el, "#revert", () => { this.currentLine = this.me.lines[this.lapNo]!; this.shareLine = this.currentLine; this.syncHash(); this.pick = null; this.showPicker(null); });
     this.on(el, "#race", () => { this.pick = null; if (firstLap) this.startRace(); else this.nextLap(); });
   }
 
   // ---------- racing ----------
   private startRace(): void {
-    this.me = { id: ME, name: "You", car: { ...this.settings.car }, lines: [this.currentLine], isPlayer: true };
-    this.race = new Race(this.track, [this.me, ...this.rivalEntrants], this.settings.laps);
+    this.me = { id: ME, name: "You", car: this.playerCar(), lines: [this.currentLine], isPlayer: true, pit: this.pitPlan };
+    this.race = new Race(this.track, [this.me, ...this.rivalEntrants], this.settings.laps, { realism: this.settings.realism });
     this.lapNo = 0;
     this.view.clearSkids();
     this.skidTick = 0;
@@ -542,8 +644,12 @@ export class Game {
   private runAndPlay(fromTick: number): void {
     const race = this.race!;
     race.runLap(ME, this.lapNo);
-    if (this.lapNo >= this.settings.laps - 1) race.runToEnd();
+    const mine = race.cars.find((c) => c.entrant.id === ME)!;
+    // the last lap, or the player is out of fuel and parked in the pits: let everyone else finish
+    if (this.lapNo >= this.settings.laps - 1 || mine.out) race.runToEnd();
     this.play = { tick: fromTick, end: race.tick, speed: 1 };
+    const first = race.events.findIndex((e) => e.tick >= fromTick);
+    this.eventIdx = first < 0 ? race.events.length : first;
     this.skidTick = fromTick;
     this.view.drawTrack(this.track, { visibleUpTo: null });
     this.view.drawCurves([{ pts: lapCurve(this.currentLine, this.track.segments.length).map((x) => x.p), color: PLAYER_COLOR, width: 1.5, alpha: 0.3 }]);
@@ -576,7 +682,7 @@ export class Game {
   private drawCarsAt(tick: number): void {
     for (const c of this.race!.cars) {
       const k = Math.min(tick, c.trace.length / 3 - 1);
-      this.view.setCar(c.entrant.id, c.trace[k * 3]!, c.trace[k * 3 + 1]!, c.trace[k * 3 + 2]!, this.colorOf(c.entrant.id), c.gtrace[k] === 1, c.entrant.id === ME, this.motion(c, k).braking);
+      this.view.setCar(c.entrant.id, c.entrant.car.type, c.trace[k * 3]!, c.trace[k * 3 + 1]!, c.trace[k * 3 + 2]!, this.colorOf(c.entrant.id), c.gtrace[k] === 1, c.entrant.id === ME, this.motion(c, k).braking || c.ptrace[k] === 2, c.ptrace[k] === 3);
     }
   }
 
@@ -612,7 +718,8 @@ export class Game {
       const i = Math.min(k, c.trace.length / 3 - 1), m = this.motion(c, i);
       const x = c.trace[i * 3]!, y = c.trace[i * 3 + 1]!, isMe = c.entrant.id === ME;
       const vol = isMe ? 1 : 0.8 / (1 + Math.hypot(x - fx, y - fy) / 45);
-      this.audio.update(c.entrant.id, { speed: m.v, accel: m.acc, slip: m.slip, vol, pan: (x - fx) / 160 }, isMe);
+      if (c.ptrace[i] === 3) { this.audio.hush(c.entrant.id); continue; }
+      this.audio.update(c.entrant.id, c.entrant.car.type, { speed: m.v, accel: m.acc, slip: m.slip, vol, pan: (x - fx) / 160 }, isMe);
     }
   }
 
@@ -629,9 +736,18 @@ export class Game {
     this.updateSkids(k);
     const me = race.cars.find((c) => c.entrant.id === ME)!;
     const mi = Math.min(k, me.trace.length / 3 - 1);
-    const meDone = me.finishTime !== null && me.finishTime <= now;
+    const meDone = (me.finishTime !== null && me.finishTime <= now) || me.ptrace[mi] === 3;
     // slowly in on the player, and back out to the whole track once they finish
     this.view.setFollow(meDone ? null : { x: me.trace[mi * 3]!, y: me.trace[mi * 3 + 1]! });
+    this.view.setCrew(me.ptrace[mi] === 2 ? { x: me.trace[mi * 3]!, y: me.trace[mi * 3 + 1]!, h: me.trace[mi * 3 + 2]! } : null);
+    // the crowd as you go past the line, the wheel guns in your box, the radio when you are let go
+    while (this.eventIdx < race.events.length && race.events[this.eventIdx]!.tick <= k) {
+      const ev = race.events[this.eventIdx++]!;
+      if (ev.id !== ME || p.speed > 1) continue;
+      if (ev.type === "cross") this.audio.cheer();
+      else if (ev.type === "pitStart") this.audio.drill(PIT_STOP_TIME);
+      else if (ev.type === "pitEnd") this.audio.goGoGo();
+    }
     this.updateAudio(k, now, p.speed);
 
     const standing = [...race.cars].map((c) => {
@@ -642,7 +758,7 @@ export class Game {
     // the buttons are built once: replacing them every frame would swallow clicks
     let el = this.ui.querySelector<HTMLElement>(".panel.top");
     if (!el) {
-      el = this.show("top", `<h2 id="hud-head"></h2><table id="hud-table"></table>
+      el = this.show("top", `<h2 id="hud-head"></h2><div id="hud-gauges"></div><div id="hud-status"></div><table id="hud-table"></table>
         <button id="speed"></button><button id="skip">Skip</button><button id="mute"></button>`);
       this.on(el, "#speed", () => { const q = this.play; if (q) q.speed = q.speed === 1 ? 3 : q.speed === 3 ? 8 : 1; });
       this.on(el, "#skip", () => { const q = this.play; if (q) q.tick = q.end; });
@@ -651,13 +767,20 @@ export class Game {
     const set = (sel: string, html: string) => { const n = el!.querySelector(sel); if (n && n.innerHTML !== html) n.innerHTML = html; };
     set("#hud-head", `Lap ${lap} / ${this.settings.laps} <span class="dim">${fmt(now)}</span>`);
     set("#hud-table", standing.map(({ c }, i) => `<tr class="${c.entrant.id === ME ? "me" : ""}"><td>${i + 1}</td><td><span style="color:${hex(this.colorOf(c.entrant.id))}">■</span> ${esc(c.entrant.name)}</td></tr>`).join(""));
+    if (this.settings.realism) {
+      const fuel = me.ftrace[mi] ?? 100, tyre = me.ttrace[mi] ?? 1, per = fuelPerLap(this.playerCar());
+      set("#hud-gauges", `<div class="gauge"><span>Fuel</span><b><i class="${fuel < per * 0.5 ? "low" : ""}" style="width:${Math.round(fuel)}%"></i></b><em>${Math.round(fuel)}%</em></div>
+        <div class="gauge"><span>Tyres</span><b><i class="${tyre < 0.4 ? "low" : ""}" style="width:${Math.round(tyre * 100)}%"></i></b><em>${Math.round(tyre * 100)}%</em></div>`);
+      const code = me.ptrace[mi];
+      set("#hud-status", code === 3 ? '<p class="bad">Out of fuel: parked in the pits</p>' : fuel <= 0 ? '<p class="bad">Out of fuel! Limping to the pits</p>' : code === 2 ? '<p class="good">In the pits…</p>' : code === 1 ? '<p class="dim">Pit lane: speed limit</p>' : fuel < per * 0.5 ? '<p class="bad">Fuel low</p>' : "");
+    }
     set("#speed", `${p.speed}×`);
     set("#mute", this.audio.isMuted() ? "Sound off" : "Sound on");
     if (p.tick >= p.end) {
       this.play = null;
       this.drawCarsAt(p.end);
       this.audio.stopAll();
-      if (race.over || this.lapNo >= this.settings.laps - 1) this.showResults();
+      if (race.over || this.lapNo >= this.settings.laps - 1 || me.out) this.showResults();
       else this.showPicker(null);
     }
   }
@@ -667,25 +790,29 @@ export class Game {
     const race = this.race!;
     const res = race.results();
     const mine = res.find((r) => r.isPlayer)!;
-    const key = `${this.track.phrase}:${this.settings.laps}`;
+    const key = this.bestKey(this.track.phrase);
     let record = "";
-    if (mine.finishTime !== null && (this.best[key] === undefined || mine.finishTime < this.best[key]!)) {
+    if (!mine.dnf && mine.finishTime !== null && (this.best[key] === undefined || mine.finishTime < this.best[key]!)) {
       this.best[key] = mine.finishTime;
       void save("best", this.best);
-      record = '<p class="good">New best time for this track!</p>';
+      record = '<p class="good">New best time for this track and these rules!</p>';
     }
     const trial = this.settings.mode === "trial";
+    const title = mine.dnf ? "Out of fuel" : trial ? "Time trial" : mine.position === 1 ? "You won!" : `You finished P${mine.position}`;
+    const when = (r: (typeof res)[number]) => (r.dnf ? "DNF" : fmt(r.finishTime) + (r.penalty ? ` <span class="bad">+${r.penalty.toFixed(1)}</span>` : ""));
     const el = this.show("center", `
-      <h2>${trial ? "Time trial" : mine.position === 1 ? "You won!" : `You finished P${mine.position}`}</h2>
-      <p class="dim">${esc(this.track.phrase)} · ${this.settings.laps} lap(s)</p>${record}
-      <table><tr><th>#</th><th>Driver</th><th class="num">Time</th><th class="num">Best lap</th></tr>
-      ${res.map((r) => `<tr class="${r.isPlayer ? "me" : ""}"><td>${r.position}</td><td>${esc(r.name)}</td><td class="num">${fmt(r.finishTime)}</td><td class="num">${fmt(r.lapTimes.length ? Math.min(...r.lapTimes) : null)}</td></tr>`).join("")}</table>
+      <h2>${title}</h2>
+      <p class="dim">${esc(this.track.phrase)} · ${this.settings.laps} lap(s) · ${esc(VEHICLES[this.vehicle].plural)}${this.settings.realism ? "" : " · no tyres or fuel"}${this.settings.obstacles ? "" : " · no obstacles"}</p>${record}
+      ${mine.dnf ? "<p class=\"bad\">The tank ran dry and the car was pushed into the garage. It counts as last.</p>" : ""}
+      ${mine.penalty ? `<p class="bad">+${mine.penalty.toFixed(1)}s because you never stopped in the pits.</p>` : ""}
+      <table><tr><th>#</th><th>Driver</th><th class="num">Stops</th><th class="num">Time</th><th class="num">Best lap</th></tr>
+      ${res.map((r) => `<tr class="${r.isPlayer ? "me" : ""}"><td>${r.position}</td><td>${esc(r.name)}</td><td class="num">${r.pits}</td><td class="num">${when(r)}</td><td class="num">${fmt(r.lapTimes.length ? Math.min(...r.lapTimes) : null)}</td></tr>`).join("")}</table>
       <p class="dim">Your laps: ${mine.lapTimes.map(fmt).join(" · ")}</p>
       <button class="primary" id="again">Race again</button><button id="export">Save my lines</button><button id="menu">Menu</button>`);
     this.on(el, "#menu", () => this.showMenu());
     this.on(el, "#again", () => { this.audio.unlock(); this.startGame(); });
     this.on(el, "#export", () => {
-      const text = serializeLineFile({ phrase: this.track.phrase, name: "Player", car: this.settings.car, lines: this.me.lines });
+      const text = serializeLineFile({ phrase: this.track.phrase, name: "Player", car: this.playerCar(), lines: this.me.lines });
       void saveFile(`${this.track.phrase}-${this.settings.laps}laps`, text);
     });
     // the camera is already easing back out to the whole track
