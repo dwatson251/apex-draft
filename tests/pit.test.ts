@@ -94,3 +94,52 @@ describe("pit stops", () => {
     expect(worst).toBeGreaterThanOrEqual(7.9);
   });
 });
+
+import { VEHICLES, VEHICLE_IDS, carStats, vehicleForSeed, parseLineFile, serializeLineFile } from "@apex/sim";
+
+describe("vehicle classes", () => {
+  it("are picked by the phrase, the same every time, with every class turning up", () => {
+    const seen = new Set<string>();
+    for (const p of phrases(200, 900)) {
+      const t = generateTrack(p);
+      expect(vehicleForSeed(t.seed)).toBe(vehicleForSeed(generateTrack(p).seed));
+      seen.add(vehicleForSeed(t.seed));
+    }
+    expect([...seen].sort()).toEqual([...VEHICLE_IDS].sort());
+  });
+  it("drive like what they are", () => {
+    const t = generateTrack("brave-owl-rides-melons");
+    const lap = (type: (typeof VEHICLE_IDS)[number]) => {
+      const car = { ...defaultCar(), type };
+      const r = new Race(t, [{ id: "x", name: "x", car, lines: [botLine(t, 3, 1)], isPlayer: true }], 2, { realism: false });
+      r.runToEnd();
+      return r.results()[0]!.lapTimes[1]!;
+    };
+    const times = Object.fromEntries(VEHICLE_IDS.map((id) => [id, lap(id)]));
+    expect(times["formula"]).toBeLessThan(times["rally"]!);
+    expect(times["rally"]).toBeLessThan(times["truck"]!);
+    expect(times["truck"]).toBeLessThan(times["tank"]!);
+    // the kart is slow on the straights but quick in the bends: a lower top speed, better grip than the rally car
+    expect(carStats({ ...defaultCar(), type: "kart" }).vTop).toBeLessThan(carStats(defaultCar()).vTop);
+    expect(carStats({ ...defaultCar(), type: "kart" }).aLat).toBeGreaterThan(carStats(defaultCar()).aLat);
+    expect(VEHICLES.tank.wear).toBeLessThan(VEHICLES.formula.wear);
+    expect(VEHICLES.tank.fuel).toBeGreaterThan(VEHICLES.kart.fuel);
+  });
+  it("burn fuel and wear tyres at their own rate", () => {
+    const t = generateTrack("brave-owl-rides-melons");
+    const used = (type: (typeof VEHICLE_IDS)[number]) => {
+      const car = { ...defaultCar(), type };
+      const r = new Race(t, [{ id: "x", name: "x", car, lines: [botLine(t, 3, 1)], isPlayer: true }], 2);
+      r.runLap("x", 0);
+      return { fuel: TANK - r.cars[0]!.fuel, wear: 1 - r.cars[0]!.tyre };
+    };
+    expect(used("kart").fuel).toBeLessThan(used("rally").fuel);
+    expect(used("tank").fuel).toBeGreaterThan(used("rally").fuel);
+    expect(used("formula").wear).toBeGreaterThan(used("kart").wear);
+  });
+  it("travel in line files", () => {
+    const t = generateTrack("quiet-fox-hugs-kites");
+    const back = parseLineFile(serializeLineFile({ phrase: t.phrase, name: "me", car: { ...defaultCar(), type: "tank" }, lines: [botLine(t, 1, 1)] }));
+    expect(typeof back === "object" && back.car.type).toBe("tank");
+  });
+});

@@ -19,6 +19,11 @@ export interface Skid { x0: number; y0: number; x1: number; y1: number; alpha: n
 /** How far the camera zooms in on the player, as a multiple of the fit-to-window zoom. */
 const FOLLOW_ZOOM = 2.4;
 const SKID_RES = 3;
+/** Countryside shown around the course in the overview, units. */
+const BACKGROUND = 70;
+const MIN_ZOOM = 0.6;
+const MAX_ZOOM = 5;
+type CamMode = "overview" | "focus" | "follow";
 
 interface CarView { root: Container; body: Container; shadow: Graphics; brake: Graphics }
 
@@ -41,6 +46,10 @@ export class WorldView {
   private cars = new Map<string, CarView>();
   private size = { w: 700, h: 500 };
   private cam = { zoom: 1, x: 350, y: 250 };
+  private user = { zoom: 1, x: 350, y: 250 };
+  private mode: CamMode = "overview";
+  private focusRect: { x: number; y: number; w: number; h: number } | null = null;
+  private panelPx = 160;
   private followPt: Vec2 | null = null;
   private clock = 0;
 
@@ -57,18 +66,32 @@ export class WorldView {
   setBounds(w: number, h: number): void {
     this.size = { w, h };
     this.sky.setBounds(w, h);
-    this.cam.x = w / 2; this.cam.y = h / 2;
+    this.mode = "overview";
+    this.focusRect = null;
+    this.user = { zoom: 1, x: w / 2, y: h / 2 };
+    this.cam = { zoom: 1, x: w / 2, y: h / 2 };
+    this.panelPx = this.panelFor("overview");
     this.applyCamera();
   }
 
-  private applyCamera(): void {
+  /** Scale that fits the whole course plus a little countryside around it. */
+  private baseScale(): number {
     const W = this.app.screen.width, H = this.app.screen.height, pad = 24;
-    const base = Math.min((W - 2 * pad) / this.size.w, (H - 2 * pad) / this.size.h);
-    // make room for the side panel when looking at the whole map, but not when close in on a car
-    const panel = W > 1000 ? 160 * Math.min(1, Math.max(0, 2 - this.cam.zoom)) : 0;
-    const s = base * this.cam.zoom;
+    return Math.min((W - 2 * pad) / (this.size.w + 2 * BACKGROUND), (H - 2 * pad) / (this.size.h + 2 * BACKGROUND));
+  }
+
+  /** Pixels on the right that the panels cover, so the view is centred on what is left. */
+  private panelFor(mode: CamMode): number {
+    const W = this.app.screen.width;
+    if (W <= 1000) return 0;
+    return mode === "overview" ? 160 : mode === "focus" ? 340 : 0;
+  }
+
+  private applyCamera(): void {
+    const W = this.app.screen.width, H = this.app.screen.height;
+    const s = this.baseScale() * this.cam.zoom;
     this.root.scale.set(s);
-    this.root.position.set((W - panel) / 2 - this.cam.x * s, H / 2 - this.cam.y * s);
+    this.root.position.set((W - this.panelPx) / 2 - this.cam.x * s, H / 2 - this.cam.y * s);
   }
 
   toWorld(clientX: number, clientY: number): Vec2 {
@@ -77,36 +100,97 @@ export class WorldView {
   }
 
   // ---------- camera ----------
-  /** Follow this point with a slow zoom in; null zooms back out to the whole track. */
-  setFollow(p: Vec2 | null): void { this.followPt = p; }
-  /** Straight back to the default view. */
-  resetCamera(): void {
+  get cameraMode(): CamMode { return this.mode; }
+
+  /** The whole course, which the player may zoom and pan. Coming from another mode eases back to the default view. */
+  setOverview(): void {
+    if (this.mode === "overview") return;
+    this.mode = "overview";
     this.followPt = null;
-    this.cam = { zoom: 1, x: this.size.w / 2, y: this.size.h / 2 };
+    this.focusRect = null;
+    this.user = { zoom: 1, x: this.size.w / 2, y: this.size.h / 2 };
+  }
+
+  /** Fill the screen with this rectangle (the segment being edited). Calling it again glides to the new one. */
+  setFocus(r: { x: number; y: number; w: number; h: number }): void {
+    this.mode = "focus";
+    this.followPt = null;
+    this.focusRect = r;
+  }
+
+  /** Follow this point with a slow zoom in; null zooms back out to the whole track. */
+  setFollow(p: Vec2 | null): void {
+    if (p) { this.mode = "follow"; this.focusRect = null; this.followPt = p; }
+    else if (this.mode === "follow") this.setOverview();
+  }
+
+  /** Straight back to the default overview. */
+  resetCamera(): void {
+    this.mode = "overview";
+    this.followPt = null;
+    this.focusRect = null;
+    this.user = { zoom: 1, x: this.size.w / 2, y: this.size.h / 2 };
+    this.cam = { ...this.user };
+    this.panelPx = this.panelFor("overview");
     this.applyCamera();
   }
+
   /** Skip the easing (screenshots, tests). */
   snapCamera(): void {
-    if (!this.followPt) return;
-    this.cam = { zoom: FOLLOW_ZOOM, x: this.followPt.x, y: this.followPt.y };
+    if (this.followPt) this.cam = { zoom: FOLLOW_ZOOM, x: this.followPt.x, y: this.followPt.y };
+    else if (this.focusRect) { const t = this.focusTarget(); this.cam = { ...t }; }
+    this.panelPx = this.panelFor(this.mode);
     this.applyCamera();
+  }
+
+  private focusTarget(): { zoom: number; x: number; y: number } {
+    const r = this.focusRect!, W = this.app.screen.width, H = this.app.screen.height, pad = 40;
+    const s = Math.min((W - this.panelFor("focus") - 2 * pad) / r.w, (H - 2 * pad) / r.h);
+    return { zoom: s / this.baseScale(), x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  }
+
+  /** Overview only: wheel zoom, keeping the point under the cursor where it is. */
+  zoomBy(factor: number, clientX: number, clientY: number): void {
+    if (this.mode !== "overview") return;
+    const u = this.user, base = this.baseScale(), rect = this.app.canvas.getBoundingClientRect();
+    const ox = clientX - rect.left - (this.app.screen.width - this.panelPx) / 2, oy = clientY - rect.top - this.app.screen.height / 2;
+    const wx = u.x + ox / (base * u.zoom), wy = u.y + oy / (base * u.zoom);
+    u.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, u.zoom * factor));
+    u.x = wx - ox / (base * u.zoom); u.y = wy - oy / (base * u.zoom);
+    this.clampUser();
+  }
+
+  /** Overview only: drag to pan, by pixels on screen. */
+  panBy(dxPx: number, dyPx: number): void {
+    if (this.mode !== "overview") return;
+    const u = this.user, k = this.baseScale() * u.zoom;
+    u.x -= dxPx / k; u.y -= dyPx / k;
+    this.clampUser();
+  }
+
+  private clampUser(): void {
+    const u = this.user, m = BACKGROUND + 60;
+    u.x = Math.min(this.size.w + m, Math.max(-m, u.x));
+    u.y = Math.min(this.size.h + m, Math.max(-m, u.y));
   }
 
   update(dt: number): void {
     this.clock += dt;
     const c = this.cam, cx = this.size.w / 2, cy = this.size.h / 2;
-    if (this.followPt) {
+    const ease = (to: { zoom: number; x: number; y: number }, rate: number) => {
+      const k = 1 - Math.exp(-dt * rate);
+      c.zoom += (to.zoom - c.zoom) * k; c.x += (to.x - c.x) * k; c.y += (to.y - c.y) * k;
+    };
+    if (this.mode === "follow" && this.followPt) {
       c.zoom += (FOLLOW_ZOOM - c.zoom) * (1 - Math.exp(-dt * 0.55));
       // glide from the middle of the map to the car as the zoom comes in
-      const prog = Math.min(1, (c.zoom - 1) / (FOLLOW_ZOOM - 1));
+      const prog = Math.min(1, Math.max(0, (c.zoom - 1) / (FOLLOW_ZOOM - 1)));
       const wx = cx + (this.followPt.x - cx) * prog, wy = cy + (this.followPt.y - cy) * prog;
       const k = 1 - Math.exp(-dt * 7);
       c.x += (wx - c.x) * k; c.y += (wy - c.y) * k;
-    } else {
-      const k = 1 - Math.exp(-dt * 1.4);
-      c.zoom += (1 - c.zoom) * k; c.x += (cx - c.x) * k; c.y += (cy - c.y) * k;
-      if (Math.abs(c.zoom - 1) < 0.003) { c.zoom = 1; c.x = cx; c.y = cy; }
-    }
+    } else if (this.mode === "focus" && this.focusRect) ease(this.focusTarget(), 4.5);
+    else ease(this.user, 7);
+    this.panelPx += (this.panelFor(this.mode) - this.panelPx) * (1 - Math.exp(-dt * 5));
     this.applyCamera();
     // crowd bobs, pick-ups pulse
     const frame = Math.floor(this.clock * 3) % 2 === 1;

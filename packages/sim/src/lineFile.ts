@@ -1,4 +1,5 @@
 import { validateCar, type CarConfig } from "./car.ts";
+import { isVehicleId } from "./vehicles.ts";
 import type { Line } from "./line.ts";
 import { normalizePhrase } from "./seed.ts";
 
@@ -45,5 +46,5 @@ export function parseLineFile(text: string): LineFile | string {
     }
     lines.push({ start: { x: l.start[0], y: l.start[1] }, segs });
   }
-  return { v: raw.v, phrase: normalizePhrase(raw.phrase), name: raw.name.slice(0, 40), car: { name: String(car.name).slice(0, 40), accel: car.accel, top: car.top, grip: car.grip, brake: car.brake }, lines };
+  return { v: raw.v, phrase: normalizePhrase(raw.phrase), name: raw.name.slice(0, 40), car: { name: String(car.name).slice(0, 40), accel: car.accel, top: car.top, grip: car.grip, brake: car.brake, ...(isVehicleId(car.type) ? { type: car.type } : {}) }, lines };
 }

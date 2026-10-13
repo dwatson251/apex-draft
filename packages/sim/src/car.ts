@@ -1,3 +1,5 @@
+import { vehicleOf, type VehicleId } from "./vehicles.ts";
+
 export type Stat = "accel" | "top" | "grip" | "brake";
 export const STATS: readonly Stat[] = ["accel", "top", "grip", "brake"];
 export const STAT_MIN = 1;
@@ -11,6 +13,8 @@ export interface CarConfig {
   top: number;
   grip: number;
   brake: number;
+  /** what it is: set from the track's seed. Plain stats mean a rally car. */
+  type?: VehicleId;
 }
 
 export const defaultCar = (): CarConfig => ({ name: "Standard", accel: 6, top: 6, grip: 6, brake: 6 });
@@ -39,5 +43,6 @@ export interface CarStats {
 }
 
 export function carStats(c: CarConfig): CarStats {
-  return { accel: 30 + 6 * c.accel, vTop: 70 + 8 * c.top, aLat: 40 + 10 * c.grip, brake: 60 + 10 * c.brake };
+  const v = vehicleOf(c.type);
+  return { accel: (30 + 6 * c.accel) * v.accel, vTop: (70 + 8 * c.top) * v.top, aLat: (40 + 10 * c.grip) * v.grip, brake: (60 + 10 * c.brake) * v.brake };
 }

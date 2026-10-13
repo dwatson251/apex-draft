@@ -1,4 +1,5 @@
 import { carStats, type CarConfig } from "./car.ts";
+import { vehicleOf } from "./vehicles.ts";
 import type { Line } from "./line.ts";
 import { PIT_PENALTY, PIT_STOP_TIME } from "./pit.ts";
 import { buildProfile, indexAt, sampleAt, type Profile } from "./profile.ts";
@@ -37,7 +38,7 @@ const STOP_TICKS = Math.round(PIT_STOP_TIME * 60);
 
 /** Fuel one lap costs this car, in tank units: the standard car uses TANK / FUEL_LAPS. */
 export function fuelPerLap(car: CarConfig): number {
-  return (TANK / FUEL_LAPS) * ((0.85 + 0.025 * (car.accel + car.top)) / 1.15);
+  return (TANK / FUEL_LAPS) * ((0.85 + 0.025 * (car.accel + car.top)) / 1.15) * vehicleOf(car.type).fuel;
 }
 
 export interface RaceRules {
@@ -165,7 +166,7 @@ export class Race {
         ghost: false, stuck: 0, ghostFor: 0, powered: false, freeUntil: 0, lapStart: slot === 0 ? [0] : [], finishTime: null,
         trace: [], prog: [], vtrace: [], gtrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, limp: false, out: false, outProg: 0,
-        needProf: false, prof: p0, perUnit: fuelPerLap(e.car) / this.lapLen, wearMul: 0.8 + 0.04 * e.car.grip,
+        needProf: false, prof: p0, perUnit: fuelPerLap(e.car) / this.lapLen, wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
       };
       if (slot === 0) this.startLap(c);
       this.place(c);

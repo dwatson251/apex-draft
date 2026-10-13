@@ -10,3 +10,5 @@ export * from "./bots.ts";
 export * from "./lineFile.ts";
 export * from "./pit.ts";
 export * from "./pitpath.ts";
+export * from "./vehicles.ts";
+export * from "./share.ts";

@@ -61,6 +61,8 @@ export class Game {
   private audio = new CarAudio();
   private skidTick = 0;
   private clock = 0;
+  /** a drag that pans the overview, or turns out to be a click */
+  private pan: { lx: number; ly: number; sx: number; sy: number; moved: boolean; button: number; world: Vec2 } | null = null;
 
   constructor(private app: Application, private view: WorldView, private ui: HTMLElement) {}
 
@@ -77,6 +79,11 @@ export class Game {
     c.addEventListener("pointerup", (e) => this.onPointerUp(e));
     c.addEventListener("pointercancel", (e) => this.onPointerUp(e));
     c.addEventListener("contextmenu", (e) => e.preventDefault());
+    c.addEventListener("wheel", (e) => {
+      if (this.view.cameraMode !== "overview") return;
+      e.preventDefault();
+      this.view.zoomBy(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
+    }, { passive: false });
     window.addEventListener("keydown", (e) => {
       if ((e.target as HTMLElement).tagName === "INPUT") return;
       if (e.key === "m" || e.key === "M") this.toggleMute();
@@ -284,6 +291,9 @@ export class Game {
   private drawWorld(): void {
     const d = this.draw!;
     const t = this.track;
+    // fill the screen with this segment; the camera glides there from wherever it was
+    const cell = t.segments[d.seg]!, m = 8;
+    this.view.setFocus({ x: cell.cx * CELL - m, y: cell.cy * CELL - m, w: CELL + 2 * m, h: CELL + 2 * m });
     this.view.drawTrack(t, { visibleUpTo: d.mode === "lap" ? d.seg : null, selected: d.mode === "amend" ? new Set([d.seg]) : undefined });
     const curves: { pts: Vec2[]; color: number; width?: number; alpha?: number }[] = [];
     if (d.mode === "lap" && d.line && d.line.segs.length) {
@@ -343,14 +353,21 @@ export class Game {
       else if (e.shiftKey) this.insertPoint(d, p);
       else d.pts.push(p);
       this.renderDraw();
-    } else if (this.pick && e.button === 0) {
-      const idx = this.track.cellIndex.get(`${Math.floor(p.x / CELL)},${Math.floor(p.y / CELL)}`);
-      if (idx === undefined) return;
-      const s = this.pick.selected;
-      if (s.has(idx)) s.delete(idx);
-      else if (new Set([...this.changedThisLap(), ...s, idx]).size <= this.pick.limit) s.add(idx);
-      this.showPicker(this.pickMessage);
+    } else if (this.view.cameraMode === "overview") {
+      // drag to pan; a click that did not move picks a segment
+      this.pan = { lx: e.clientX, ly: e.clientY, sx: e.clientX, sy: e.clientY, moved: e.button !== 0, button: e.button, world: p };
+      this.app.canvas.setPointerCapture(e.pointerId);
     }
+  }
+
+  private pickAt(p: Vec2): void {
+    if (!this.pick) return;
+    const idx = this.track.cellIndex.get(`${Math.floor(p.x / CELL)},${Math.floor(p.y / CELL)}`);
+    if (idx === undefined) return;
+    const s = this.pick.selected;
+    if (s.has(idx)) s.delete(idx);
+    else if (new Set([...this.changedThisLap(), ...s, idx]).size <= this.pick.limit) s.add(idx);
+    this.showPicker(this.pickMessage);
   }
 
   private insertPoint(d: DrawState, p: Vec2): void {
@@ -367,6 +384,13 @@ export class Game {
   }
 
   private onPointerMove(e: PointerEvent): void {
+    if (this.pan) {
+      const q = this.pan;
+      if (!q.moved && Math.hypot(e.clientX - q.sx, e.clientY - q.sy) > 6) q.moved = true;
+      if (q.moved) this.view.panBy(e.clientX - q.lx, e.clientY - q.ly);
+      q.lx = e.clientX; q.ly = e.clientY;
+      return;
+    }
     const d = this.draw;
     if (!d?.drag || !d.line) return;
     const p = this.view.toWorld(e.clientX, e.clientY);
@@ -379,6 +403,13 @@ export class Game {
   }
 
   private onPointerUp(e: PointerEvent): void {
+    if (this.pan) {
+      const q = this.pan;
+      this.pan = null;
+      try { this.app.canvas.releasePointerCapture(e.pointerId); } catch { /* not captured */ }
+      if (!q.moved && q.button === 0) this.pickAt(q.world);
+      return;
+    }
     const d = this.draw;
     if (!d?.drag) return;
     d.drag = null;
@@ -453,7 +484,7 @@ export class Game {
     this.pickMessage = message;
     const line = this.currentLine;
     if (!line) { this.beginLapDraw(); return; }
-    this.view.resetCamera();
+    this.view.setOverview();
     this.view.sky.setActive(false);
     const check = validateLine(this.track, line);
     const firstLap = !this.race;
