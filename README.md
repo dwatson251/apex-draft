@@ -29,6 +29,15 @@ Installers for Windows, Linux (AppImage) and macOS are on the
   hum with their speed, and squeal in corners (`M` mutes). Clouds and birds pass overhead.
 - **Power-ups.** Drive your line through a pickup for the rest of that segment: **B**oost (speed), **G**rip (cornering)
   or **H** ghost (pass through cars).
+- **Tyres, fuel and pit stops.** Tyres wear, so grip fades; the tank runs down. Tick "Pit at the end of this lap" in the
+  picker and your car drives itself into the pit lane beside the start straight, stops in its box and comes out on fresh
+  tyres with a full tank. Never stopping adds a penalty, and running dry retires the car. Switch it all off with Realism.
+- **Places and machines.** The phrase also picks where you are (countryside, desert, snow, city, the Moon: each with its
+  own grip and scenery) and what you are driving (go-karts, formula cars, rally cars, muscle cars, trucks or tanks).
+- **Share and resume.** The address holds the track, the settings and the segments you have drawn. Copy it to share a
+  track, or reload to carry on. Laps and times are never saved: a reload always starts the race afresh.
+- **Menu.** The title has the track behind it (blurred), and the Menu button or Esc opens it over a game at any time.
+  Changing the seed after you have drawn something asks first.
 - **Garage.** Spend 24 points across acceleration, top speed, cornering and braking, and save setups.
 - **Rivals.** Bots race you. You can also save your lines to a file and import other players' lines for the same phrase
   as rivals (`Import rival lines…`). There is no online upload yet.

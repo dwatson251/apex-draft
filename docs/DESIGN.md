@@ -30,7 +30,34 @@
 - **Amending**: joins stay fixed, so redrawing a segment never breaks the loop. Up to 3 segments may differ from the line
   just raced.
 
+## Tyres, fuel and the pits
+- `pit.ts`: the pit lane runs beside the two straights either side of the start line (`track.pit`, with a seeded side).
+  Every track is generated so that those two cells are plain straights.
+- `profile.ts` / `pitpath.ts`: a lap that pits ends in the lane (`pitIn`) and the next one starts there (`pitOut`); the
+  lane has a speed limit and one stopping box. Those laps are *open*: their end does not join their start, so lookups
+  clamp instead of wrapping.
+- `race.ts`: fuel burns with distance, tyres with distance and cornering load. Grip and weight are fixed at the start of
+  each lap, so wear shows lap by lap. The player says which laps to pit in (`entrant.pit`); bots work it out and take
+  turns. Never stopping adds `PIT_PENALTY`; running dry makes the car limp to the box and retire (last place).
+- A pair of cars that hold each other up for two seconds pass through each other until clear, and the old 20-second
+  failsafe is still behind that.
+
+## Vehicles and places
+- `vehicles.ts` and `biomes.ts` are tables of multipliers picked from the track's seed (`vehicleForSeed`, `biomeForSeed`).
+  Vehicles scale the car's stats, fuel use and wear; biomes scale grip, braking, acceleration, wear and fuel for
+  everyone. Layout is the same whichever biome it is.
+
+## Share links
+- `share.ts` encodes the phrase, settings, car and the drawn segments (start point plus delta-coded points, tenths of a
+  unit) as base64url. Nothing about a race is in it. It is rewritten on Start and after each completed segment.
+
 ## Renderer notes
+- `look.ts` is the paint for each biome; `scenery.ts` builds the countryside from the seed and decides what turns up
+  (rail, airport, lakes, mountains, fields, village, turbines, boats). Animated things (train, plane, turbines, boats)
+  are updated from `Scenery.update`.
+- The camera has three modes (`world.ts`): overview (free zoom and pan), focus (fills the screen with a rectangle) and
+  follow (a slow zoom in on a point).
+- The menu is an overlay (`#menu`) so it can sit over a live game; `game.ts` pauses the race while it is open.
 - `trackart.ts` builds each segment once (tarmac, kerbs from the turning angle, apex arrows, gravel, stands,
   obstacles); `scenery.ts` builds the countryside. Hills and trees stay hidden while a lap is being drawn, because the
   empty cells would show where the road goes.

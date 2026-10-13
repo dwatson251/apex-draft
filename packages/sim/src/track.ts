@@ -1,5 +1,6 @@
 import { phraseToSeed, normalizePhrase } from "./seed.ts";
 import { Rng } from "./rng.ts";
+import { biomeForSeed, type BiomeId } from "./biomes.ts";
 import { makePit, type Pit } from "./pit.ts";
 import { add, dist, distToSegment, lerp, mul, norm, perp, sub, v2, type Vec2 } from "./vec.ts";
 
@@ -47,6 +48,8 @@ export interface Track {
   /** the pit lane around the start line */
   pit: Pit;
   obstacles: boolean;
+  /** where it is: scenery and surface */
+  biome: BiomeId;
   /** "cx,cy" -> segment index */
   cellIndex: Map<string, number>;
 }
@@ -163,6 +166,8 @@ export function centreAt(seg: Segment, t: number): { p: Vec2; n: Vec2 } {
 export interface TrackOptions {
   /** boxes and water; off leaves the same track with clear roads */
   obstacles?: boolean;
+  /** leave out to let the seed choose */
+  biome?: BiomeId;
 }
 
 /** The same phrase (and options) always give the same track. */
@@ -198,7 +203,7 @@ export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
   const pit = makePit(g.mid, g.dir, g.n, rng.chance(0.5) ? 1 : -1);
   const cellIndex = new Map<string, number>();
   segments.forEach((s) => cellIndex.set(key(s.cx, s.cy), s.index));
-  return { phrase: norm_, seed, cols, rows, segments, pit, obstacles: opts.obstacles !== false, cellIndex };
+  return { phrase: norm_, seed, cols, rows, segments, pit, obstacles: opts.obstacles !== false, biome: opts.biome ?? biomeForSeed(seed), cellIndex };
 }
 
 /** Length of one lap along the centreline, units. */

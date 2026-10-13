@@ -51,11 +51,14 @@ export interface ProfileOpts {
   grip?: number;
   /** multiplies acceleration: a heavy tank */
   accel?: number;
+  /** multiplies braking: slippery surfaces */
+  brake?: number;
 }
 
 export function buildProfile(track: Track, line: Line, car: CarConfig, opts: ProfileOpts = {}): Profile {
   const st = carStats(car);
   st.aLat *= opts.grip ?? 1;
+  st.brake *= opts.brake ?? 1;
   const pitIn = !!opts.pitIn, pitOut = !!opts.pitOut;
   const lapPit = applyPit(track, lapCurve(line, track.segments.length), pitIn, pitOut);
   const dense = lapPit.dense;

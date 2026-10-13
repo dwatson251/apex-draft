@@ -1,4 +1,5 @@
 import { carStats, type CarConfig } from "./car.ts";
+import { biomeOf, type Biome } from "./biomes.ts";
 import { vehicleOf } from "./vehicles.ts";
 import type { Line } from "./line.ts";
 import { PIT_PENALTY, PIT_STOP_TIME } from "./pit.ts";
@@ -144,6 +145,7 @@ export class Race {
   tick = 0;
   private profiles = new Map<string, Profile>();
   private lapLen: number;
+  private biome: Biome;
   /** how long each pair of cars has been holding each other up, in ticks */
   private holds = new Map<string, number>();
   /** pairs that have held each other for too long: they pass through one another until clear */
@@ -152,6 +154,7 @@ export class Race {
   /** `entrants` are placed on the grid in qualifying order: fastest ideal lap first. */
   constructor(readonly track: Track, entrants: Entrant[], readonly laps: number, readonly rules: RaceRules = { realism: true }) {
     this.lapLen = trackLength(track);
+    this.biome = biomeOf(track.biome);
     const ranked = entrants
       .map((e, i) => ({ e, i, ideal: this.profile(e, 0).ideal }))
       .sort((a, b) => a.ideal - b.ideal || a.i - b.i);
@@ -189,11 +192,13 @@ export class Race {
   }
 
   private build(e: Entrant, lap: number, pitIn: boolean, pitOut: boolean, grip: number, accel: number): Profile {
+    // the surface scales what the car can do
+    grip *= this.biome.grip; accel *= this.biome.accel;
     const idx = Math.min(Math.max(lap, 0), e.lines.length - 1);
     const k = `${e.id}:${idx}:${+pitIn}${+pitOut}:${Math.round(grip * 200)}:${Math.round(accel * 200)}`;
     let p = this.profiles.get(k);
     if (!p) {
-      p = buildProfile(this.track, e.lines[idx]!, e.car, { pitIn, pitOut, grip, accel });
+      p = buildProfile(this.track, e.lines[idx]!, e.car, { pitIn, pitOut, grip, accel, brake: this.biome.brake });
       this.profiles.set(k, p);
     }
     return p;
@@ -354,6 +359,13 @@ export class Race {
     }
   }
 
+  /** The car's stats on this surface. */
+  private stats(c: RaceCar) {
+    const st = carStats(c.entrant.car);
+    st.brake *= this.biome.brake; st.accel *= this.biome.accel; st.aLat *= this.biome.grip;
+    return st;
+  }
+
   private emit(id: string, type: RaceEventType): void { this.events.push({ tick: this.tick, id, type }); }
 
   /** Tyres and fuel are topped up and the car is let go. */
@@ -372,7 +384,7 @@ export class Race {
     const arrived: RaceCar[] = [];
     for (const c of racing) {
       const p = c.prof;
-      const st = carStats(c.entrant.car);
+      const st = this.stats(c);
       const i = indexAt(p, c.s);
       let target = sampleAt(p, p.vLim, c.s);
       if (c.limp) target = Math.min(target, LIMP_SPEED);
@@ -410,10 +422,10 @@ export class Race {
       c.s = n.s;
       if (this.rules.realism && moved > 0) {
         const p = c.prof;
-        c.fuel = Math.max(0, c.fuel - moved * c.perUnit);
-        const st = carStats(c.entrant.car);
+        c.fuel = Math.max(0, c.fuel - moved * c.perUnit * this.biome.fuel);
+        const st = this.stats(c);
         const load = Math.min(1.2, (p.kap[indexAt(p, c.s)]! * c.v * c.v) / st.aLat);
-        c.tyre = Math.max(0, c.tyre - (moved / this.lapLen) * TYRE_WEAR_PER_LAP * c.wearMul * (0.4 + 1.2 * load * load) / 0.63);
+        c.tyre = Math.max(0, c.tyre - (moved / this.lapLen) * TYRE_WEAR_PER_LAP * c.wearMul * this.biome.wear * (0.4 + 1.2 * load * load) / 0.63);
       }
       let p = c.prof;
       while (c.s >= p.length && c.finishTime === null) {

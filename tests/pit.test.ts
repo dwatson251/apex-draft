@@ -20,7 +20,7 @@ describe("tracks with a pit lane", () => {
 });
 
 describe("tyres and fuel", () => {
-  const t = generateTrack("brave-owl-rides-melons");
+  const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
   it("wear tyres by about the stated amount a lap, and burn about a third of a tank", () => {
     const r = new Race(t, field(t, 1), 2); r.runLap("b0", 0);
     const c = r.cars[0]!;
@@ -42,7 +42,7 @@ describe("tyres and fuel", () => {
 
 describe("pit stops", () => {
   it("a lap with a stop is slower by roughly the stop plus the slow lane, and the car stops in its box", () => {
-    const t = generateTrack("brave-owl-rides-melons");
+    const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
     const plain = new Race(t, field(t, 1), 3); plain.runToEnd();
     const pitted = new Race(t, field(t, 1, () => [true, false, false]), 3); pitted.runToEnd();
     const p = pitted.cars[0]!;
@@ -57,14 +57,14 @@ describe("pit stops", () => {
     expect(stopped / 60).toBeGreaterThanOrEqual(PIT_STOP_TIME - 0.1);
   });
   it("never pitting costs the penalty, pitting does not", () => {
-    const t = generateTrack("brave-owl-rides-melons");
+    const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
     const r = new Race(t, field(t, 2, (i) => (i === 0 ? [true, false, false] : undefined)), 3); r.runToEnd();
     const res = r.results();
     expect(res.find((x) => x.id === "b0")!.penalty).toBe(0);
     expect(res.find((x) => x.id === "b1")!.penalty).toBe(PIT_PENALTY);
   });
   it("running dry retires the car in the pits, last, while the rest finish", () => {
-    const t = generateTrack("brave-owl-rides-melons");
+    const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
     const r = new Race(t, field(t, 4), 5); // five laps is more than a tank, and the player never pits
     r.runToEnd();
     const res = r.results();
@@ -108,7 +108,7 @@ describe("vehicle classes", () => {
     expect([...seen].sort()).toEqual([...VEHICLE_IDS].sort());
   });
   it("drive like what they are", () => {
-    const t = generateTrack("brave-owl-rides-melons");
+    const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
     const lap = (type: (typeof VEHICLE_IDS)[number]) => {
       const car = { ...defaultCar(), type };
       const r = new Race(t, [{ id: "x", name: "x", car, lines: [botLine(t, 3, 1)], isPlayer: true }], 2, { realism: false });
@@ -126,7 +126,7 @@ describe("vehicle classes", () => {
     expect(VEHICLES.tank.fuel).toBeGreaterThan(VEHICLES.kart.fuel);
   });
   it("burn fuel and wear tyres at their own rate", () => {
-    const t = generateTrack("brave-owl-rides-melons");
+    const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
     const used = (type: (typeof VEHICLE_IDS)[number]) => {
       const car = { ...defaultCar(), type };
       const r = new Race(t, [{ id: "x", name: "x", car, lines: [botLine(t, 3, 1)], isPlayer: true }], 2);
@@ -141,5 +141,40 @@ describe("vehicle classes", () => {
     const t = generateTrack("quiet-fox-hugs-kites");
     const back = parseLineFile(serializeLineFile({ phrase: t.phrase, name: "me", car: { ...defaultCar(), type: "tank" }, lines: [botLine(t, 1, 1)] }));
     expect(typeof back === "object" && back.car.type).toBe("tank");
+  });
+});
+
+import { BIOME_IDS, BIOMES, biomeForSeed } from "@apex/sim";
+
+describe("biomes", () => {
+  it("are picked by the phrase, the same every time, and every place turns up", () => {
+    const seen = new Set<string>();
+    for (const p of phrases(300, 2000)) {
+      const t = generateTrack(p);
+      expect(t.biome).toBe(generateTrack(p).biome);
+      expect(t.biome).toBe(biomeForSeed(t.seed));
+      seen.add(t.biome);
+    }
+    expect([...seen].sort()).toEqual([...BIOME_IDS].sort());
+  });
+  it("change how the surface behaves, and not the layout", () => {
+    const base = generateTrack("quiet-fox-hugs-kites", { biome: "grass" });
+    const lapOn = (biome: (typeof BIOME_IDS)[number]) => {
+      const t = generateTrack("quiet-fox-hugs-kites", { biome });
+      expect(t.segments.map((s) => [s.cx, s.cy, s.kind])).toEqual(base.segments.map((s) => [s.cx, s.cy, s.kind]));
+      const r = new Race(t, [{ id: "x", name: "x", car: defaultCar(), lines: [botLine(base, 3, 1)], isPlayer: true }], 2);
+      r.runToEnd();
+      const c = r.cars[0]!;
+      return { lap: r.results()[0]!.lapTimes[1]!, wear: 1 - c.tyre, fuel: TANK - c.fuel };
+    };
+    const g = lapOn("grass"), snow = lapOn("snow"), moon = lapOn("moon"), desert = lapOn("desert"), city = lapOn("city");
+    expect(snow.lap).toBeGreaterThan(g.lap + 0.5);
+    expect(moon.lap).toBeGreaterThan(g.lap);
+    expect(city.lap).toBeLessThan(g.lap + 0.01);
+    expect(snow.wear).toBeLessThan(g.wear);
+    expect(desert.wear).toBeGreaterThan(g.wear);
+    expect(moon.wear).toBeLessThan(snow.wear);
+    expect(desert.fuel).toBeGreaterThan(g.fuel);
+    expect(BIOMES.moon.accel).toBeGreaterThan(1);
   });
 });

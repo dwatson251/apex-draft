@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import type { Look } from "./look.ts";
 
 interface Cloud { air: Graphics; shadow: Graphics; x: number; y: number; vx: number; vy: number }
 interface Bird { body: Container; wings: Graphics; shadow: Graphics; x: number; y: number; vx: number; vy: number; phase: number; life: number }
@@ -7,6 +8,12 @@ interface Bird { body: Container; wings: Graphics; shadow: Graphics; x: number; 
 export interface Weather {
   /** 0 to 1: how much of the sky is cloud */
   cover: number;
+  /** colour of the cloud undersides */
+  tint: number;
+  /** falling snow */
+  snow: boolean;
+  /** flocks of birds */
+  birds: boolean;
   /** world units per second, the way clouds drift */
   windX: number;
   windY: number;
@@ -21,7 +28,9 @@ export class Sky {
   readonly shadows = new Container();
   /** clouds and birds go over everything */
   readonly air = new Container();
-  weather: Weather = { cover: 0.5, windX: 9, windY: 3 };
+  weather: Weather = { cover: 0.5, tint: 0xb7c3d8, snow: false, birds: true, windX: 9, windY: 3 };
+  private flakes: { x: number; y: number; vy: number; vx: number; r: number }[] = [];
+  private snowG = new Graphics();
   private clouds: Cloud[] = [];
   private birds: Bird[] = [];
   private w = 700;
@@ -35,6 +44,13 @@ export class Sky {
     this.rebuildClouds();
   }
 
+  /** The sky for a place: how cloudy, whether it snows, whether birds fly. */
+  configure(look: Look): void {
+    this.weather = { ...this.weather, cover: look.clouds, tint: look.cloudTint, snow: look.snow, birds: look.birds };
+    this.rebuildClouds();
+    this.flakes = look.snow ? Array.from({ length: 160 }, () => ({ x: Math.random() * (this.w + 400) - 200, y: Math.random() * (this.h + 400) - 200, vy: 14 + Math.random() * 18, vx: -4 + Math.random() * 8, r: 0.5 + Math.random() * 1.1 })) : [];
+  }
+
   /** Clouds and birds only show while the sky is active. */
   setActive(on: boolean): void { this.on = on; }
   isOn(): boolean { return this.on; }
@@ -42,13 +58,13 @@ export class Sky {
   private rebuildClouds(): void {
     for (const c of this.clouds) { c.air.destroy(); c.shadow.destroy(); }
     this.clouds = [];
-    const count = Math.round(2 + this.weather.cover * 6);
+    const count = this.weather.cover <= 0 ? 0 : Math.round(2 + this.weather.cover * 6);
     for (let i = 0; i < count; i++) {
       const blobs = Array.from({ length: 5 + Math.floor(Math.random() * 4) }, () => ({
         dx: (Math.random() - 0.5) * 56, dy: (Math.random() - 0.5) * 14, r: 7 + Math.random() * 9,
       }));
       const air = new Graphics(), shadow = new Graphics();
-      for (const b of blobs) air.circle(b.dx, b.dy + 3, b.r).fill(0xb7c3d8);
+      for (const b of blobs) air.circle(b.dx, b.dy + 3, b.r).fill(this.weather.tint);
       for (const b of blobs) air.circle(b.dx - 1.5, b.dy - 1.5, b.r * 0.9).fill(0xffffff);
       for (const b of blobs) shadow.circle(b.dx, b.dy, b.r).fill(0x000000);
       air.alpha = 0.28 + Math.random() * 0.12;
@@ -99,7 +115,17 @@ export class Sky {
       c.air.position.set(c.x, c.y);
       c.shadow.position.set(c.x + SHADOW_DX, c.y + SHADOW_DY);
     }
-    if (this.on && (this.nextFlock -= dt) <= 0) { this.spawnFlock(); this.nextFlock = 9 + Math.random() * 14; }
+    if (this.on && this.weather.birds && (this.nextFlock -= dt) <= 0) { this.spawnFlock(); this.nextFlock = 9 + Math.random() * 14; }
+    if (this.weather.snow) {
+      if (!this.snowG.parent) this.air.addChild(this.snowG);
+      const g = this.snowG.clear();
+      for (const f of this.flakes) {
+        f.y += f.vy * dt; f.x += (f.vx + Math.sin(f.y * 0.05) * 6 + this.weather.windX * 0.5) * dt;
+        if (f.y > this.h + 200) { f.y = -200; f.x = Math.random() * (this.w + 400) - 200; }
+        if (f.x > this.w + 200) f.x = -200;
+        g.circle(f.x, f.y, f.r).fill({ color: 0xffffff, alpha: 0.85 });
+      }
+    }
     for (let i = this.birds.length - 1; i >= 0; i--) {
       const b = this.birds[i]!;
       b.x += b.vx * dt; b.y += b.vy * dt; b.phase += dt * 13; b.life -= dt;

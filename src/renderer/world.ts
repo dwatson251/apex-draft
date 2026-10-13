@@ -222,11 +222,11 @@ export class WorldView {
     this.highlight.clear();
   }
 
-  private drawGrid(cols: number, rows: number): void {
+  private drawGrid(cols: number, rows: number, dark: boolean): void {
     const g = this.grid.clear();
     for (let x = 0; x <= cols; x++) g.moveTo(x * CELL, 0).lineTo(x * CELL, rows * CELL);
     for (let y = 0; y <= rows; y++) g.moveTo(0, y * CELL).lineTo(cols * CELL, y * CELL);
-    g.stroke({ width: 1, color: 0xffffff, alpha: 0.07 });
+    g.stroke({ width: 1, color: dark ? 0x000000 : 0xffffff, alpha: dark ? 0.1 : 0.07 });
   }
 
   /** Cached art for a new track: ground, every segment, and a blank skid-mark texture. */
@@ -236,12 +236,13 @@ export class WorldView {
     this.trackRef = track;
     const b = trackBounds(track);
     this.setBounds(b.w, b.h);
-    const ground = buildScenery(track.cols, track.rows, new Set(track.cellIndex.keys()), track.seed);
+    const ground = buildScenery(track.cols, track.rows, new Set(track.cellIndex.keys()), track.seed, track.biome);
     this.groundLayer.addChild(ground.grass, ground.decor);
     this.decor = ground.decor;
     this.scenery = ground;
     ground.attach(this.sky);
-    this.drawGrid(track.cols, track.rows);
+    this.sky.configure(ground.look);
+    this.drawGrid(track.cols, track.rows, ground.look.ground[0] > 0x808080);
     for (const s of track.segments) {
       const art = buildSegmentArt(track, s);
       this.arts.set(s.index, art);
@@ -263,7 +264,7 @@ export class WorldView {
     this.decor = ground.decor;
     this.scenery = ground;
     ground.attach(this.sky);
-    this.drawGrid(7, 5);
+    this.drawGrid(7, 5, false);
     this.resetCamera();
   }
 

@@ -1,4 +1,5 @@
 import { Container, Graphics, Text } from "pixi.js";
+import { LOOKS } from "./look.ts";
 import {
   PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, PIT_LIMIT_A, PIT_SPEED, ROAD_HALF, Rng, centreAt, cross, dot, laneCentre, pitPoint, sub,
   type Segment, type Track, type Vec2,
@@ -35,6 +36,7 @@ export interface SegmentArt {
 /** One segment: tarmac, markings, sausage kerbs, apex paint, gravel traps, grandstands, obstacles, pick-ups. */
 export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   const rng = new Rng(track.seed ^ (Math.imul(s.index + 1, 0x9e3779b1) >>> 0));
+  const look = LOOKS[track.biome];
   const root = new Container();
   const art: SegmentArt = { root, crowdA: [], crowdB: [], pulses: [] };
   const n = s.center.length - 1;
@@ -58,10 +60,10 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
       const depth = 4 + 10 * Math.sin((Math.PI * (i - i0)) / (i1 - i0));
       const p = at(s, i, out * (ROAD_HALF + 1 + depth)); pts.push(p.x, p.y);
     }
-    g.poly(pts).fill(PAL.gravel).stroke({ width: 0.8, color: PAL.gravelDark });
+    g.poly(pts).fill(look.runoff).stroke({ width: 0.8, color: look.runoffDark });
     for (let k = 0; k < 40; k++) {
       const i = i0 + rng.int(i1 - i0), p = at(s, i, out * (ROAD_HALF + rng.range(2, 9)));
-      g.circle(p.x, p.y, rng.range(0.3, 0.8)).fill({ color: PAL.gravelDark, alpha: 0.7 });
+      g.circle(p.x, p.y, rng.range(0.3, 0.8)).fill({ color: look.runoffDark, alpha: 0.7 });
     }
     root.addChild(g);
   }
@@ -76,16 +78,16 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
 
   // tarmac
   const road = new Graphics();
-  strip(road, s, 0, n, -ROAD_HALF, ROAD_HALF).fill(PAL.asphalt);
-  strip(road, s, 0, n, -7, 7).fill({ color: PAL.asphaltWorn, alpha: 0.55 });
+  strip(road, s, 0, n, -ROAD_HALF, ROAD_HALF).fill(look.asphalt);
+  strip(road, s, 0, n, -7, 7).fill({ color: look.worn, alpha: 0.55 });
   for (let k = 0; k < 90; k++) {
     const t = rng.next(), c = centreAt(s, t), l = rng.range(-ROAD_HALF + 1, ROAD_HALF - 1);
-    road.circle(c.p.x + c.n.x * l, c.p.y + c.n.y * l, rng.range(0.3, 0.8)).fill({ color: PAL.speck, alpha: rng.range(0.25, 0.6) });
+    road.circle(c.p.x + c.n.x * l, c.p.y + c.n.y * l, rng.range(0.3, 0.8)).fill({ color: look.speck, alpha: rng.range(0.25, 0.6) });
   }
   // a hair of overlap at both gates, so no grass seam shows between neighbouring segments
   for (const [gate, push] of [[s.entry, -0.9], [s.exit, 0.9]] as const) {
     const pt = (l: number, a: number) => [gate.mid.x + gate.n.x * l + gate.dir.x * a, gate.mid.y + gate.n.y * l + gate.dir.y * a];
-    road.poly([...pt(-ROAD_HALF, 0), ...pt(ROAD_HALF, 0), ...pt(ROAD_HALF, push), ...pt(-ROAD_HALF, push)]).fill(PAL.asphalt);
+    road.poly([...pt(-ROAD_HALF, 0), ...pt(ROAD_HALF, 0), ...pt(ROAD_HALF, push), ...pt(-ROAD_HALF, push)]).fill(look.asphalt);
   }
   root.addChild(road);
 
@@ -303,7 +305,7 @@ function pitArt(track: Track, head: boolean): Container {
   if (word >= a0 && word <= a1) {
     const p = P(word, PIT_LAT);
     const t = new Text({ text: "PIT", style: { fontSize: 7, fill: 0xf1f1ee, fontWeight: "700", letterSpacing: 1.5 } });
-    t.anchor.set(0.5); t.alpha = 0.55; t.rotation = angle + Math.PI / 2; t.position.set(p.x, p.y);
+    t.anchor.set(0.5); t.alpha = 0.55; t.rotation = Math.cos(angle + Math.PI / 2) < -1e-6 ? angle - Math.PI / 2 : angle + Math.PI / 2; t.position.set(p.x, p.y);
     c.addChild(t);
   }
 

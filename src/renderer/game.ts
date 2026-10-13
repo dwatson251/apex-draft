@@ -1,7 +1,7 @@
 import type { Application } from "pixi.js";
 import {
-  CAR_BUDGET, CELL, MAX_AMENDS, PIT_PENALTY, PIT_STOP_TIME, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
-  defaultCar, distToSegment, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
+  BIOMES, CAR_BUDGET, CELL, MAX_AMENDS, PIT_PENALTY, PIT_STOP_TIME, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
+  defaultCar, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
   phraseToSeed, previewSegment, projectToGate, randomPhrase, serializeLineFile, setSegment, smooth, validateCar, validateLine, vehicleForSeed,
   type CarConfig, type Entrant, type Line, type LineFile, type RaceCar, type ShareState, type Stat, type Track, type Vec2, type VehicleId,
 } from "@apex/sim";
@@ -69,10 +69,25 @@ export class Game {
   /** what the share link remembers of the drawing */
   private shareLine: Line | undefined;
   private inGame = false;
+  private menuOpen = false;
+  private previewKey = "";
+  /** bots going round behind the title menu, replayed in a loop */
+  private ambient: { race: Race; tick: number } | null = null;
+  private menuLayer!: HTMLElement;
+  private menuBtn!: HTMLButtonElement;
+  private modal!: HTMLElement;
   /** a drag that pans the overview, or turns out to be a click */
   private pan: { lx: number; ly: number; sx: number; sy: number; moved: boolean; button: number; world: Vec2 } | null = null;
 
-  constructor(private app: Application, private view: WorldView, private ui: HTMLElement) {}
+  constructor(private app: Application, private view: WorldView, private ui: HTMLElement) {
+    const host = ui.parentElement!;
+    this.menuLayer = document.createElement("div"); this.menuLayer.id = "menu"; host.appendChild(this.menuLayer);
+    this.menuLayer.addEventListener("pointerdown", (e) => { if (e.target === this.menuLayer && this.inGame) this.closeMenu(); });
+    this.menuBtn = document.createElement("button"); this.menuBtn.id = "menubtn"; this.menuBtn.textContent = "☰  Menu"; this.menuBtn.style.display = "none";
+    this.menuBtn.addEventListener("click", () => this.openMenu());
+    host.appendChild(this.menuBtn);
+    this.modal = document.createElement("div"); this.modal.id = "modal"; host.appendChild(this.modal);
+  }
 
   async start(): Promise<void> {
     this.settings = { ...this.settings, ...(await load<Partial<Settings>>("settings", {})) };
@@ -96,9 +111,10 @@ export class Game {
       this.view.zoomBy(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
     }, { passive: false });
     window.addEventListener("keydown", (e) => {
-      if ((e.target as HTMLElement).tagName === "INPUT") return;
+      if (e.key === "Escape") { this.toggleMenu(); return; }
+      if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "SELECT") return;
       if (e.key === "m" || e.key === "M") this.toggleMute();
-      if (!this.draw) return;
+      if (this.menuOpen || !this.draw) return;
       if (e.key === "Enter") this.finishSegment();
       else if (e.key === "Backspace" || (e.key === "z" && (e.ctrlKey || e.metaKey))) this.undo();
     });
@@ -145,64 +161,209 @@ export class Game {
     this.settings.muted = !this.audio.isMuted();
     this.audio.setMuted(this.settings.muted);
     this.persist();
-    const b = this.ui.querySelector<HTMLElement>("#mute");
-    if (b) b.textContent = this.settings.muted ? "Sound off" : "Sound on";
+    for (const root of [this.ui, this.menuLayer]) {
+      const b = root.querySelector<HTMLElement>("#mute");
+      if (b) b.textContent = this.settings.muted ? "Sound off" : "Sound on";
+    }
   }
 
   // ---------- menu ----------
+  /** Go home: leave any game and show the title with a track behind it. */
   private showMenu(): void {
+    if (this.inGame) this.leaveGame();
+    this.openMenu();
+  }
+
+  private leaveGame(): void {
     this.draw = null; this.pick = null; this.play = null; this.race = undefined;
-    this.inGame = false; this.shareLine = undefined;
+    this.inGame = false; this.shareLine = undefined; this.previewKey = "";
     this.audio.stopAll();
-    this.view.showBackdrop();
-    this.view.sky.setActive(true);
+    this.view.setFollow(null);
+    this.view.clearCars();
+    this.ui.innerHTML = "";
+    this.menuBtn.style.display = "none";
+  }
+
+  private toggleMenu(): void {
+    if (this.menuOpen) { if (this.inGame) this.closeMenu(); } else if (this.inGame) this.openMenu();
+  }
+
+  /** The menu sits over whatever is on screen: the title's preview track, or the game you are in (paused). */
+  private openMenu(): void {
+    this.menuOpen = true;
+    this.menuLayer.style.display = "flex";
+    this.menuBtn.style.display = "none";
+    this.app.canvas.classList.add("blurred");
+    this.audio.setDucked(true);
+    if (!this.inGame) this.showPreview();
+    this.renderMenu();
+  }
+
+  private closeMenu(): void {
+    this.menuOpen = false;
+    this.menuLayer.style.display = "none";
+    this.app.canvas.classList.remove("blurred");
+    this.audio.setDucked(false);
+    this.menuBtn.style.display = this.inGame ? "block" : "none";
+  }
+
+  /** The track for the typed phrase, drawn behind the menu with a few bots going round it. */
+  private showPreview(): void {
     const s = this.settings;
+    if (!normalizePhrase(s.phrase)) s.phrase = randomPhrase(new Rng((Math.random() * 2 ** 32) >>> 0));
+    const key = `${normalizePhrase(s.phrase)}|${s.obstacles}`;
+    this.view.sky.setActive(true);
+    if (key === this.previewKey && this.ambient) return;
+    this.previewKey = key;
+    this.track = generateTrack(s.phrase, { obstacles: s.obstacles });
+    this.vehicle = vehicleForSeed(this.track.seed);
+    this.view.setTrack(this.track);
+    this.view.resetCamera();
+    this.view.clearCars();
+    this.view.clearSkids();
+    this.view.drawTrack(this.track, { visibleUpTo: null });
+    this.view.clearLines();
+    const bots: Entrant[] = Array.from({ length: 6 }, (_, i) => ({
+      id: `a${i}`, name: `a${i}`, car: { name: "Bot", accel: 6, top: 6, grip: 6, brake: 6, type: this.vehicle },
+      lines: [botLine(this.track, 31 + i * 7, 0.55 + 0.07 * i)],
+    }));
+    const race = new Race(this.track, bots, 2, { realism: false });
+    race.runToEnd();
+    this.ambient = { race, tick: 0 };
+  }
+
+  private hasEdits(): boolean {
+    if (!this.inGame) return false;
+    return (this.shareLine?.segs.length ?? 0) > 0 || !!this.race || (this.draw?.pts.length ?? 0) > 0;
+  }
+
+  /** A dialog that has to be answered. */
+  private confirmDialog(title: string, body: string, ok: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const m = this.modal;
+      m.innerHTML = `<div class="dialog"><h2>${esc(title)}</h2><p>${esc(body)}</p><div class="dialog-buttons"><button class="big grey" id="no">Keep my track</button><button class="big orange" id="yes">${esc(ok)}</button></div></div>`;
+      m.style.display = "flex";
+      const done = (v: boolean) => { m.style.display = "none"; m.innerHTML = ""; window.removeEventListener("keydown", onKey, true); resolve(v); };
+      const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); done(false); } };
+      window.addEventListener("keydown", onKey, true);
+      m.querySelector("#yes")!.addEventListener("click", () => done(true));
+      m.querySelector("#no")!.addEventListener("click", () => done(false));
+    });
+  }
+
+  /**
+   * Anything that changes the seed (the phrase, a new random one, obstacles) throws the drawing away, so if there is
+   * one the player has to say yes first. Saying no puts everything back.
+   */
+  private async changeSeed(apply: () => void): Promise<void> {
+    if (this.hasEdits()) {
+      const ok = await this.confirmDialog("Start a different track?", "You have drawn on this track. Changing the seed throws that drawing away, along with any race in progress.", "Discard it and change");
+      if (!ok) { this.renderMenu(); return; }
+    }
+    apply();
+    if (this.inGame) this.leaveGame();
+    this.persist();
+    this.openMenu();
+  }
+
+  private renderMenu(): void {
+    const s = this.settings, inGame = this.inGame, racing = !!this.race;
     const phrase = normalizePhrase(s.phrase);
-    const bestKey = this.bestKey(phrase);
+    const seed = phraseToSeed(phrase);
+    const biome = BIOMES[biomeForSeed(seed)], veh = VEHICLES[vehicleForSeed(seed)];
+    const pct = (x: number) => (x === 1 ? "" : `<span class="${x > 1 ? "good" : "bad"}">${x > 1 ? "+" : "−"}${Math.round(Math.abs(x - 1) * 100)}%</span>`);
     const matching = this.imported.filter((f) => f.phrase === phrase);
-    const el = this.show("center", `
+    const bestKey = this.bestKey(phrase);
+    const lock = racing ? "disabled" : "";
+    const el = this.menuPanel(`
       <h1>APEX <span>DRAFT</span></h1>
-      <p class="dim">Draw the racing line, one segment at a time. Then the car has to drive it.</p>
-      <label>Track phrase (share it to share the track)</label>
-      <div class="row"><input id="phrase" type="text" value="${esc(s.phrase)}" spellcheck="false" /><button id="rand">Random</button></div>
-      <div class="row">
-        <div><label>Laps</label><select id="laps">${[1, 2, 3, 4, 5].map((n) => `<option ${n === s.laps ? "selected" : ""}>${n}</option>`).join("")}</select></div>
-        <div><label>Mode</label><select id="mode"><option value="trial" ${s.mode === "trial" ? "selected" : ""}>Time trial</option><option value="race" ${s.mode === "race" ? "selected" : ""}>Race rivals</option></select></div>
-        <div ${s.mode === "trial" ? 'style="display:none"' : ""}><label>Rivals</label><select id="rivals">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<option ${n === s.rivals ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+      <p class="tagline">Draw the racing line. The car has to drive it.</p>
+      <label>Track phrase: share it to share the track</label>
+      <div class="row"><input id="phrase" class="fancy" type="text" value="${esc(s.phrase)}" spellcheck="false" /><button id="rand" class="big pink slim">Random</button></div>
+      <div class="chips">
+        <span class="chip biome-${biome.id}">${esc(biome.name)}</span>
+        <span class="chip">${esc(veh.plural)}</span>
+        ${biome.grip !== 1 ? `<span class="chip dim">grip ${pct(biome.grip)}</span>` : ""}${biome.brake !== 1 ? `<span class="chip dim">braking ${pct(biome.brake)}</span>` : ""}${biome.wear !== 1 ? `<span class="chip dim">tyre wear ${pct(biome.wear)}</span>` : ""}
       </div>
-      <p class="dim">Race day: <b>${esc(VEHICLES[vehicleForSeed(phraseToSeed(phrase))].plural)}</b>. ${esc(VEHICLES[vehicleForSeed(phraseToSeed(phrase))].blurb)}</p>
+      <p class="dim blurb">${esc(biome.blurb)}</p>
+      <div class="row">
+        <div><label>Laps</label><select id="laps" class="fancy" ${lock}>${[1, 2, 3, 4, 5].map((n) => `<option ${n === s.laps ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+        <div><label>Mode</label><select id="mode" class="fancy" ${lock}><option value="trial" ${s.mode === "trial" ? "selected" : ""}>Time trial</option><option value="race" ${s.mode === "race" ? "selected" : ""}>Race rivals</option></select></div>
+        <div ${s.mode === "trial" ? 'style="display:none"' : ""}><label>Rivals</label><select id="rivals" class="fancy" ${lock}>${[1, 2, 3, 4, 5, 6, 7].map((n) => `<option ${n === s.rivals ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+      </div>
       <div class="checks">
-        <label><input type="checkbox" id="realism" ${s.realism ? "checked" : ""}/> Realism: tyre wear, fuel and pit stops</label>
+        <label><input type="checkbox" id="realism" ${s.realism ? "checked" : ""} ${lock}/> Realism: tyre wear, fuel and pit stops</label>
         <label><input type="checkbox" id="obstacles" ${s.obstacles ? "checked" : ""}/> Obstacles: boxes and water</label>
       </div>
+      ${racing ? '<p class="dim">Laps, mode, rivals and realism are fixed while a race is under way.</p>' : ""}
       <p class="dim">Car: <b>${esc(s.car.name)}</b> (${carCost(s.car)}/${CAR_BUDGET} points)
         ${s.mode === "race" ? `· Imported rival lines for this track: <b>${matching.length}</b>` : ""}
         ${this.best[bestKey] ? `· Best: <b>${fmt(this.best[bestKey])}</b>` : ""}</p>
       <p class="bad">${esc(this.note)}</p>
-      <button class="primary" id="go">Start</button><button id="garage">Garage</button><button id="import">Import rival lines…</button><button id="mute">${s.muted ? "Sound off" : "Sound on"}</button><button id="music">${s.musicOff ? "Music off" : "Music on"}</button>
-      <p class="dim" style="margin-top:12px">v${esc(this.version)} · Click to place points. Drag any point to move it, start and end nodes included. Right-click a point to delete it. <kbd>Enter</kbd> finishes a segment, <kbd>Backspace</kbd> undoes, <kbd>M</kbd> mutes.</p>`);
+      <div class="bigbtns">
+        ${inGame ? '<button class="big yellow wide" id="resume">Resume</button><button class="big orange" id="restart">Restart track</button>' : '<button class="big yellow wide" id="go">Start</button>'}
+        <button class="big cyan" id="garage">Garage</button>
+        ${inGame ? "" : '<button class="big pink" id="import">Import lines</button>'}
+        <button class="big green" id="mute">${s.muted ? "Sound off" : "Sound on"}</button>
+        <button class="big violet" id="music">${s.musicOff ? "Music off" : "Music on"}</button>
+        <button class="big blue" id="copy">Copy link</button>
+        ${inGame ? '<button class="big grey" id="quit">Quit to title</button>' : ""}
+      </div>
+      <p class="dim small">v${esc(this.version)} · Click to place points. Drag any point to move it, start and end nodes included. Right-click deletes a point. <kbd>Enter</kbd> finishes a segment, <kbd>Backspace</kbd> undoes, <kbd>M</kbd> mutes, <kbd>Esc</kbd> opens this menu.</p>`);
     this.note = "";
     this.syncHash();
     const input = el.querySelector<HTMLInputElement>("#phrase")!;
-    input.addEventListener("input", () => { s.phrase = input.value; });
-    input.addEventListener("change", () => { s.phrase = input.value; this.persist(); this.showMenu(); });
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
+    input.addEventListener("change", () => {
+      const next = input.value;
+      if (normalizePhrase(next) === normalizePhrase(s.phrase)) return;
+      if (!normalizePhrase(next)) { input.value = s.phrase; return; }
+      void this.changeSeed(() => { s.phrase = next; });
+    });
+    this.on(el, "#rand", () => void this.changeSeed(() => { s.phrase = randomPhrase(new Rng((Math.random() * 2 ** 32) >>> 0)); }));
+    el.querySelector("#obstacles")!.addEventListener("change", (e) => {
+      const on = (e.target as HTMLInputElement).checked;
+      void this.changeSeed(() => { s.obstacles = on; });
+    });
     el.querySelector("#realism")!.addEventListener("change", (e) => { s.realism = (e.target as HTMLInputElement).checked; this.persist(); });
-    el.querySelector("#obstacles")!.addEventListener("change", (e) => { s.obstacles = (e.target as HTMLInputElement).checked; this.persist(); });
-    this.on(el, "#music", () => { s.musicOff = !s.musicOff; this.audio.unlock(); this.audio.setMusic(!s.musicOff); this.persist(); this.showMenu(); });
-    el.querySelector("#laps")!.addEventListener("change", (e) => { s.laps = Number((e.target as HTMLSelectElement).value); this.persist(); this.showMenu(); });
-    el.querySelector("#mode")!.addEventListener("change", (e) => { s.mode = (e.target as HTMLSelectElement).value as Settings["mode"]; this.persist(); this.showMenu(); });
+    el.querySelector("#laps")!.addEventListener("change", (e) => { s.laps = Number((e.target as HTMLSelectElement).value); this.persist(); this.renderMenu(); });
+    el.querySelector("#mode")!.addEventListener("change", (e) => { s.mode = (e.target as HTMLSelectElement).value as Settings["mode"]; this.persist(); this.renderMenu(); });
     el.querySelector("#rivals")?.addEventListener("change", (e) => { s.rivals = Number((e.target as HTMLSelectElement).value); this.persist(); });
-    this.on(el, "#rand", () => { s.phrase = randomPhrase(new Rng((Math.random() * 2 ** 32) >>> 0)); this.persist(); this.showMenu(); });
-    this.on(el, "#garage", () => { s.phrase = input.value; this.persist(); this.showGarage(); });
-    this.on(el, "#import", () => void this.importLines(input.value));
+    this.on(el, "#music", () => { s.musicOff = !s.musicOff; this.audio.unlock(); this.audio.setMusic(!s.musicOff); this.persist(); this.renderMenu(); });
     this.on(el, "#mute", () => this.toggleMute());
+    this.on(el, "#garage", () => this.showGarage());
+    this.on(el, "#import", () => void this.importLines());
+    this.on(el, "#copy", () => {
+      this.syncHash();
+      try { void navigator.clipboard.writeText(location.href); this.note = ""; (el.querySelector("#copy") as HTMLElement).textContent = "Copied!"; } catch { (el.querySelector("#copy") as HTMLElement).textContent = "Copy failed"; }
+    });
+    this.on(el, "#resume", () => this.closeMenu());
+    this.on(el, "#restart", () => {
+      void (async () => {
+        if (this.hasEdits() && !(await this.confirmDialog("Restart this track?", "That throws away your drawing and any race in progress. The track and settings stay the same.", "Discard and restart"))) return;
+        this.audio.unlock();
+        this.startGame();
+      })();
+    });
+    this.on(el, "#quit", () => {
+      void (async () => {
+        if (this.hasEdits() && !(await this.confirmDialog("Quit to the title?", "That throws away your drawing and any race in progress.", "Discard and quit"))) return;
+        this.leaveGame();
+        this.persist();
+        this.openMenu();
+      })();
+    });
     this.on(el, "#go", () => {
-      s.phrase = input.value;
-      if (!normalizePhrase(s.phrase)) { this.note = "Type a phrase or press Random."; this.showMenu(); return; }
+      if (!normalizePhrase(s.phrase)) { this.note = "Type a phrase or press Random."; this.renderMenu(); return; }
       this.persist();
       this.audio.unlock(); // a click is the moment the browser lets sound start
       this.startGame();
     });
+  }
+
+  private menuPanel(html: string): HTMLElement {
+    this.menuLayer.innerHTML = `<div class="panel menu-panel">${html}</div>`;
+    return this.menuLayer.firstElementChild as HTMLElement;
   }
 
   /** Times only compare with times set under the same rules. */
@@ -211,8 +372,7 @@ export class Game {
     return `${phrase}:${s.laps}:${s.realism ? "r" : "x"}${s.obstacles ? "o" : "c"}`;
   }
 
-  private async importLines(phrase: string): Promise<void> {
-    this.settings.phrase = phrase;
+  private async importLines(): Promise<void> {
     const texts = await pickFiles();
     const bad: string[] = [];
     for (const t of texts) {
@@ -222,13 +382,13 @@ export class Game {
     }
     this.imported = this.imported.slice(-7);
     this.note = bad.length ? `Could not read ${bad.length} file(s): ${bad[0]}` : "";
-    this.showMenu();
+    this.renderMenu();
   }
 
   // ---------- garage ----------
   private showGarage(): void {
     const car = this.settings.car;
-    const el = this.show("center", `
+    const el = this.menuPanel(`
       <h2>Garage</h2>
       <p class="dim">Spend up to ${CAR_BUDGET} points. Every stat helps somewhere and costs somewhere else.</p>
       <p class="dim">For <b>${esc(this.settings.phrase)}</b> the field is <b>${esc(VEHICLES[vehicleForSeed(phraseToSeed(normalizePhrase(this.settings.phrase)))].plural)}</b>, and your levels are scaled to suit. ${esc(VEHICLES[vehicleForSeed(phraseToSeed(normalizePhrase(this.settings.phrase)))].blurb)}</p>
@@ -260,18 +420,21 @@ export class Game {
     });
     el.querySelectorAll<HTMLButtonElement>("button[data-load]").forEach((b) => b.addEventListener("click", () => { this.settings.car = { ...this.cars[Number(b.dataset["load"])]! }; this.showGarage(); }));
     el.querySelectorAll<HTMLButtonElement>("button[data-del]").forEach((b) => b.addEventListener("click", () => { this.cars.splice(Number(b.dataset["del"]), 1); void save("cars", this.cars); this.showGarage(); }));
-    this.on(el, "#back", () => { this.persist(); this.showMenu(); });
+    this.on(el, "#back", () => { this.persist(); this.renderMenu(); });
   }
 
   // ---------- a game ----------
   /** `resume`: the drawing a share link brought back, in which case the race itself starts from scratch. */
   private startGame(resume: Line | null = null, fromLink = false): void {
     const s = this.settings;
-    this.track = generateTrack(s.phrase, { obstacles: s.obstacles });
     const carErr = validateCar(s.car);
-    if (carErr) { this.note = `Car: ${carErr}`; this.showMenu(); return; }
+    if (carErr) { this.note = `Car: ${carErr}`; this.openMenu(); return; }
+    // the title already built this track (and its scenery) behind the menu
+    if (this.inGame || this.previewKey !== `${normalizePhrase(s.phrase)}|${s.obstacles}`) this.track = generateTrack(s.phrase, { obstacles: s.obstacles });
     this.vehicle = vehicleForSeed(this.track.seed);
-    this.rivalEntrants = s.mode === "trial" ? [] : this.makeRivals();
+    this.ambient = null; this.previewKey = "";
+    this.view.clearCars();
+    this.closeMenu();
     this.race = undefined;
     this.pitPlan = [];
     this.eventIdx = 0;
@@ -279,6 +442,7 @@ export class Game {
     this.view.setTrack(this.track);
     this.view.resetCamera();
     this.inGame = true;
+    this.menuBtn.style.display = "block";
     const n = this.track.segments.length;
     const line = resume && resume.segs.length <= n && resume.start ? resume : null;
     this.shareLine = line ?? undefined;
@@ -627,6 +791,7 @@ export class Game {
 
   // ---------- racing ----------
   private startRace(): void {
+    this.rivalEntrants = this.settings.mode === "trial" ? [] : this.makeRivals();
     this.me = { id: ME, name: "You", car: this.playerCar(), lines: [this.currentLine], isPlayer: true, pit: this.pitPlan };
     this.race = new Race(this.track, [this.me, ...this.rivalEntrants], this.settings.laps, { realism: this.settings.realism });
     this.lapNo = 0;
@@ -706,6 +871,15 @@ export class Game {
     this.view.addSkids(out);
   }
 
+  /** The aeroplane's engine: louder when it is close to what you are watching, with a little Doppler. */
+  private updatePlane(fx: number, fy: number): void {
+    const st = this.view.planeState();
+    if (!st) { this.audio.planeSound(null); return; }
+    const dx = st.x - fx, dy = st.y - fy, d = Math.hypot(dx, dy) || 1;
+    const approach = -(st.vx * dx + st.vy * dy) / d;
+    this.audio.planeSound({ vol: clamp(1 / (1 + d / 130), 0, 1) * (1 - 0.3 * st.alt), pan: dx / 220, pitch: 1 + clamp(approach / 700, -0.15, 0.15) });
+  }
+
   private updateAudio(k: number, now: number, speed: number): void {
     const race = this.race!;
     this.audio.setDucked(speed > 1);
@@ -713,6 +887,7 @@ export class Game {
     const mk = Math.min(k, me.trace.length / 3 - 1);
     const fx = me.trace[mk * 3]!;
     const fy = me.trace[mk * 3 + 1]!;
+    this.updatePlane(fx, fy);
     for (const c of race.cars) {
       if (c.finishTime !== null && c.finishTime <= now) { this.audio.hush(c.entrant.id); continue; }
       const i = Math.min(k, c.trace.length / 3 - 1), m = this.motion(c, i);
@@ -726,8 +901,20 @@ export class Game {
   private onFrame(dt: number): void {
     this.clock += dt;
     this.view.update(dt);
+    // behind the title: bots going round and round
+    if (this.ambient && this.menuOpen && !this.inGame) {
+      const a = this.ambient;
+      a.tick += dt * 60;
+      if (a.tick >= a.race.tick - 2) a.tick = 0;
+      const k = Math.floor(a.tick);
+      a.race.cars.forEach((c, i) => {
+        const j = Math.min(k, c.trace.length / 3 - 1);
+        this.view.setCar(c.entrant.id, c.entrant.car.type, c.trace[j * 3]!, c.trace[j * 3 + 1]!, c.trace[j * 3 + 2]!, RIVAL_COLORS[i % RIVAL_COLORS.length]!, false, false, false);
+      });
+      return;
+    }
     const p = this.play;
-    if (!p || !this.race) return;
+    if (!p || !this.race || (this.menuOpen && this.inGame)) return; // the menu pauses the race
     const race = this.race;
     p.tick = Math.min(p.end, p.tick + dt * 60 * p.speed);
     const k = Math.floor(p.tick);
