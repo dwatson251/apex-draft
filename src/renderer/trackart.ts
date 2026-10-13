@@ -1,0 +1,223 @@
+import { Container, Graphics, Text } from "pixi.js";
+import { ROAD_HALF, Rng, centreAt, cross, dot, sub, type Segment, type Track, type Vec2 } from "@apex/sim";
+
+/** Retro palette: flat colours, a few tones each, light from the top left. */
+export const PAL = {
+  asphalt: 0x3b3e47, asphaltWorn: 0x34373f, speck: 0x6d7280, paint: 0xeeeeea,
+  kerbRed: 0xd8393a, kerbWhite: 0xf3f1ea, gravel: 0xcdb682, gravelDark: 0xa58f5c,
+  concrete: 0x59606f, concreteDark: 0x434958,
+  crowd: [0xe84a4a, 0xf2c744, 0x4a8fe8, 0xf1f1f1, 0xe86bb5, 0x5ad07a, 0xff9a3c],
+  ads: [0xd8393a, 0xf2c744, 0x2f6fd0, 0xf1f1f1],
+  box: 0xb2773c, boxDark: 0x6b4520, water: 0x2f7fcf, waterLight: 0x7cc0f5, waterDark: 0x1d4f8a,
+  boost: 0xffcf3f, grip: 0x4fd28a, ghost: 0xb48cff,
+};
+
+const at = (s: Segment, i: number, lat: number): Vec2 => ({ x: s.center[i]!.x + s.normals[i]!.x * lat, y: s.center[i]!.y + s.normals[i]!.y * lat });
+
+function strip(g: Graphics, s: Segment, i0: number, i1: number, latA: number, latB: number): Graphics {
+  const pts: number[] = [];
+  for (let i = i0; i <= i1; i++) { const p = at(s, i, latA); pts.push(p.x, p.y); }
+  for (let i = i1; i >= i0; i--) { const p = at(s, i, latB); pts.push(p.x, p.y); }
+  return g.poly(pts);
+}
+
+export interface SegmentArt {
+  root: Container;
+  /** the two frames of the crowd; they swap a few times a second */
+  crowdA: Graphics[];
+  crowdB: Graphics[];
+  pulses: Container[];
+}
+
+/** One segment: tarmac, markings, sausage kerbs, apex paint, gravel traps, grandstands, obstacles, pick-ups. */
+export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
+  const rng = new Rng(track.seed ^ (Math.imul(s.index + 1, 0x9e3779b1) >>> 0));
+  const root = new Container();
+  const art: SegmentArt = { root, crowdA: [], crowdB: [], pulses: [] };
+  const n = s.center.length - 1;
+
+  // turning angle at each sample: positive turns toward the +normal side
+  const ang = new Array<number>(n + 1).fill(0);
+  for (let i = 1; i < n; i++) {
+    const d0 = sub(s.center[i]!, s.center[i - 1]!), d1 = sub(s.center[i + 1]!, s.center[i]!);
+    ang[i] = Math.atan2(cross(d0, d1), dot(d0, d1));
+  }
+  const total = ang.reduce((a, b) => a + b, 0);
+
+  // gravel trap on the outside of a real corner
+  if ((s.kind === "corner" || s.kind === "sharp") && Math.abs(total) > 0.8) {
+    const out = total > 0 ? -1 : 1;
+    const g = new Graphics();
+    const i0 = 5, i1 = 19;
+    const pts: number[] = [];
+    for (let i = i0; i <= i1; i++) { const p = at(s, i, out * (ROAD_HALF + 1)); pts.push(p.x, p.y); }
+    for (let i = i1; i >= i0; i--) {
+      const depth = 4 + 10 * Math.sin((Math.PI * (i - i0)) / (i1 - i0));
+      const p = at(s, i, out * (ROAD_HALF + 1 + depth)); pts.push(p.x, p.y);
+    }
+    g.poly(pts).fill(PAL.gravel).stroke({ width: 0.8, color: PAL.gravelDark });
+    for (let k = 0; k < 40; k++) {
+      const i = i0 + rng.int(i1 - i0), p = at(s, i, out * (ROAD_HALF + rng.range(2, 9)));
+      g.circle(p.x, p.y, rng.range(0.3, 0.8)).fill({ color: PAL.gravelDark, alpha: 0.7 });
+    }
+    root.addChild(g);
+  }
+
+  // grandstands: the start straight on both sides, other straights on one side now and then
+  const sides: (1 | -1)[] = s.index === 0 ? [1, -1] : s.kind === "straight" && rng.chance(0.5) ? [rng.chance(0.5) ? 1 : -1] : [];
+  for (const side of sides) root.addChild(stand(art, s, side, rng));
+
+  // tarmac
+  const road = new Graphics();
+  strip(road, s, 0, n, -ROAD_HALF, ROAD_HALF).fill(PAL.asphalt);
+  strip(road, s, 0, n, -7, 7).fill({ color: PAL.asphaltWorn, alpha: 0.55 });
+  for (let k = 0; k < 90; k++) {
+    const t = rng.next(), c = centreAt(s, t), l = rng.range(-ROAD_HALF + 1, ROAD_HALF - 1);
+    road.circle(c.p.x + c.n.x * l, c.p.y + c.n.y * l, rng.range(0.3, 0.8)).fill({ color: PAL.speck, alpha: rng.range(0.25, 0.6) });
+  }
+  // a hair of overlap at both gates, so no grass seam shows between neighbouring segments
+  for (const [gate, push] of [[s.entry, -0.9], [s.exit, 0.9]] as const) {
+    const pt = (l: number, a: number) => [gate.mid.x + gate.n.x * l + gate.dir.x * a, gate.mid.y + gate.n.y * l + gate.dir.y * a];
+    road.poly([...pt(-ROAD_HALF, 0), ...pt(ROAD_HALF, 0), ...pt(ROAD_HALF, push), ...pt(-ROAD_HALF, push)]).fill(PAL.asphalt);
+  }
+  root.addChild(road);
+
+  // paint: edge lines and a faint dashed centre line
+  const paint = new Graphics();
+  for (const side of [-1, 1]) {
+    const p0 = at(s, 0, side * (ROAD_HALF - 2.6));
+    paint.moveTo(p0.x, p0.y);
+    for (let i = 1; i <= n; i++) { const p = at(s, i, side * (ROAD_HALF - 2.6)); paint.lineTo(p.x, p.y); }
+    paint.stroke({ width: 1, color: PAL.paint, alpha: 0.85 });
+  }
+  for (let i = 0; i < n; i += 2) paint.moveTo(s.center[i]!.x, s.center[i]!.y).lineTo(s.center[i + 1]!.x, s.center[i + 1]!.y);
+  paint.stroke({ width: 0.8, color: PAL.paint, alpha: 0.28 });
+  root.addChild(paint);
+
+  // sausage kerbs on the inside of every bend, alternating red and white
+  const kerbs = new Graphics();
+  for (let i = 1; i < n - 1; i++) {
+    const a = (ang[i]! + ang[i + 1]!) / 2;
+    if (Math.abs(a) < 0.045) continue;
+    const side = a > 0 ? 1 : -1;
+    const p = at(s, i, side * (ROAD_HALF - 0.2)), q = at(s, i + 1, side * (ROAD_HALF - 0.2));
+    kerbs.moveTo(p.x, p.y).lineTo(q.x, q.y).stroke({ width: 3.6, color: 0x2a1010, alpha: 0.35, cap: "round" });
+    kerbs.moveTo(p.x, p.y).lineTo(q.x, q.y).stroke({ width: 3, color: i % 2 ? PAL.kerbRed : PAL.kerbWhite, cap: "round" });
+  }
+  root.addChild(kerbs);
+
+  // apexes: a painted arrowhead on the tarmac at the tightest point of each bend
+  const apex = new Graphics();
+  for (let i = 2; i < n - 1; i++) {
+    const m = Math.abs(ang[i]!);
+    if (m < 0.07 || m < Math.abs(ang[i - 1]!) || m <= Math.abs(ang[i + 1]!)) continue;
+    const side = ang[i]! > 0 ? 1 : -1;
+    const p = at(s, i, side * (ROAD_HALF - 8));
+    const d = sub(s.center[i + 1]!, s.center[i - 1]!), l = Math.hypot(d.x, d.y) || 1, t = { x: d.x / l, y: d.y / l };
+    const nn = s.normals[i]!;
+    apex.poly([p.x + t.x * 3.4, p.y + t.y * 3.4, p.x - t.x * 1.8 + nn.x * 2.3, p.y - t.y * 1.8 + nn.y * 2.3,
+      p.x - t.x * 0.4, p.y - t.y * 0.4, p.x - t.x * 1.8 - nn.x * 2.3, p.y - t.y * 1.8 - nn.y * 2.3]).fill({ color: PAL.paint, alpha: 0.8 });
+  }
+  root.addChild(apex);
+
+  if (s.index === 0) root.addChild(startLine(s));
+
+  // obstacles
+  for (const o of s.obstacles) {
+    const g = new Graphics();
+    if (o.kind === "box") {
+      g.rect(-o.r + 1.4, -o.r + 2, 2 * o.r, 2 * o.r).fill({ color: 0x000000, alpha: 0.3 });
+      g.rect(-o.r, -o.r, 2 * o.r, 2 * o.r).fill(PAL.box).stroke({ width: 1, color: PAL.boxDark });
+      g.moveTo(-o.r, -o.r).lineTo(o.r, o.r).moveTo(o.r, -o.r).lineTo(-o.r, o.r).stroke({ width: 0.8, color: PAL.boxDark });
+      g.rect(-o.r, -o.r, 2 * o.r, 1.4).fill({ color: 0xffffff, alpha: 0.2 });
+    } else {
+      g.ellipse(0, 0, o.r * 1.05, o.r * 0.9).fill(PAL.water).stroke({ width: 1, color: PAL.waterDark });
+      g.ellipse(-o.r * 0.2, -o.r * 0.22, o.r * 0.55, o.r * 0.4).fill({ color: PAL.waterLight, alpha: 0.55 });
+      g.ellipse(0, 0, o.r * 0.78, o.r * 0.64).stroke({ width: 0.6, color: 0xffffff, alpha: 0.4 });
+    }
+    g.position.set(o.x, o.y);
+    root.addChild(g);
+  }
+
+  // power-up pick-ups
+  if (s.powerup) {
+    const pu = s.powerup, col = PAL[pu.kind];
+    const g = new Container();
+    g.addChild(new Graphics().circle(0, 0, pu.r + 3).fill({ color: col, alpha: 0.18 }));
+    g.addChild(new Graphics().circle(0, 0, pu.r).fill({ color: 0x14161c, alpha: 0.75 }).stroke({ width: 1.6, color: col }));
+    const t = new Text({ text: pu.kind === "boost" ? "B" : pu.kind === "grip" ? "G" : "H", style: { fontSize: 9, fill: col, fontWeight: "700" } });
+    t.anchor.set(0.5);
+    g.addChild(t);
+    g.position.set(pu.x, pu.y);
+    root.addChild(g);
+    art.pulses.push(g);
+  }
+  return art;
+}
+
+/** A grandstand with advertising boards, three rows of spectators, and a second frame so they bob about. */
+function stand(art: SegmentArt, s: Segment, side: 1 | -1, rng: Rng): Container {
+  const c = new Container();
+  const lat0 = ROAD_HALF + 9, depth = 14, i0 = 3, i1 = 21;
+  const base = new Graphics();
+  strip(base, s, i0, i1, side * lat0, side * (lat0 + depth)).fill(PAL.concrete).stroke({ width: 0.8, color: PAL.concreteDark });
+  for (const r of [0.33, 0.66]) {
+    const pts: number[] = [];
+    for (let i = i0; i <= i1; i++) { const p = at(s, i, side * (lat0 + depth * r)); pts.push(p.x, p.y); }
+    base.moveTo(pts[0]!, pts[1]!);
+    for (let k = 2; k < pts.length; k += 2) base.lineTo(pts[k]!, pts[k + 1]!);
+    base.stroke({ width: 0.7, color: PAL.concreteDark });
+  }
+  // advertising boards along the front
+  for (let i = i0; i < i1; i++) {
+    const p = at(s, i, side * (lat0 - 1.6)), q = at(s, i + 1, side * (lat0 - 1.6));
+    base.moveTo(p.x, p.y).lineTo(q.x, q.y).stroke({ width: 2.2, color: PAL.ads[Math.floor(i / 2) % PAL.ads.length] });
+  }
+  c.addChild(base);
+  const a = new Graphics(), b = new Graphics();
+  for (let row = 0; row < 3; row++) {
+    const lat = side * (lat0 + 2.6 + row * 4.2);
+    for (let t = 0.14; t < 0.86; t += 0.027) {
+      const m = centreAt(s, t), col = rng.pick(PAL.crowd), jump = rng.chance(0.5) ? -0.8 : 0;
+      const x = m.p.x + m.n.x * lat + rng.range(-0.3, 0.3), y = m.p.y + m.n.y * lat;
+      a.circle(x, y, 1.15).fill(col);
+      b.circle(x, y + jump, 1.15).fill(col);
+    }
+  }
+  b.visible = false;
+  c.addChild(a, b);
+  art.crowdA.push(a);
+  art.crowdB.push(b);
+  return c;
+}
+
+/** Chequered line across the start gate, with a gantry just before it. */
+function startLine(s: Segment): Container {
+  const c = new Container();
+  const g = new Graphics();
+  const { mid, dir, n } = s.entry;
+  const sq = 4, cols = Math.round((2 * ROAD_HALF) / sq);
+  for (let r = 0; r < 2; r++) {
+    for (let k = 0; k < cols; k++) {
+      const l0 = -ROAD_HALF + k * sq, l1 = l0 + sq, a0 = (r - 1) * sq, a1 = a0 + sq;
+      const pt = (l: number, a: number) => [mid.x + n.x * l + dir.x * a, mid.y + n.y * l + dir.y * a];
+      g.poly([...pt(l0, a0), ...pt(l1, a0), ...pt(l1, a1), ...pt(l0, a1)]).fill((r + k) % 2 ? 0x16171c : 0xf5f5f0);
+    }
+  }
+  c.addChild(g);
+  const gantry = new Graphics();
+  const L = ROAD_HALF + 4;
+  const pt = (l: number, a: number) => [mid.x + n.x * l + dir.x * a, mid.y + n.y * l + dir.y * a];
+  gantry.poly([...pt(-L + 1.2, -9.5), ...pt(L + 1.2, -9.5), ...pt(L + 1.2, -6.9), ...pt(-L + 1.2, -6.9)]).fill({ color: 0x000000, alpha: 0.3 });
+  gantry.poly([...pt(-L, -10), ...pt(L, -10), ...pt(L, -7.5), ...pt(-L, -7.5)]).fill(0x2b2e38);
+  for (let k = 0; k < 8; k++) {
+    const l0 = -L + (k * 2 * L) / 8, l1 = l0 + (2 * L) / 8;
+    gantry.poly([...pt(l0, -9.4), ...pt(l1, -9.4), ...pt(l1, -8.1), ...pt(l0, -8.1)]).fill(k % 2 ? PAL.kerbRed : PAL.kerbWhite);
+  }
+  for (const side of [-1, 1]) {
+    const p = pt(side * L, -8.7);
+    gantry.circle(p[0]!, p[1]!, 2.2).fill(0x14161c);
+  }
+  c.addChild(gantry);
+  return c;
+}

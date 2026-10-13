@@ -21,7 +21,12 @@ Installers for Windows, Linux (AppImage) and macOS are on the
 - **Race.** The car follows your line with real limits: it brakes for tight bends (grip), accelerates (power) and tops
   out (top speed). Rivals on the same road slow down rather than collide, so the same line can give a different time
   against a different field.
-- **Amend.** After each lap, pick up to 3 segments on the map and redraw them. Then the next lap runs.
+- **Edit.** Every point can be dragged, including where a segment starts (square) and ends (diamond), which slide along
+  the road edge. Right-click deletes a point, Shift+click inserts one between two others.
+- **Amend.** After each lap, pick up to 3 segments on the map and edit them. Then the next lap runs. Moving a shared
+  start or end node changes its neighbour too, and that counts toward the 3.
+- **Watch.** The camera eases in on your car and follows it, then pulls back out when you finish. Cars leave skid marks,
+  hum with their speed, and squeal in corners (`M` mutes). Clouds and birds pass overhead.
 - **Power-ups.** Drive your line through a pickup for the rest of that segment: **B**oost (speed), **G**rip (cornering)
   or **H** ghost (pass through cars).
 - **Garage.** Spend 24 points across acceleration, top speed, cornering and braking, and save setups.
@@ -33,7 +38,7 @@ Installers for Windows, Linux (AppImage) and macOS are on the
 ```sh
 npm install
 npm run dev        # Electron with hot reload
-npm run dev:web    # just the renderer in a browser (saves go to localStorage)
+npm run dev:web    # just the renderer in a browser (saves go to localStorage); add ?demo to jump into a race
 npm test           # vitest
 npm run typecheck
 npm run dist       # installers for this OS into release/

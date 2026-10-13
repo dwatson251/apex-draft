@@ -28,6 +28,6 @@ export async function save(key: string, value: unknown): Promise<void> {
   } catch { /* storage is a convenience */ }
 }
 
-export interface Settings { phrase: string; laps: number; mode: "trial" | "race"; rivals: number; car: CarConfig }
+export interface Settings { phrase: string; laps: number; mode: "trial" | "race"; rivals: number; car: CarConfig; muted?: boolean }
 /** best finishing time per phrase+laps */
 export type Best = Record<string, number>;
