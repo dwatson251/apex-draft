@@ -46,6 +46,7 @@ select.fancy:disabled, input:disabled { opacity: 0.45; }
 .chips { margin: 10px 0 2px; }
 .chip { display: inline-block; padding: 5px 13px; margin: 0 6px 6px 0; border-radius: 999px; background: #27324f; color: #fff; font: 800 13px/1.2 system-ui; letter-spacing: 0.3px; }
 .chip.dim { background: #1d253c; color: var(--dim); font-weight: 600; }
+.chip.circuit { background: #e9453b; color: #fff; }
 .chip.biome-grass { background: #2f8a42; } .chip.biome-desert { background: #d19a35; color: #2a1a00; } .chip.biome-snow { background: #9ccdf0; color: #0b2a40; } .chip.biome-city { background: #6a7490; } .chip.biome-moon { background: #b6b9c4; color: #1c1d24; }
 
 .bigbtns { display: flex; flex-wrap: wrap; margin-top: 8px; }

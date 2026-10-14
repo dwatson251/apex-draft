@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+- Hidden circuits: type `donington-park`, `daytona`, `willow-springs` or `oval` as the track phrase and you get that
+  circuit, drawn on the grid as a simplified copy (the right corners in the right order and direction, not a survey).
+  Each fixes its own setting (Willow Springs is in the desert); weather and the machines still come from the phrase.
+  They are not listed anywhere in the game.
+- Four new pieces of road, now part of the random pool: `kink` (a gentle bow), `chicane` (a quick S), `sweeper` (a long
+  fast bend that replaces a tight corner between two straights) and `uturn` (a wide 180 replacing corner, straight,
+  corner). They come from their own random stream, so a phrase keeps its cells, its pit lane and most of its road; a few
+  corners are now wider, so a line saved in an old share link may not fit one of those segments.
+
 ## 0.1.0-alpha.1
 - Races up to 50 laps. You can change your line only while your car is in the pits: the race runs until your next
   planned stop (or an emergency refuel) and stops there, and you may redraw up to 3 segments before you go back out. With

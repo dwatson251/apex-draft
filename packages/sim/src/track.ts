@@ -1,7 +1,9 @@
 import { phraseToSeed, normalizePhrase } from "./seed.ts";
 import { Rng } from "./rng.ts";
 import { biomeForSeed, type BiomeId } from "./biomes.ts";
+import { circuitFor, type Circuit } from "./circuits.ts";
 import { makePit, type Pit } from "./pit.ts";
+import { gateAt, straightCentre, sweeperWindow, uturnWindow, type GateGeom, type StraightShape } from "./pieces.ts";
 import { add, dist, distToSegment, lerp, mul, norm, perp, sub, v2, type Vec2 } from "./vec.ts";
 
 /** A grid cell is CELL units wide; the road is 2 * ROAD_HALF wide; the car is a disc of CAR_R. */
@@ -10,7 +12,7 @@ export const ROAD_HALF = 22;
 export const CAR_R = 3;
 const SAMPLES = 24;
 
-export type SegmentKind = "straight" | "bendy" | "corner" | "sharp";
+export type SegmentKind = "straight" | "bendy" | "kink" | "chicane" | "corner" | "sharp" | "sweeper" | "uturn";
 export type PowerupKind = "boost" | "grip" | "ghost";
 
 export interface Gate {
@@ -50,6 +52,8 @@ export interface Track {
   obstacles: boolean;
   /** where it is: scenery and surface */
   biome: BiomeId;
+  /** a real circuit this track is a copy of, when the phrase named one */
+  circuit?: { id: string; name: string; lengthKm: number; blurb: string };
   /** "cx,cy" -> segment index */
   cellIndex: Map<string, number>;
 }
@@ -94,47 +98,16 @@ function makeGate(mid: Vec2, dir: Vec2): Gate {
   return { mid, dir, n: perp(dir) };
 }
 
-function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [number, number], next: [number, number], total: number): Segment {
-  const [cx, cy] = cell;
-  const C = v2((cx + 0.5) * CELL, (cy + 0.5) * CELL);
-  const toPrev = v2(prev[0] - cx, prev[1] - cy);
-  const toNext = v2(next[0] - cx, next[1] - cy);
-  const p0 = add(C, mul(toPrev, CELL / 2));
-  const p2 = add(C, mul(toNext, CELL / 2));
-  const straight = toPrev.x === -toNext.x && toPrev.y === -toNext.y;
-  let kind: SegmentKind;
-  // the two segments either side of the start line are plain straights, with the pit lane beside them
-  const pitStraight = index === 0 || index === total - 1;
-  if (straight) kind = rng.chance(0.3) && !pitStraight ? "bendy" : "straight";
-  else kind = rng.chance(0.4) ? "sharp" : "corner";
+const normalsOf = (center: Vec2[]): Vec2[] => center.map((_, i) => {
+  const a = center[Math.max(0, i - 1)]!;
+  const b = center[Math.min(SAMPLES, i + 1)]!;
+  return perp(norm(sub(b, a)));
+});
 
-  const center: Vec2[] = [];
-  const bendSign = rng.chance(0.5) ? 1 : -1;
-  // handle length: 27.6 draws a quarter circle; longer handles squeeze the bend toward the cell corner
-  const handle = kind === "sharp" ? 36 : 27.6;
-  const c1 = add(p0, mul(toPrev, -handle));
-  const c2 = sub(p2, mul(toNext, handle));
-  for (let i = 0; i <= SAMPLES; i++) {
-    const t = i / SAMPLES;
-    if (kind === "straight") center.push(lerp(p0, p2, t));
-    else if (kind === "bendy") {
-      const base = lerp(p0, p2, t);
-      const n = perp(norm(sub(p2, p0)));
-      center.push(add(base, mul(n, bendSign * 20 * Math.sin(2 * Math.PI * t) * Math.sin(Math.PI * t))));
-    } else center.push(bezier(p0, c1, c2, p2, t));
-  }
-  const normals = center.map((_, i) => {
-    const a = center[Math.max(0, i - 1)]!;
-    const b = center[Math.min(SAMPLES, i + 1)]!;
-    return perp(norm(sub(b, a)));
-  });
-  const seg: Segment = {
-    index, cx, cy, kind, center, normals,
-    entry: makeGate(p0, mul(toPrev, -1)),
-    exit: makeGate(p2, toNext),
-    obstacles: [],
-  };
-  // The start/finish segment is kept clear.
+/** Boxes, water and power-ups on a segment (never on the two straights beside the start line). */
+function placeFeatures(seg: Segment, rng: Rng, pitStraight: boolean): void {
+  seg.obstacles = [];
+  seg.powerup = undefined;
   if (!pitStraight && rng.chance(0.4)) {
     const t = rng.range(0.35, 0.65);
     const o = rng.range(-0.25, 0.25) * ROAD_HALF;
@@ -152,7 +125,123 @@ function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [nu
       seg.powerup = { kind: rng.pick(["boost", "grip", "ghost"] as const), x: pos.x, y: pos.y, r: 6 };
     }
   }
+}
+
+/** `force` fixes the kind (circuits do), but the same random draws are made either way. */
+function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [number, number], next: [number, number], total: number, force?: SegmentKind): Segment {
+  const [cx, cy] = cell;
+  const C = v2((cx + 0.5) * CELL, (cy + 0.5) * CELL);
+  const toPrev = v2(prev[0] - cx, prev[1] - cy);
+  const toNext = v2(next[0] - cx, next[1] - cy);
+  const p0 = add(C, mul(toPrev, CELL / 2));
+  const p2 = add(C, mul(toNext, CELL / 2));
+  const straight = toPrev.x === -toNext.x && toPrev.y === -toNext.y;
+  let kind: SegmentKind;
+  // the two segments either side of the start line are plain straights, with the pit lane beside them
+  const pitStraight = index === 0 || index === total - 1;
+  if (straight) kind = rng.chance(0.3) && !pitStraight ? "bendy" : "straight";
+  else kind = rng.chance(0.4) ? "sharp" : "corner";
+  const bendSign: 1 | -1 = rng.chance(0.5) ? 1 : -1;
+  if (force) {
+    if (straight !== (force === "straight" || force === "bendy" || force === "kink" || force === "chicane")) throw new Error(`a ${force} cell at ${cx},${cy} does not fit the way the road runs`);
+    kind = force;
+  }
+
+  // handle length: 27.6 draws a quarter circle; longer handles squeeze the bend toward the cell corner
+  const handle = kind === "sharp" ? 36 : 27.6;
+  const c1 = add(p0, mul(toPrev, -handle));
+  const c2 = sub(p2, mul(toNext, handle));
+  let center: Vec2[];
+  if (kind === "corner" || kind === "sharp") {
+    center = [];
+    for (let i = 0; i <= SAMPLES; i++) center.push(bezier(p0, c1, c2, p2, i / SAMPLES));
+  } else center = straightCentre(kind as StraightShape, p0, p2, bendSign);
+  const seg: Segment = {
+    index, cx, cy, kind, center, normals: normalsOf(center),
+    entry: makeGate(p0, mul(toPrev, -1)),
+    exit: makeGate(p2, toNext),
+    obstacles: [],
+  };
+  placeFeatures(seg, rng, pitStraight);
   return seg;
+}
+
+/** Smallest distance between a segment's centre line and those of every segment that is not next to it. */
+function separationFrom(segs: Segment[], i: number): number {
+  const n = segs.length;
+  let best = Infinity;
+  for (let j = 0; j < n; j++) {
+    const gap = Math.min((i - j + n) % n, (j - i + n) % n);
+    if (gap <= 1) continue;
+    for (const p of segs[i]!.center) for (const q of segs[j]!.center) best = Math.min(best, Math.hypot(p.x - q.x, p.y - q.y));
+  }
+  return best;
+}
+
+/** Enough room between road and road that two cars on different bits of track can never touch. */
+const MIN_SEPARATION = 2 * ROAD_HALF + 4;
+
+interface Saved { center: Vec2[]; normals: Vec2[]; entry: Gate; exit: Gate; kind: SegmentKind; obstacles: Obstacle[]; powerup: Powerup | undefined }
+const save = (s: Segment): Saved => ({ center: s.center, normals: s.normals, entry: s.entry, exit: s.exit, kind: s.kind, obstacles: s.obstacles, powerup: s.powerup });
+const restore = (s: Segment, v: Saved) => { Object.assign(s, v); };
+
+/**
+ * Lay a three-cell arc piece (a `uturn` or a `sweeper`) over cells i, i + 1 and i + 2 of a built loop: the outer gates stay
+ * where they are, the two gates inside move onto the arc. Returns false (and changes nothing) if it would bring the road
+ * closer to the rest of the track than it already was, or than two cars can pass.
+ */
+function applyWindow(segs: Segment[], i: number, piece: "uturn" | "sweeper", rng: Rng | null): boolean {
+  const a = segs[i]!, b = segs[i + 1]!, c = segs[i + 2]!;
+  const E: GateGeom = a.entry, X: GateGeom = c.exit;
+  const w = piece === "uturn" ? uturnWindow(E, X) : sweeperWindow(E, X);
+  const before = Math.min(separationFrom(segs, i), separationFrom(segs, i + 1), separationFrom(segs, i + 2));
+  const old = [save(a), save(b), save(c)];
+  const g0 = gateAt(w.gates[0]!.mid, w.gates[0]!.dir), g1 = gateAt(w.gates[1]!.mid, w.gates[1]!.dir);
+  const mk = (g: GateGeom): Gate => ({ mid: g.mid, dir: g.dir, n: g.n });
+  const set = (s: Segment, centre: Vec2[], entry: Gate, exit: Gate) => { s.center = centre; s.normals = normalsOf(centre); s.entry = entry; s.exit = exit; s.kind = piece; };
+  set(a, w.centres[0]!, a.entry, mk(g0));
+  set(b, w.centres[1]!, mk(g0), mk(g1));
+  set(c, w.centres[2]!, mk(g1), c.exit);
+  const after = Math.min(separationFrom(segs, i), separationFrom(segs, i + 1), separationFrom(segs, i + 2));
+  if (after < Math.min(MIN_SEPARATION, before) - 0.5) { restore(a, old[0]!); restore(b, old[1]!); restore(c, old[2]!); return false; }
+  if (rng) for (const s of [a, b, c]) placeFeatures(s, rng, false);
+  return true;
+}
+
+/**
+ * The extra pieces for a random track, chosen from a stream of their own so that the layout and the rest of the random
+ * draws are exactly what they always were: some bendy cells become kinks or chicanes, and some patterns of cells get a
+ * wide arc (a corner, a straight and a corner become a `uturn`; a straight, a corner and a straight a `sweeper`).
+ */
+function enrich(segs: Segment[], cyc: [number, number][], seed: number): void {
+  const n = segs.length;
+  const rng = new Rng((seed ^ 0x91ec3b5d) >>> 0);
+  const turn = (i: number): number => {
+    const a = cyc[(i + n - 1) % n]!, b = cyc[i]!, c = cyc[(i + 1) % n]!;
+    const cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+    return cross === 0 ? 0 : cross > 0 ? 1 : -1;
+  };
+  // wide arcs first: windows of three cells that stay clear of the two pit straights (indices 0 and n - 1)
+  const used = new Set<number>();
+  for (let i = 1; i + 2 <= n - 2; i++) {
+    if (used.has(i) || used.has(i + 1) || used.has(i + 2)) continue;
+    const t0 = turn(i), t1 = turn(i + 1), t2 = turn(i + 2);
+    const piece = t0 !== 0 && t1 === 0 && t2 === t0 ? "uturn" : t0 === 0 && t1 !== 0 && t2 === 0 ? "sweeper" : null;
+    if (!piece || !rng.chance(0.35)) continue;
+    if (applyWindow(segs, i, piece, rng)) { used.add(i); used.add(i + 1); used.add(i + 2); }
+  }
+  // then the straight-cell pieces: a bendy cell may be a kink or a chicane instead
+  for (const s of segs) {
+    if (s.kind !== "bendy" || s.index === 0 || s.index === n - 1) continue;
+    const r = rng.next();
+    if (r < 0.34) continue;
+    const kind: StraightShape = r < 0.67 ? "kink" : "chicane";
+    const p0 = s.entry.mid, p2 = s.exit.mid;
+    s.center = straightCentre(kind, p0, p2, rng.chance(0.5) ? 1 : -1);
+    s.normals = normalsOf(s.center);
+    s.kind = kind;
+    placeFeatures(s, rng, false);
+  }
 }
 
 /** Centreline point and normal at t in [0, 1]. */
@@ -168,11 +257,15 @@ export interface TrackOptions {
   obstacles?: boolean;
   /** leave out to let the seed choose */
   biome?: BiomeId;
+  /** false leaves out kinks, chicanes and the wide arcs (tests compare with and without) */
+  pieces?: boolean;
 }
 
 /** The same phrase (and options) always give the same track. */
 export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
   const norm_ = normalizePhrase(phrase);
+  const named = circuitFor(norm_);
+  if (named) return buildCircuit(named, norm_, opts);
   const seed = phraseToSeed(norm_);
   const rng = new Rng(seed);
   const cols = 7;
@@ -197,6 +290,7 @@ export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
   const startAt = candidates.length ? rng.pick(candidates) : 0;
   cyc = [...cyc.slice(startAt), ...cyc.slice(0, startAt)];
   const segments = cyc.map((cell, i) => buildSegment(rng, i, cell, cyc[(i + n - 1) % n]!, cyc[(i + 1) % n]!, n));
+  if (opts.pieces !== false) enrich(segments, cyc, seed);
   // the layout is drawn from the same random stream either way, so switching obstacles off keeps the track
   if (opts.obstacles === false) for (const s of segments) s.obstacles = [];
   const g = segments[0]!.entry;
@@ -204,6 +298,34 @@ export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
   const cellIndex = new Map<string, number>();
   segments.forEach((s) => cellIndex.set(key(s.cx, s.cy), s.index));
   return { phrase: norm_, seed, cols, rows, segments, pit, obstacles: opts.obstacles !== false, biome: opts.biome ?? biomeForSeed(seed), cellIndex };
+}
+
+/** A track copied from a real circuit: its cells in driving order, with the kind of each, and its wide arcs. */
+function buildCircuit(c: Circuit, typed: string, opts: TrackOptions): Track {
+  const seed = phraseToSeed(c.id);
+  const rng = new Rng(seed);
+  const n = c.cells.length;
+  const rot = (i: number) => (i + c.start) % n;
+  const cyc = c.cells.map((_, i) => [c.cells[rot(i)]![0], c.cells[rot(i)]![1]] as [number, number]);
+  const segments = cyc.map((cell, i) => buildSegment(rng, i, cell, cyc[(i + n - 1) % n]!, cyc[(i + 1) % n]!, n, c.cells[rot(i)]![2]));
+  for (const w of c.windows ?? []) {
+    const i = (w.at - c.start + n) % n;
+    if (i + 2 > n - 1) throw new Error(`${c.id}: the ${w.piece} at cell ${w.at} runs past the end of the loop`);
+    if (!applyWindow(segments, i, w.piece, rng)) throw new Error(`${c.id}: the ${w.piece} at cell ${w.at} does not fit`);
+  }
+  if (opts.obstacles === false) for (const s of segments) s.obstacles = [];
+  const g = segments[0]!.entry;
+  // the pit lane goes on the infield side of the start straight
+  const mx = segments.reduce((a, q) => a + q.center[12]!.x, 0) / n, my = segments.reduce((a, q) => a + q.center[12]!.y, 0) / n;
+  const inward = (mx - g.mid.x) * g.n.x + (my - g.mid.y) * g.n.y;
+  const pit = makePit(g.mid, g.dir, g.n, inward >= 0 ? 1 : -1);
+  const cellIndex = new Map<string, number>();
+  segments.forEach((s) => cellIndex.set(key(s.cx, s.cy), s.index));
+  const track: Track = {
+    phrase: typed, seed, cols: c.cols, rows: c.rows, segments, pit, obstacles: opts.obstacles !== false,
+    biome: opts.biome ?? c.biome, cellIndex, circuit: { id: c.id, name: c.name, lengthKm: c.lengthKm, blurb: c.blurb },
+  };
+  return track;
 }
 
 /** Length of one lap along the centreline, units. */
@@ -256,7 +378,7 @@ function lateralOf(s: Segment, o: Obstacle): number {
 }
 
 /** Segments near a point: its cell and the eight around it. */
-function nearbySegments(t: Track, p: Vec2): Segment[] {
+export function nearbySegments(t: Track, p: Vec2): Segment[] {
   const cx = Math.floor(p.x / CELL);
   const cy = Math.floor(p.y / CELL);
   const out: Segment[] = [];

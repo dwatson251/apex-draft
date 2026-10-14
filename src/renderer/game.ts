@@ -1,7 +1,7 @@
 import type { Application } from "pixi.js";
 import {
   BIOMES, CAR_BUDGET, CELL, MAX_AMENDS, PIT_PENALTY, PIT_STOP_TIME, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
-  defaultCar, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
+  circuitFor, defaultCar, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
   phraseToSeed, previewSegment, projectToGate, randomPhrase, serializeLineFile, setSegment, smooth, validateCar, validateLine, vehicleForSeed,
   COMPOUNDS, COMPOUND_IDS, MAX_PIT_STOPS, forecast, forecastText, isCompound, weatherFor,
   type CarConfig, type Compound, type Entrant, type Line, type LineFile, type RaceCar, type ShareState, type Stat, type Track, type Vec2, type VehicleId,
@@ -313,7 +313,8 @@ export class Game {
     const s = this.settings, inGame = this.inGame, racing = !!this.race;
     const phrase = normalizePhrase(s.phrase);
     const seed = phraseToSeed(phrase);
-    const biome = BIOMES[biomeForSeed(seed)], veh = VEHICLES[vehicleForSeed(seed)];
+    const circuit = circuitFor(phrase);
+    const biome = BIOMES[circuit?.biome ?? biomeForSeed(seed)], veh = VEHICLES[vehicleForSeed(seed)];
     const pct = (x: number, worse = false) => (x === 1 ? "" : `<span class="${(x > 1) !== worse ? "good" : "bad"}">${x > 1 ? "+" : "−"}${Math.round(Math.abs(x - 1) * 100)}%</span>`);
     const matching = this.imported.filter((f) => f.phrase === phrase);
     const bestKey = this.bestKey(phrase);
@@ -324,11 +325,12 @@ export class Game {
       <label>Track phrase: share it to share the track</label>
       <div class="row"><input id="phrase" class="fancy" type="text" value="${esc(s.phrase)}" spellcheck="false" /><button id="rand" class="big pink slim">Random</button></div>
       <div class="chips">
+        ${circuit ? `<span class="chip circuit">🏁 ${esc(circuit.name)} · ${circuit.lengthKm} km</span>` : ""}
         <span class="chip biome-${biome.id}">${esc(biome.name)}</span>
         <span class="chip">${esc(veh.plural)}</span>
         ${biome.grip !== 1 ? `<span class="chip dim">grip ${pct(biome.grip)}</span>` : ""}${biome.brake !== 1 ? `<span class="chip dim">braking ${pct(biome.brake)}</span>` : ""}${biome.wear !== 1 ? `<span class="chip dim">tyre wear ${pct(biome.wear, true)}</span>` : ""}
       </div>
-      <p class="dim blurb">${esc(biome.blurb)}</p>
+      <p class="dim blurb">${esc(circuit ? circuit.blurb : biome.blurb)}</p>
       ${s.realism ? `<p class="blurb forecast">☁ ${esc(this.forecastFor(s.phrase, s.laps, s.obstacles))}</p>` : ""}
       <div class="row">
         <div><label>Laps (1 to 50)</label><input id="laps" class="fancy" type="number" min="1" max="50" value="${s.laps}" ${lock}/></div>

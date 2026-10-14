@@ -136,6 +136,23 @@ const OUT = process.env.SHOTS || "";
   await page.click("#bar-skip"); await page.waitForSelector("#again", { timeout: 30000 });
   ok("and goes to the results", true);
 
+  // ---------------- hidden circuits ----------------
+  for (const [phrase, name, biome] of [["donington-park", "Donington Park", "Countryside"], ["oval", "The Oval", "Countryside"], ["daytona", "Daytona", "Countryside"], ["willow-springs", "Willow Springs", "Desert"]]) {
+    await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=1"); await page.waitForSelector("#phrase");
+    await page.fill("#phrase", phrase); await page.keyboard.press("Enter"); await page.waitForTimeout(600);
+    const chips = await page.textContent(".chips");
+    ok(`typing ${phrase} shows its circuit and setting`, chips.includes(name) && chips.includes(biome), chips.replace(/\s+/g, " "));
+    ok(`${phrase} is the track behind the menu`, await G((n) => window.__game.track.circuit?.name === n, name));
+    await settle(2500); await shot(`circuit-${phrase}`);
+  }
+  await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=1"); await page.waitForSelector("#phrase");
+  ok("a random phrase shows no circuit", !(await page.textContent(".chips")).includes("km"));
+  // a circuit plays like any track: a shared line on the oval loads, races and finishes
+  await open(BASE + (await linkFor({ phrase: "oval", laps: 2 }))); await page.waitForSelector("#bar-go"); await settle(1800);
+  ok("a shared link to the oval loads the circuit", await G(() => window.__game.track.circuit?.id === "oval"));
+  await page.click("#bar-go"); await page.waitForSelector("#bar-skip"); await page.click("#bar-skip"); await page.waitForSelector("#again", { timeout: 30000 });
+  ok("and the race on it reaches the results", true);
+
   ok("no page errors", errs.length === 0, errs.slice(0, 3).join(" | "));
   await page.close(); await browser.close();
   if (failed) { console.log(`${failed} check(s) failed`); process.exit(1); }

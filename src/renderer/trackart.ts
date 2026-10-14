@@ -50,7 +50,9 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   const total = ang.reduce((a, b) => a + b, 0);
 
   // gravel trap on the outside of a real corner
-  if ((s.kind === "corner" || s.kind === "sharp") && Math.abs(total) > 0.8) {
+  // a wide arc turns less in each of its cells, so it needs less turning to earn a trap
+  const wide = s.kind === "sweeper" || s.kind === "uturn";
+  if ((s.kind === "corner" || s.kind === "sharp" || wide) && Math.abs(total) > (wide ? 0.4 : 0.8)) {
     const out = total > 0 ? -1 : 1;
     const g = new Graphics();
     const i0 = 5, i1 = 19;

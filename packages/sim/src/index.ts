@@ -17,3 +17,5 @@ export * from "./impact.ts";
 export * from "./tyres.ts";
 export * from "./weather.ts";
 export * from "./trackwet.ts";
+export * from "./pieces.ts";
+export * from "./circuits.ts";

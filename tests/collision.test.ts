@@ -100,7 +100,7 @@ import { Race, botLine, defaultCar, generateTrack } from "@apex/sim";
 
 /** A race with cars placed by hand on lap 0: planning off, so they cannot dodge. */
 function lab(n: number, spots: { s: number; v: number; off?: number; offV?: number }[]) {
-  const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
+  const t = generateTrack("brave-owl-rides-melons", { biome: "grass", pieces: false });
   const es = Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `c${i}`, car: defaultCar(), lines: [botLine(t, 4, 1)], isPlayer: i === 0 }));
   const r = new Race(t, es, 3, { realism: false });
   const any = r as any;

@@ -1,4 +1,4 @@
-import { CELL, ROAD_HALF, type Track } from "./track.ts";
+import { nearbySegments, ROAD_HALF, type Track } from "./track.ts";
 import { tyreGrip, type Compound } from "./tyres.ts";
 
 /** Each segment is cut into this many bins along it and across it. */
@@ -33,14 +33,16 @@ export class WetField {
 
   /** Which bin a point on the road is in, or -1 off the road (the pit lane counts as dry). */
   cellAt(x: number, y: number): number {
-    const si = this.track.cellIndex.get(`${Math.floor(x / CELL)},${Math.floor(y / CELL)}`);
-    if (si === undefined) return -1;
-    const seg = this.track.segments[si]!;
-    let best = 0, bd = Infinity;
-    for (let i = 0; i < seg.center.length; i++) {
-      const c = seg.center[i]!, d = (c.x - x) * (c.x - x) + (c.y - y) * (c.y - y);
-      if (d < bd) { bd = d; best = i; }
+    // wide arcs can spill into the next cell, so look at the nine around and take the nearest bit of road
+    let si = -1, best = 0, bd = Infinity;
+    for (const seg of nearbySegments(this.track, { x, y })) {
+      for (let i = 0; i < seg.center.length; i++) {
+        const c = seg.center[i]!, d = (c.x - x) * (c.x - x) + (c.y - y) * (c.y - y);
+        if (d < bd) { bd = d; best = i; si = seg.index; }
+      }
     }
+    if (si < 0) return -1;
+    const seg = this.track.segments[si]!;
     const n = seg.normals[best]!, c = seg.center[best]!;
     const lat = (x - c.x) * n.x + (y - c.y) * n.y;
     if (Math.abs(lat) > ROAD_HALF + 2) return -1;

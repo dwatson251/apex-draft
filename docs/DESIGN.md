@@ -77,6 +77,21 @@
 - A pair of cars that hold each other up for two seconds pass through each other until clear, and the old 20-second
   failsafe is still behind that.
 
+## Pieces and circuits
+A segment still fills one cell, but it can be one of eight shapes: `straight`, `bendy`, `kink`, `chicane`, `corner`, `sharp`,
+`sweeper` and `uturn` (`packages/sim/src/pieces.ts`). The first four are straight cells with a sideways offset that is zero,
+with zero slope, at both gates. `sweeper` and `uturn` are three-cell windows: an exact circular arc (radius 150, or 100) cut
+into three equal parts, with the outer gates where they were and the two inner gates on the arc, so heading is continuous
+everywhere. The parts can spill a little over the cell edge, so anything that looks a point up (`nearbySegments`, the wet
+field) searches the nine cells around.
+
+`generateTrack` lays the cells out exactly as before, then `enrich` swaps in the new pieces from a separate random
+stream (seed xor a constant): about 35% of eligible windows, never touching the two start straights, and a swap is undone
+if it brings the road closer to other road than two cars need (`2 * ROAD_HALF + 4`). Circuits (`circuits.ts`) are routes
+(one letter per move) plus a kind for the interesting cells and the windows to lay; the phrase is matched after
+`normalizePhrase`. They reuse the same builder, fix the setting, and the pit lane goes on the infield side. The shapes are
+hand-fitted by eye to the real layouts; no map data is shipped.
+
 ## Vehicles and places
 - `vehicles.ts` and `biomes.ts` are tables of multipliers picked from the track's seed (`vehicleForSeed`, `biomeForSeed`).
   Vehicles scale the car's stats, fuel use and wear; biomes scale grip, braking, acceleration, wear and fuel for
