@@ -24,4 +24,4 @@ Made while the owner was away; review and overrule anything here.
 17. Not done / unverified: the APK has never been built or run (no SDK here). `cap add android` and `cap sync` succeed; the
     web build, typecheck, 171 unit tests and the touch e2e (Windows Chrome with touch emulation, 844x390 and 667x375) pass.
     Pit-strategy panel, garage and results screens were not audited at phone size.
-18. Nothing committed yet; changes are on branch `android-mobile` in the working tree.
+18. Committed on branch `android-mobile` (not pushed, not merged to main, not tagged).
