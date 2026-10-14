@@ -14,3 +14,6 @@ export * from "./vehicles.ts";
 export * from "./share.ts";
 export * from "./biomes.ts";
 export * from "./impact.ts";
+export * from "./tyres.ts";
+export * from "./weather.ts";
+export * from "./trackwet.ts";

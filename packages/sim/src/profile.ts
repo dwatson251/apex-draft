@@ -53,6 +53,8 @@ export interface ProfileOpts {
   accel?: number;
   /** multiplies braking: slippery surfaces */
   brake?: number;
+  /** grip of the tyres at each point of the road (wet and dry patches); defaults to 1 everywhere */
+  gripAt?: (x: number, y: number) => number;
 }
 
 export function buildProfile(track: Track, line: Line, car: CarConfig, opts: ProfileOpts = {}): Profile {
@@ -130,7 +132,8 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     const kappa = (2 * area2) / Math.max(Math.hypot(ax, ay) * Math.hypot(bx, by) * Math.hypot(cx, cy), 1e-9);
     const kk = wrapBreak && (i < 4 || i >= n - 4) ? 0 : kappa;
     kap[i] = kk;
-    vLim[i] = Math.min(st.vTop * topMul[i]!, Math.sqrt((st.aLat * gripMul[i]!) / Math.max(kk, 1e-4)));
+    const here = opts.gripAt ? opts.gripAt(x[i]!, y[i]!) : 1;
+    vLim[i] = Math.min(st.vTop * topMul[i]!, Math.sqrt((st.aLat * gripMul[i]! * here) / Math.max(kk, 1e-4)));
     if (lane[i]) vLim[i] = Math.min(vLim[i]!, PIT_SPEED);
   }
   for (let pass = 0; pass < 2; pass++) {

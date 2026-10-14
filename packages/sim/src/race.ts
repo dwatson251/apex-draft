@@ -2,6 +2,10 @@ import { carStats, type CarConfig } from "./car.ts";
 import { biomeOf, type Biome } from "./biomes.ts";
 import { vehicleOf } from "./vehicles.ts";
 import { impact } from "./impact.ts";
+import { Rng } from "./rng.ts";
+import { COMPOUNDS, spinRate, tyreGrip, wearRate, type Compound } from "./tyres.ts";
+import { rainAt, weatherFor, type Weather } from "./weather.ts";
+import { WetField } from "./trackwet.ts";
 import type { Line } from "./line.ts";
 import { PIT_PENALTY, PIT_STOP_TIME } from "./pit.ts";
 import { buildProfile, indexAt, sampleAt, type Profile } from "./profile.ts";
@@ -28,7 +32,10 @@ const GHOST_LINGER = 1200;
 const PREDICT_GAP = 10;
 /** A car that has been stuck this long ignores other cars for a while, so a rare jam cannot freeze the race. */
 const DEADLOCK_TICKS = 1200;
-const MAX_TIME = 900;
+/** Long races stretch the tank and the tyres, so that a handful of stops is enough for fifty laps. */
+export function raceScale(laps: number): { fuelLaps: number; wearScale: number } {
+  return { fuelLaps: Math.max(3.4, laps / 3.5), wearScale: 7 / Math.max(7, laps / 3.5) };
+}
 
 /** Full tank. */
 export const TANK = 100;
@@ -45,16 +52,22 @@ export const LIMP_SPEED = 30;
 const STOP_TICKS = Math.round(PIT_STOP_TIME * 60);
 
 /** Fuel one lap costs this car, in tank units: the standard car uses TANK / FUEL_LAPS. */
-export function fuelPerLap(car: CarConfig): number {
-  return (TANK / FUEL_LAPS) * ((0.85 + 0.025 * (car.accel + car.top)) / 1.15) * vehicleOf(car.type).fuel;
+export function fuelPerLap(car: CarConfig, laps = 3): number {
+  return (TANK / raceScale(laps).fuelLaps) * ((0.85 + 0.025 * (car.accel + car.top)) / 1.15) * vehicleOf(car.type).fuel;
 }
 
 export interface RaceRules {
   /** tyre wear, fuel, and the pit stop that goes with them */
   realism: boolean;
+  /** rain and a track that wets and dries (default on) */
+  weather?: boolean;
 }
 
-export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump";
+/** A pit stop planned in advance: drive in at the end of this lap and come out on this tyre. */
+export interface PitStop { lap: number; tyre?: Compound }
+export const MAX_PIT_STOPS = 5;
+
+export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump" | "spin" | "rain";
 export interface RaceEvent {
   tick: number;
   id: string;
@@ -73,8 +86,12 @@ export interface Entrant {
   /** One line per lap. If the race has more laps than lines, the last line is driven again. */
   lines: Line[];
   isPlayer?: boolean;
-  /** pit[lap] = drive into the pits at the end of that lap. Bots decide for themselves. */
+  /** pit[lap] = drive into the pits at the end of that lap (older form of `pitPlan`). Bots decide for themselves. */
   pit?: boolean[];
+  /** the stops the player has queued, at most MAX_PIT_STOPS */
+  pitPlan?: PitStop[];
+  /** tyre on the grid; medium if left out */
+  startTyre?: Compound;
 }
 
 export interface RaceCar {
@@ -143,6 +160,11 @@ export interface RaceCar {
   radius: number;
   mass: number;
   anchored: boolean;
+  compound: Compound;
+  /** the tyre it will take at its next stop */
+  nextTyre: Compound | null;
+  /** 0 soft, 1 medium, 2 wet, at every tick */
+  ctrace: number[];
 }
 
 export interface CarResult {
@@ -170,6 +192,18 @@ export class Race {
   private profiles = new Map<string, Profile>();
   private lapLen: number;
   private biome: Biome;
+  readonly weather: Weather;
+  readonly field: WetField;
+  /** seconds of racing it takes to go a lap at a typical pace, to turn race time into laps for the weather */
+  private refLap: number;
+  private maxTime: number;
+  private rng: Rng;
+  private rain = 0;
+  /** the state of the road, once a second, for replay */
+  readonly wetSnaps: Uint8Array[] = [];
+  /** how hard it was raining, once a second */
+  readonly rainTrace: number[] = [];
+  private profGen = -1;
   /** the last tick two cars made a sound hitting each other, so one scrape is one bump */
   private bumped = new Map<string, number>();
 
@@ -177,6 +211,11 @@ export class Race {
   constructor(readonly track: Track, entrants: Entrant[], readonly laps: number, readonly rules: RaceRules = { realism: true }) {
     this.lapLen = trackLength(track);
     this.biome = biomeOf(track.biome);
+    this.refLap = this.lapLen / 60;
+    this.maxTime = Math.max(900, laps * 100 + 300);
+    this.rng = new Rng((track.seed ^ 0x5b17) >>> 0);
+    this.weather = rules.weather === false ? { showers: [] } : weatherFor(track.seed, laps, track.biome);
+    this.field = new WetField(track);
     const ranked = entrants
       .map((e, i) => ({ e, i, ideal: this.profile(e, 0).ideal }))
       .sort((a, b) => a.ideal - b.ideal || a.i - b.i);
@@ -195,7 +234,8 @@ export class Race {
         ghost: false, stuck: 0, ghostFor: 0, powered: false, freeUntil: 0, lapStart: slot === 0 ? [0] : [], finishTime: null,
         trace: [], prog: [], vtrace: [], gtrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, limp: false, out: false, outProg: 0,
-        needProf: false, prof: p0, perUnit: fuelPerLap(e.car) / this.lapLen, wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
+        needProf: false, prof: p0, perUnit: fuelPerLap(e.car, laps) / this.lapLen, wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, ctrace: [],
         hp: 0, off: 0, offV: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, mass: vehicleOf(e.car.type).mass, anchored: false,
       };
       if (slot === 0) this.startLap(c);
@@ -214,14 +254,18 @@ export class Race {
     return this.build(e, lap, false, false, 1, 1);
   }
 
-  private build(e: Entrant, lap: number, pitIn: boolean, pitOut: boolean, grip: number, accel: number): Profile {
+  private build(e: Entrant, lap: number, pitIn: boolean, pitOut: boolean, grip: number, accel: number, tyre?: Compound): Profile {
     // the surface scales what the car can do
     grip *= this.biome.grip; accel *= this.biome.accel;
+    // the state of the road changes, so a path built for one moment is only good for a little while
+    const gen = Math.floor(this.tick / 600);
+    if (gen !== this.profGen) { this.profiles.clear(); this.profGen = gen; }
     const idx = Math.min(Math.max(lap, 0), e.lines.length - 1);
-    const k = `${e.id}:${idx}:${+pitIn}${+pitOut}:${Math.round(grip * 200)}:${Math.round(accel * 200)}`;
+    const k = `${e.id}:${idx}:${+pitIn}${+pitOut}:${Math.round(grip * 200)}:${Math.round(accel * 200)}:${tyre ?? "-"}`;
     let p = this.profiles.get(k);
     if (!p) {
-      p = buildProfile(this.track, e.lines[idx]!, e.car, { pitIn, pitOut, grip, accel, brake: this.biome.brake });
+      const field = this.field;
+      p = buildProfile(this.track, e.lines[idx]!, e.car, { pitIn, pitOut, grip, accel, brake: this.biome.brake, gripAt: tyre ? (x, y) => field.gripAt(tyre, x, y) : undefined });
       this.profiles.set(k, p);
     }
     return p;
@@ -236,20 +280,38 @@ export class Race {
 
   private fuelPerLapOf(c: RaceCar): number { return c.perUnit * this.lapLen; }
 
-  /** Whether this car drives into the pits at the end of the lap. The player says so in advance; bots work it out. */
+  /** How wet the road looks along this car's line, 0 to 1. */
+  private lineWet(c: RaceCar): number {
+    const p = c.prof, pts: { x: number; y: number }[] = [];
+    for (let i = 0; i < p.n; i += 12) pts.push({ x: p.x[i]!, y: p.y[i]! });
+    return this.field.meanWet(pts);
+  }
+
+  /** Whether this car drives into the pits at the end of the lap. The player queues stops in advance; bots work it out. */
   private decidePit(c: RaceCar, lap: number): boolean {
     if (!this.rules.realism) return false;
     if (c.limp) return true;
     if (lap >= this.laps - 1) return false;
-    if (c.entrant.isPlayer || c.entrant.pit) return !!c.entrant.pit?.[lap];
+    c.nextTyre = null;
+    if (c.entrant.isPlayer || c.entrant.pit || c.entrant.pitPlan) {
+      const plan = c.entrant.pitPlan?.find((p) => p.lap === lap);
+      if (plan) { c.nextTyre = plan.tyre ?? null; return true; }
+      return !!c.entrant.pit?.[lap];
+    }
     const perLap = this.fuelPerLapOf(c);
     const left = this.laps - lap;
     const atLine = c.fuel - perLap * 1.05;
     if (atLine < 0) return false; // will not make it round: too late
+    // read the road: the wrong tyre for it is worth a stop (if there are stops to spare)
+    const wetness = this.rules.weather === false ? 0 : this.lineWet(c);
+    const ideal: Compound = wetness > 0.45 ? "wet" : left <= 4 ? "soft" : "medium";
+    const wrong = (c.compound === "wet" && wetness < 0.25) || (c.compound !== "wet" && wetness > 0.55);
+    if (wrong && c.pits < MAX_PIT_STOPS - 1 && left >= 2) { c.nextTyre = ideal; return true; }
     // only stop if the tank cannot get to the flag. Then go when it could not take another lap, or a little before:
     // slots take turns, so the pit lane is not one long queue
-    if (c.fuel < perLap * 1.05 * left && atLine < perLap * (1.05 + (c.slot % 3) * 0.55)) return true;
-    return c.tyre < 0.45 && left >= 3;
+    if (c.fuel < perLap * 1.05 * left && atLine < perLap * (1.05 + (c.slot % 3) * 0.55)) { c.nextTyre = ideal === "soft" ? "medium" : ideal; return true; }
+    if (c.tyre < 0.45 && left >= 3) { c.nextTyre = ideal; return true; }
+    return false;
   }
 
   /** Set the path for the lap that is starting. Called again a tick later, in case the player has since changed their line. */
@@ -258,7 +320,7 @@ export class Race {
     if (!refresh) { c.pitOut = c.pitIn; c.pitDone = false; c.dwell = 0; }
     c.pitIn = this.decidePit(c, lap);
     const real = this.rules.realism;
-    c.prof = this.build(c.entrant, lap, c.pitIn, c.pitOut, real ? 1 - TYRE_GRIP_LOSS * (1 - c.tyre) : 1, real ? 1 - FUEL_MASS_ACCEL * (c.fuel / TANK) : 1);
+    c.prof = this.build(c.entrant, lap, c.pitIn, c.pitOut, real ? 1 - TYRE_GRIP_LOSS * (1 - c.tyre) : 1, real ? 1 - FUEL_MASS_ACCEL * (c.fuel / TANK) : 1, real ? c.compound : undefined);
   }
 
   private place(c: RaceCar): void {
@@ -288,6 +350,7 @@ export class Race {
       c.gtrace.push(c.ghost ? 1 : 0);
       c.ftrace.push(Math.round(c.fuel * 10) / 10);
       c.ttrace.push(Math.round(c.tyre * 1000) / 1000);
+      c.ctrace.push(c.compound === "soft" ? 0 : c.compound === "medium" ? 1 : 2);
       c.ptrace.push(c.out ? 3 : c.dwell > 0 ? 2 : c.prof.lane[indexAt(c.prof, c.s)] ? 1 : 0);
     }
   }
@@ -375,6 +438,17 @@ export class Race {
       c.v = Math.max(0, c.v - 20 * Math.min(excess, 1) * TICK); // scrubbing speed off
       if (this.rules.realism) c.tyre = Math.max(0, c.tyre - 0.0006 * excess);
     }
+    // on slicks in the wet the grip can simply go: a low chance, in a bend, of letting go altogether
+    if (this.rules.realism && this.rules.weather !== false && kap > 0.008 && c.v > 25) {
+      const g = tyreGrip(c.compound, this.field.wetAt(c.x, c.y), this.field.useAt(c.x, c.y));
+      const rate = spinRate(g);
+      if (rate > 0 && this.rng.next() < rate * TICK) {
+        c.offV += (this.rng.next() < 0.5 ? -1 : 1) * 26;
+        c.v *= 0.35;
+        if (this.rules.realism) c.tyre = Math.max(0, c.tyre - 0.012);
+        this.events.push({ tick: this.tick, id: c.entrant.id, type: "spin", x: c.x, y: c.y });
+      }
+    }
     c.off = Math.max(-OFF_MAX, Math.min(OFF_MAX, c.off));
     // well off the road it is on the grass, which grips little
     if (Math.abs(c.off) > 10) c.v *= 1 - 0.6 * TICK * ((Math.abs(c.off) - 10) / 16);
@@ -419,13 +493,27 @@ export class Race {
   private finishStop(c: RaceCar): void {
     c.fuel = TANK;
     c.tyre = 1;
+    if (c.nextTyre) c.compound = c.nextTyre;
+    c.nextTyre = null;
     c.pits++;
     c.pitDone = true;
     this.emit(c.entrant.id, "pitEnd");
   }
 
+  /** The rain, and the wet and dry patches of road, move on a tenth of a second at a time. */
+  private weatherStep(racing: RaceCar[]): void {
+    if (this.tick % 6 === 0) {
+      const rain = this.rules.weather === false ? 0 : rainAt(this.weather, this.time / this.refLap);
+      if ((rain > 0.05) !== (this.rain > 0.05)) this.events.push({ tick: this.tick, id: "", type: "rain", strength: rain });
+      this.rain = rain;
+      this.field.update(0.1, rain, racing.filter((c) => !c.ghost && c.dwell === 0).map((c) => ({ x: c.x, y: c.y })));
+    }
+    if (this.tick % 60 === 0) { this.wetSnaps.push(this.field.snapshot()); this.rainTrace.push(Math.round(this.rain * 100) / 100); }
+  }
+
   step(): void {
     const racing = this.cars.filter(this.alive);
+    this.weatherStep(racing);
     for (const c of racing) if (c.needProf) { c.needProf = false; this.startLap(c, true); }
     const next = new Map<RaceCar, { v: number; s: number }>();
     const arrived: RaceCar[] = [];
@@ -471,7 +559,7 @@ export class Race {
         c.fuel = Math.max(0, c.fuel - moved * c.perUnit * this.biome.fuel);
         const st = this.stats(c);
         const load = Math.min(1.2, (p.kap[indexAt(p, c.s)]! * c.v * c.v) / st.aLat);
-        c.tyre = Math.max(0, c.tyre - (moved / this.lapLen) * TYRE_WEAR_PER_LAP * c.wearMul * this.biome.wear * (0.4 + 1.2 * load * load) / 0.63);
+        c.tyre = Math.max(0, c.tyre - (moved / this.lapLen) * TYRE_WEAR_PER_LAP * raceScale(this.laps).wearScale * c.wearMul * this.biome.wear * wearRate(c.compound, this.field.wetAt(c.x, c.y)) * (0.4 + 1.2 * load * load) / 0.63);
       }
       this.settle(c);
       let p = c.prof;
@@ -495,7 +583,7 @@ export class Race {
       this.emit(c.entrant.id, "dry");
       if (!c.pitIn) {
         const real = 1 - TYRE_GRIP_LOSS * (1 - c.tyre);
-        const np = this.build(c.entrant, Math.max(c.lap, 0), true, c.pitOut, real, 1);
+        const np = this.build(c.entrant, Math.max(c.lap, 0), true, c.pitOut, real, 1, c.compound);
         // too late to turn in this lap? it goes round once more at limp speed and turns in next time
         if (np.pitFromS !== undefined && c.s < np.pitFromS - 3) { c.prof = np; c.pitIn = true; c.pitDone = false; }
       }
@@ -511,14 +599,14 @@ export class Race {
   /** Run until the given car has started lap `lap`+1 (i.e. finished `lap`), or the race is over. */
   runLap(carId: string, lap: number): void {
     const car = this.cars.find((c) => c.entrant.id === carId)!;
-    while (this.alive(car) && car.lap <= lap && this.time < MAX_TIME) this.step();
+    while (this.alive(car) && car.lap <= lap && this.time < this.maxTime) this.step();
   }
 
   runToEnd(): void {
-    while (this.cars.some(this.alive) && this.time < MAX_TIME) this.step();
+    while (this.cars.some(this.alive) && this.time < this.maxTime) this.step();
   }
 
-  get over(): boolean { return this.cars.every((c) => !this.alive(c)) || this.time >= MAX_TIME; }
+  get over(): boolean { return this.cars.every((c) => !this.alive(c)) || this.time >= this.maxTime; }
 
   private penaltyOf(c: RaceCar): number { return this.rules.realism && c.finishTime !== null && c.pits === 0 ? PIT_PENALTY : 0; }
 
