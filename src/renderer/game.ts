@@ -80,6 +80,8 @@ export class Game {
   /** while the tutorial runs, the player's own settings are kept here and the tutorial's stand in for them */
   private tutBackup: Settings | null = null;
   private tutLayer!: HTMLElement;
+  /** a timed session's results are up (while the cool-down lap is still being driven behind them) */
+  private sessionShown = false;
   private cars: CarConfig[] = [];
   private best: Best = {};
   private imported: LineFile[] = [];
@@ -621,6 +623,7 @@ export class Game {
     if (this.inGame || this.previewKey !== `${normalizePhrase(s.phrase)}|${s.obstacles}`) this.track = generateTrack(s.phrase, { obstacles: s.obstacles });
     this.vehicle = vehicleForSeed(this.track.seed);
     this.ambient = null; this.previewKey = "";
+    this.play = null; this.audio.stopAll(); this.updateRain(0);
     this.view.clearCars();
     this.closeMenu();
     this.race = undefined;
@@ -1131,6 +1134,7 @@ export class Game {
   /** Run the race up to the player's next pit stop (or to the end), then play it back. */
   private runAndPlay(fromTick: number): void {
     const race = this.race!;
+    this.sessionShown = false;
     const atStop = race.runToStop(ME);
     const mine = race.cars.find((c) => c.entrant.id === ME)!;
     // no more stops for the player: let everyone else finish
@@ -1284,6 +1288,16 @@ export class Game {
     const rain = race.rainTrace[Math.min(Math.floor(k / 60), race.rainTrace.length - 1)] ?? 0;
     this.view.setWet(race.wetSnaps[Math.min(Math.floor(k / 60), race.wetSnaps.length - 1)] ?? null, rain);
     this.updateRain(rain);
+    // a timed session is over for the player when the cool-down lap begins: results and editing are up at once, and the
+    // car carries on round behind them
+    if (this.timed() && !this.sessionShown && now >= (me.lapStart[this.run.laps - 1] ?? Infinity)) {
+      this.sessionShown = true;
+      this.showSessionResults(race.results(), true);
+    }
+    if (this.sessionShown) {
+      if (p.tick >= p.end) { this.play = null; this.drawCarsAt(p.end); this.audio.stopAll(); this.updateRain(0); this.bar.clear(); }
+      return;
+    }
     // the panel is built once and only its contents change
     let el = this.ui.querySelector<HTMLElement>(".panel.top");
     if (!el || !el.querySelector("#hud-head")) {
@@ -1323,7 +1337,8 @@ export class Game {
   // ---------- results ----------
   /** Back to the map with the same line to change it, then go again. Nothing of the session just run is kept but its time. */
   private rerun(): void {
-    this.race = undefined; this.play = null; this.pick = null;
+    this.race = undefined; this.play = null; this.pick = null; this.sessionShown = false;
+    this.audio.stopAll(); this.updateRain(0); this.bar.clear();
     this.view.clearCars(); this.view.clearSkids();
     this.eventIdx = 0;
     this.showPicker(null);
@@ -1340,16 +1355,18 @@ export class Game {
   }
 
   /** Time trial, practice and qualifying: out lap, timed laps, cool-down lap. */
-  private showSessionResults(res: CarResult[]): void {
+  private showSessionResults(res: CarResult[], early = false): void {
     const r = this.run, kind = r.kind as Exclude<SessionKind, "race">;
     const mine = res.find((x) => x.isPlayer)!;
     const time = sessionBest(mine.lapTimes, kind);
     const name = this.sessionTitle();
-    const laps = mine.lapTimes.map((t, i) => {
+    // seen early, the cool-down lap is still being driven and has no time yet
+    const shown = early ? mine.lapTimes.slice(0, -1) : mine.lapTimes;
+    const laps = shown.map((t, i) => {
       const label = i === 0 ? "Out lap" : i === mine.lapTimes.length - 1 ? "Cool-down" : `Lap ${i}`;
       const timedLap = i > 0 && i < mine.lapTimes.length - 1;
       return `<tr class="${timedLap && t === time ? "me" : ""}"><td>${label}</td><td class="num">${fmt(t)}</td></tr>`;
-    }).join("");
+    }).join("") + (early ? '<tr><td>Cool-down</td><td class="num dim">driving…</td></tr>' : "");
     let extra = "", buttons = "";
     if (kind === "trial") {
       const key = trialKey(this.settings.phrase);
@@ -1361,7 +1378,7 @@ export class Game {
       extra += this.best[key] !== undefined ? `<p class="dim">Your best on this track: <b>${fmt(this.best[key])}</b></p>` : "";
       buttons = '<button class="primary" id="again">Edit line &amp; try again</button><button id="res-menu">Menu</button>';
     } else if (kind === "practice") {
-      this.practiceSecs += this.race!.time;
+      this.practiceSecs += early ? this.race!.cars.find((c) => c.entrant.id === ME)!.lapStart[r.laps - 1]! : this.race!.time;
       const w = this.weekend ?? newWeekend();
       this.weekend = { ...w, practice: time !== null && (w.practice === undefined || time < w.practice) ? time : w.practice };
       const left = Math.max(0, PRACTICE_SECONDS - this.practiceSecs);
@@ -1376,7 +1393,7 @@ export class Game {
         <table><tr><th>#</th><th>Driver</th><th class="num">Best lap</th></tr>${order.map((x, i) => `<tr class="${x.isPlayer ? "me" : ""}"><td>${i + 1}</td><td>${esc(x.name)}</td><td class="num">${fmt(times.find((t) => t.id === x.id)?.time)}</td></tr>`).join("")}</table>`;
       buttons = '<button class="primary" id="next">On to the race</button><button id="res-menu">Menu</button>';
     }
-    const el = this.show("center", `
+    const el = this.show("side", `
       <h2>${esc(name)}</h2>
       <p class="dim">${esc(this.track.phrase)} · ${esc(VEHICLES[this.vehicle].plural)}</p>
       <p style="font-size:26px;margin:8px 0"><b>${fmt(time)}</b> <span class="dim" style="font-size:13px">${time === null ? "no timed lap set" : "best timed lap"}</span></p>

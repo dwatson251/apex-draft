@@ -1,6 +1,6 @@
 /**
- * Three kinds of tyre. Softs grip most in the dry and wear fastest; mediums are the standard; wets are for rain: poor in
- * the dry (and they wear quickly there) but the only thing that works on a soaked track, where they last longest.
+ * Three kinds of tyre. Softs grip most in the dry and wear fastest (about 5 laps, to a medium's 10); mediums are the standard; wets are for rain: poor in
+ * the dry (and they wear quickly there) but the only thing that works on a soaked track, where they last about 10 laps.
  */
 export type Compound = "soft" | "medium" | "wet";
 export const COMPOUND_IDS: readonly Compound[] = ["soft", "medium", "wet"];
@@ -20,9 +20,9 @@ export interface CompoundInfo {
 }
 
 export const COMPOUNDS: Record<Compound, CompoundInfo> = {
-  soft: { id: "soft", name: "Soft", dryGrip: 1.06, wearDry: 1.6, wearWet: 1.8, color: 0xff4a4a, blurb: "Most grip in the dry, wears fastest. Useless in the wet." },
+  soft: { id: "soft", name: "Soft", dryGrip: 1.06, wearDry: 1.95, wearWet: 2.2, color: 0xff4a4a, blurb: "Most grip in the dry, wears fastest. Useless in the wet." },
   medium: { id: "medium", name: "Medium", dryGrip: 1, wearDry: 1, wearWet: 1.4, color: 0xffd84a, blurb: "The standard tyre. Standard grip in the dry. Poor once it rains." },
-  wet: { id: "wet", name: "Wet", dryGrip: 0.84, wearDry: 2.2, wearWet: 0.6, color: 0x4aa8ff, blurb: "For rain. Wears quickly in the dry, but slowest of all on a wet track." },
+  wet: { id: "wet", name: "Wet", dryGrip: 0.84, wearDry: 2.6, wearWet: 1, color: 0x4aa8ff, blurb: "For rain. About 10 laps on a wet track; wears out in half that on a dry one." },
 };
 
 export const isCompound = (x: unknown): x is Compound => x === "soft" || x === "medium" || x === "wet";

@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.2
+- Time trial, practice and qualifying: the results (and Edit line) come up the moment your last timed lap is done, in a side
+  panel. The cool-down lap carries on in the background and is dropped if you edit or go again.
+- Pit lane: cars no longer queue to get in. Each car that pulls in takes its own bay (four are marked, the first nearest the
+  line) and is serviced at once; the queue is on the way out, first in first out, with a short gap between releases.
+- Tyres last longer at 1x wear: about 5 laps for softs and 10 for mediums, and 10 for wets on a wet track (about half that on a
+  dry one). Long races still stretch tyre life as before.
 - A new main menu: six big buttons (Solo Time Trial, Quick Race, Race Weekend, Tutorial, Settings, and Quit on the desktop
   build only), with a translucent "bubble" look and hand-built dropdowns, steppers, switches and tyre chips. The track phrase
   box has a copy button inside it; the Copy link button is gone (the address still follows your setup, so old links open).

@@ -9,7 +9,10 @@ export const PIT_ENTRY_A = -60;
 export const PIT_LANE_FROM = -32;
 export const PIT_LANE_TO = 32;
 export const PIT_EXIT_A = 60;
-export const PIT_BOX_A = -12;
+export const PIT_BOX_A = -3;
+/** Every car that pulls in gets its own bay: the first in is nearest the line, the next one sits this far behind it, and so on. */
+export const PIT_BAY_GAP = 11;
+export const PIT_BAYS = 4;
 /** speed limit between a = -38 and a = +38, units/s */
 export const PIT_SPEED = 40;
 export const PIT_LIMIT_A = 38;

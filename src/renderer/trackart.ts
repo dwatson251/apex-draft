@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { LOOKS } from "./look.ts";
 import {
-  PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, ROAD_HALF, Rng, centreAt, cross, dot, laneCentre, pitPoint, sub,
+  PIT_BAYS, PIT_BAY_GAP, PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, ROAD_HALF, Rng, centreAt, cross, dot, laneCentre, pitPoint, sub,
   type Segment, type Track, type Vec2,
 } from "@apex/sim";
 
@@ -281,11 +281,14 @@ function pitArt(track: Track, head: boolean): Container {
 
   // the stopping box: team colour, with corner marks
   const marks = new Graphics();
-  if (PIT_BOX_A >= a0 && PIT_BOX_A <= a1) {
-    const box = [[-6.5, -5], [6.5, -5], [6.5, 5], [-6.5, 5]].map(([da, dl]) => P(PIT_BOX_A + da!, PIT_LAT + dl!));
-    marks.poly(poly(box)).fill({ color: TEAM[0]!, alpha: 0.28 }).stroke({ width: 0.9, color: 0xf2c744 });
-    for (const [da, dl] of [[-6.5, -5], [6.5, -5], [6.5, 5], [-6.5, 5]] as const) {
-      const p = P(PIT_BOX_A + da, PIT_LAT + dl);
+  for (let k = 0; k < PIT_BAYS; k++) {
+    const ba = PIT_BOX_A - k * PIT_BAY_GAP;
+    if (ba < a0 || ba > a1) continue;
+    const half = PIT_BAY_GAP / 2 - 0.6;
+    const corners = [[-half, -5], [half, -5], [half, 5], [-half, 5]] as const;
+    marks.poly(poly(corners.map(([da, dl]) => P(ba + da, PIT_LAT + dl)))).fill({ color: TEAM[k % TEAM.length]!, alpha: 0.28 }).stroke({ width: 0.9, color: 0xf2c744 });
+    for (const [da, dl] of corners) {
+      const p = P(ba + da, PIT_LAT + dl);
       marks.circle(p.x, p.y, 0.9).fill(0xf2c744);
     }
   }

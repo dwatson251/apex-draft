@@ -8,7 +8,7 @@ import { COMPOUNDS, spinRate, tyreGrip, wearRate, type Compound } from "./tyres.
 import { rainAt, weatherFor, type Weather } from "./weather.ts";
 import { WetField } from "./trackwet.ts";
 import type { Line } from "./line.ts";
-import { PIT_PENALTY, PIT_STOP_TIME } from "./pit.ts";
+import { PIT_BAYS, PIT_BAY_GAP, PIT_PENALTY, PIT_STOP_TIME } from "./pit.ts";
 import { buildProfile, indexAt, sampleAt, type Profile } from "./profile.ts";
 import { nearbySegments, trackLength, type Track } from "./track.ts";
 
@@ -49,7 +49,7 @@ export const TANK = 100;
 /** Laps a full tank lasts for a car with the standard stats. */
 export const FUEL_LAPS = 3.4;
 /** Tyre health lost per lap at the standard grip, 0 to 1. */
-export const TYRE_WEAR_PER_LAP = 0.14;
+export const TYRE_WEAR_PER_LAP = 0.076;
 /** Cornering grip lost when the tyres are completely worn. */
 export const TYRE_GRIP_LOSS = 0.25;
 /** Acceleration lost with a full tank. */
@@ -59,6 +59,10 @@ export const LIMP_SPEED = 30;
 const STOP_TICKS = Math.round(PIT_STOP_TIME * 60);
 /** An emergency refuel is a slow splash of fuel by whoever is nearest: half as long again as a planned stop, no new tyres. */
 const EMERGENCY_TICKS = Math.round(PIT_STOP_TIME * 60 * 1.5);
+/** Cars leave the pit lane one at a time, first in first out, at least this long apart. */
+const RELEASE_TICKS = 54;
+/** A car picks its bay this far (along its lap) before the box, so it can brake for it. */
+const BAY_PICK = 120;
 
 /** Fuel one lap costs this car, in tank units: the standard car uses TANK / FUEL_LAPS. */
 export function fuelPerLap(car: CarConfig, laps = 3): number {
@@ -176,6 +180,12 @@ export interface RaceCar {
   pitDone: boolean;
   /** ticks of service left */
   dwell: number;
+  /** the bay it stopped in (0 is nearest the line) from the moment it heads for the pits until it is let go */
+  bay?: number;
+  /** stopped in its bay, being serviced or waiting its turn to leave */
+  boxed: boolean;
+  /** service finished: waiting for the cars that came in before it to leave */
+  ready: boolean;
   /** out of fuel and limping to the pits for an emergency refuel */
   limp: boolean;
   /** the stop it is heading for (or in) is an emergency one */
@@ -248,6 +258,8 @@ export class Race {
   /** how hard it was raining, once a second */
   readonly rainTrace: number[] = [];
   private profGen = -1;
+  /** the last tick a car was let go from its bay */
+  private lastRelease = -1e9;
   /** the last tick two cars made a sound hitting each other, so one scrape is one bump */
   private bumped = new Map<string, number>();
 
@@ -301,7 +313,7 @@ export class Race {
         s: sNew, gridOff: at.off, v: spread ? 40 : 0, x: 0, y: 0, h: 0,
         ghost: false, stuck: 0, ghostFor: 0, powered: false, freeUntil: 0, lapStart: slot === 0 ? [0] : [], finishTime: null,
         trace: [], prog: [], vtrace: [], gtrace: [], ftrace: [], ttrace: [], ptrace: [],
-        fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
+        fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerLap(e.car, laps) / this.lapLen, wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
         compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, ctrace: [], used: [],
         hp: 0, off: 0, offV: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, mass: vehicleOf(e.car.type).mass, anchored: false,
@@ -402,7 +414,7 @@ export class Race {
   /** Set the path for the lap that is starting. Called again a tick later, in case the player has since changed their line. */
   private startLap(c: RaceCar, refresh = false): void {
     const lap = Math.max(c.lap, 0);
-    if (!refresh) { c.pitOut = c.pitIn; c.pitDone = false; c.dwell = 0; }
+    if (!refresh) { c.pitOut = c.pitIn; c.pitDone = false; c.dwell = 0; c.bay = undefined; c.boxed = false; c.ready = false; }
     c.pitIn = this.decidePit(c, lap);
     const real = this.rules.realism;
     c.prof = this.build(c.entrant, lap, c.pitIn, c.pitOut, real ? 1 - TYRE_GRIP_LOSS * (1 - c.tyre) : 1, real ? 1 - FUEL_MASS_ACCEL * (c.fuel / TANK) : 1, real ? c.compound : undefined);
@@ -472,13 +484,36 @@ export class Race {
    * The speed this car may carry given the traffic on its path. Cars ahead and going the same way are followed at
    * a safe gap. Cars crossing or merging are given way to if they are further round the race.
    */
+  /** In the pit area: heading for a bay, in it, or waiting to leave. Nobody here holds anybody else up on the way in. */
+  private inPit(c: RaceCar): boolean { return c.bay !== undefined && c.pitIn && !c.pitDone && !c.out && c.finishTime === null; }
+
+  /** The bay a car coming in takes: the one behind the last car already in. */
+  private freeBay(c: RaceCar): number {
+    let last = -1;
+    for (const o of this.cars) if (o !== c && this.inPit(o)) last = Math.max(last, o.bay!);
+    return Math.min(PIT_BAYS - 1, last + 1);
+  }
+
+  /** Let the car that has been in longest go, once its service is done, if the lane is clear of the last one. */
+  private releaseCars(): void {
+    if (this.tick - this.lastRelease < RELEASE_TICKS) return;
+    let head: RaceCar | undefined;
+    for (const o of this.cars) if (this.inPit(o) && (!head || o.bay! < head.bay!)) head = o;
+    if (head && head.boxed && head.ready) {
+      head.boxed = false; head.ready = false;
+      this.lastRelease = this.tick;
+      this.finishStop(head);
+    }
+  }
+
   private trafficLimit(c: RaceCar, p: Profile, brake: number, racing: RaceCar[]): number {
     let limit = Infinity;
+    if (this.inPit(c)) return limit; // free to come in
     const b = brake * 0.6;
     const reach = (c.v * c.v) / (2 * b) + SAFE_GAP + 20;
     const mine = this.prio(c);
     for (const o of racing) {
-      if (o === c || o.ghost || o.freeUntil > this.tick ) continue;
+      if (o === c || o.ghost || o.freeUntil > this.tick || this.inPit(o)) continue;
       const dx = o.x - c.x, dy = o.y - c.y;
       if (dx * dx + dy * dy > (reach + LATERAL) * (reach + LATERAL)) continue;
       // First point of my path, in the next `reach` units, where the other car is in the way: either it is sitting
@@ -565,7 +600,7 @@ export class Race {
     for (let i = 0; i < racing.length; i++) {
       for (let j = i + 1; j < racing.length; j++) {
         const A = racing[i]!, B = racing[j]!;
-        if (A.ghost || B.ghost || A.finishTime !== null || B.finishTime !== null) continue;
+        if (A.ghost || B.ghost || A.finishTime !== null || B.finishTime !== null || this.inPit(A) || this.inPit(B)) continue;
         A.anchored = A.dwell > 0; B.anchored = B.dwell > 0;
         const force = impact(A, B);
         if (force < 0) continue;
@@ -652,8 +687,10 @@ export class Race {
       if (dr > 0 && target >= st.vTop * 0.97) target *= 1 + DRAFT_TOP * dr;
       if (c.limp) target = Math.min(target, LIMP_SPEED);
       const stopping = c.pitIn && !c.pitDone && p.pitS !== undefined;
-      // brake to stop exactly in the box
-      if (stopping) target = c.dwell > 0 ? 0 : Math.min(target, Math.sqrt(2 * st.brake * 0.7 * Math.max(0, p.pitS! - c.s)));
+      if (stopping && c.bay === undefined && p.pitS! - c.s <= BAY_PICK) c.bay = this.freeBay(c);
+      const stopS = stopping ? p.pitS! - (c.bay ?? PIT_BAYS - 1) * PIT_BAY_GAP : 0;
+      // brake to stop exactly in the bay
+      if (stopping) target = c.boxed ? 0 : Math.min(target, Math.sqrt(2 * st.brake * 0.7 * Math.max(0, stopS - c.s)));
       if (!c.ghost && c.freeUntil <= this.tick) target = Math.min(target, this.trafficLimit(c, p, st.brake, racing));
       else if (c.ghost && !c.powered) {
         // lingering: get out from inside whoever is still there, by dropping back from a car ahead
@@ -665,13 +702,13 @@ export class Race {
       }
       let v = c.v > target ? Math.max(target, c.v - st.brake * TICK) : Math.min(target, c.v + st.accel * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * TICK);
       let s = c.s + v * TICK;
-      if (stopping && c.dwell === 0 && p.pitS! - s < 0.5 && v < 5) { s = p.pitS!; v = 0; arrived.push(c); }
+      if (stopping && !c.boxed && c.bay !== undefined && stopS - s < 0.5 && v < 5) { s = stopS; v = 0; arrived.push(c); }
       next.set(c, { v, s });
     }
     for (const c of racing) {
       const n = next.get(c)!;
       const p = c.prof;
-      if (c.dwell === 0 && n.v < 1 && c.v < 1 && sampleAt(p, p.vLim, c.s) > 5) {
+      if (!c.boxed && c.dwell === 0 && n.v < 1 && c.v < 1 && sampleAt(p, p.vLim, c.s) > 5) {
         if (++c.stuck > DEADLOCK_TICKS) { c.freeUntil = this.tick + 180; c.stuck = 0; }
       } else c.stuck = 0;
     }
@@ -719,10 +756,12 @@ export class Race {
       }
     }
     for (const c of arrived) {
+      c.boxed = true;
       c.dwell = c.emergency ? EMERGENCY_TICKS : STOP_TICKS;
       this.emit(c.entrant.id, "pitStart");
     }
-    for (const c of racing) if (c.dwell > 0 && !arrived.includes(c) && --c.dwell === 0) this.finishStop(c);
+    for (const c of racing) if (c.dwell > 0 && !arrived.includes(c) && --c.dwell === 0) c.ready = true;
+    this.releaseCars();
     this.record();
   }
 
