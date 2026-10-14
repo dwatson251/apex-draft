@@ -3,20 +3,21 @@ import type { CarConfig, Compound } from "@apex/sim";
 declare global {
   interface Window {
     apex?: {
-      get(key: string): Promise<unknown>;
-      set(key: string, value: unknown): Promise<boolean>;
-      exportLine(suggested: string, text: string): Promise<boolean>;
-      importLines(): Promise<string[]>;
-      version(): Promise<string>;
-      quit(): Promise<void>;
+      // Electron provides all of these; the Android shell (platform.ts) provides only version and exportLine.
+      get?(key: string): Promise<unknown>;
+      set?(key: string, value: unknown): Promise<boolean>;
+      exportLine?(suggested: string, text: string): Promise<boolean>;
+      importLines?(): Promise<string[]>;
+      version?(): Promise<string>;
+      quit?(): Promise<void>;
     };
   }
 }
 
-/** Saved through Electron when present, otherwise localStorage (plain browser dev). */
+/** Saved through Electron when present, otherwise localStorage (plain browser dev, Android). */
 export async function load<T>(key: string, fallback: T): Promise<T> {
   try {
-    if (window.apex) return ((await window.apex.get(key)) as T) ?? fallback;
+    if (window.apex?.get) return ((await window.apex.get(key)) as T) ?? fallback;
     const raw = localStorage.getItem(`apex-draft-${key}`);
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch { return fallback; }
@@ -24,7 +25,7 @@ export async function load<T>(key: string, fallback: T): Promise<T> {
 
 export async function save(key: string, value: unknown): Promise<void> {
   try {
-    if (window.apex) await window.apex.set(key, value);
+    if (window.apex?.set) await window.apex.set(key, value);
     else localStorage.setItem(`apex-draft-${key}`, JSON.stringify(value));
   } catch { /* storage is a convenience */ }
 }

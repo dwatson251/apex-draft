@@ -185,3 +185,49 @@ button.back:hover, .pill:hover { background: rgba(255, 255, 255, 0.24); transfor
   background: linear-gradient(150deg, rgba(40, 70, 130, 0.78), rgba(20, 30, 70, 0.7)); backdrop-filter: blur(16px) saturate(1.4); border: 1px solid rgba(255, 255, 255, 0.35); box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4); display: none; }
 #tut .step { font: 800 11px system-ui; letter-spacing: 0.8px; text-transform: uppercase; color: var(--accent); } #tut p { margin: 4px 0 6px; font-size: 15px; } #tut b { color: var(--accent); }
 #tut .tut-skip { margin: 0; padding: 5px 12px; font-size: 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.25); color: #fff; cursor: pointer; }
+
+/* ---------- phones and tablets (landscape): touch targets, safe areas, cheaper paint ---------- */
+html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+#stage canvas { touch-action: none; }
+@media (pointer: coarse) {
+  body { user-select: none; -webkit-user-select: none; }
+  input, select { user-select: text; -webkit-user-select: text; }
+  button { min-height: 44px; }
+  .stepper button, .lapstep button { width: 48px; height: 48px; }
+  .switch { width: 66px; height: 38px; } .switch i { width: 30px; height: 30px; } .switch.on i { transform: translateX(28px); }
+  .dd-opt { padding: 13px 18px; } .dd-btn { min-height: 48px; }
+  .cchip, .chipbtn, .rm, button.back, .pill { min-height: 44px; }
+  input[type=checkbox] { width: 24px; height: 24px; }
+  /* no hover on a finger: a tapped button should not stay lit or lifted */
+  button.big:hover:not(:disabled), .hb:hover, button:hover:not(:disabled) { transform: none; filter: none; }
+  /* blur is expensive on phone GPUs: use solid glass instead */
+  #stage canvas.blurred { filter: brightness(0.55); }
+  #menu .panel.menu-panel, #menu .panel.menu-panel.bubble, .dd-list, #modal, #tut, button.back, .pill, .field-copy, .bubble input.fancy { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  #menu .panel.menu-panel.bubble { background: rgba(18, 23, 44, 0.94); }
+  #tip { display: none !important; }
+  /* safe areas (notch, gesture bar) */
+  .panel.side { right: max(12px, env(safe-area-inset-right)); top: max(10px, env(safe-area-inset-top)); }
+  .panel.top { left: max(12px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); }
+  #menubtn { left: max(12px, env(safe-area-inset-left)); bottom: max(10px, env(safe-area-inset-bottom)); }
+}
+@media (pointer: coarse), (max-height: 520px) {
+  #bar { left: 0; right: 0; transform: none; margin: 0 auto; width: fit-content; bottom: max(8px, env(safe-area-inset-bottom)); gap: 4px; max-width: calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)); }
+  #bar button.big { margin: 0 2px; padding: 11px 16px; font-size: 14px; min-height: 48px; border-radius: 13px; }
+  #bar button.big.wide { flex: 0 0 auto; font-size: 16px; padding: 12px 24px; }
+  #hint { bottom: 70px; left: 0; right: 0; transform: none; margin: 0 auto; width: fit-content; max-width: calc(100% - 24px); padding: 6px 14px; font-size: 13px; line-height: 1.3; }
+  .panel.plan { bottom: 70px; max-height: calc(100% - 90px); overflow: auto; }
+  .panel.side { width: 240px; padding: 10px 12px; font-size: 13px; }
+  .panel.top { min-width: 0; max-width: 46%; padding: 10px 12px; top: calc(max(8px, env(safe-area-inset-top)) + 56px); max-height: calc(100% - 150px); }
+  /* the menu button moves to the top-left corner so the bottom row belongs to the actions */
+  #menubtn { top: max(8px, env(safe-area-inset-top)); bottom: auto; left: max(8px, env(safe-area-inset-left)); padding: 10px 14px; font-size: 13px; min-height: 44px; }
+  #tut { left: 50%; top: max(8px, env(safe-area-inset-top)); width: min(520px, calc(100% - 24px)); padding: 10px 14px 8px; border-radius: 20px; }
+  #tut p { font-size: 13px; }
+  #menu .panel.menu-panel { max-height: calc(100% - 12px); padding: 14px 18px 12px; }
+  .bubble h1.logo, .menu-panel h1 { font-size: 34px; letter-spacing: 2px; }
+  .bubble .tagline, .menu-panel .tagline { margin: 2px 0 10px; font-size: 13px; }
+  .hb { min-height: 64px; padding: 10px 18px; border-radius: 22px; } .hb b { font-size: 20px; } .hb span { font-size: 12px; }
+  .bubble .pause-title { font-size: 24px; }
+  .bubble .head h2 { font-size: 20px; }
+  .slot { min-height: 84px; }
+  .dialog { padding: 16px 18px 8px; } .dialog h2 { font-size: 20px; }
+}

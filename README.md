@@ -37,6 +37,9 @@ top speed. A good line is short, smooth and keeps the speed up. A bad one can be
 Installers for Windows, Linux (AppImage) and macOS are on the
 [Releases page](https://github.com/dwatson251/apex-draft/releases). There is nothing else to install.
 
+**Android:** each release also has `apex-draft-<version>-debug.apk`. Download it on the phone, allow "install unknown
+apps" for your browser or file manager, and open it. It is a debug build (not from the Play Store) and plays in landscape.
+
 ## How it plays
 
 <p align="center">

@@ -6,5 +6,7 @@ export default defineConfig({
   root: "src/renderer",
   resolve: { alias: { "@apex/sim": resolve(__dirname, "packages/sim/src/index.ts") } },
   server: { port: 5199, strictPort: true },
-  build: { target: "es2022" },
+  base: "./",
+  // the Android (Capacitor) app packages this folder
+  build: { target: "es2022", outDir: resolve(__dirname, "out/web"), emptyOutDir: true },
 });

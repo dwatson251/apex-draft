@@ -220,6 +220,24 @@ builds for the OS it runs on, so build all three in CI (below).
 Files are named `Apex Draft-<version>-<os>-<arch>.<ext>`, and everything lands in `release/`. Builds are **unsigned**:
 there is no code signing or auto-update yet, so Windows SmartScreen and macOS Gatekeeper will warn.
 
+## Android
+
+The renderer is wrapped with [Capacitor](https://capacitorjs.com/) (`capacitor.config.ts`, project in `android/`). It needs
+JDK 21 and the Android SDK (`ANDROID_HOME`) for local builds; CI has both.
+
+```sh
+npm run android:sync   # build:web (-> out/web), then cap sync android
+npm run android:apk    # sync, then gradlew assembleDebug -> android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+- `src/renderer/platform.ts` is the only Capacitor-aware renderer code: it fills `window.apex` with just `version` and
+  `exportLine` (share sheet) and hooks the Back button and app pause. Saves use `localStorage`, which persists in the WebView.
+- Touch input lives in `Game.onPointerDown/Move/Up` (tap tool, hold to delete, pinch). Phone layout is the last two blocks of
+  `style.css` (`pointer: coarse` and `max-height: 520px`).
+- `tools/e2e/ui-touch.cjs` checks the phone layout and gestures (see "Looking at the UI"; run it with `CDP=http://localhost:9333`).
+- The APK is a **debug** build, signed with the Android debug key. Release signing and the Play Store (AAB) are not set up.
+- The manifest locks `sensorLandscape`; `MainActivity` hides the system bars (immersive) and keeps the screen on.
+
 ## Releasing
 
 Releases are driven by tags.

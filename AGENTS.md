@@ -6,6 +6,7 @@ TypeScript + PixiJS + Electron racing-line game. See `README.md` and `docs/DESIG
   The alias lives in `tsconfig.json`, `vitest.config.ts`, `electron.vite.config.ts` and `vite.web.config.ts`.
 - Relative imports carry the `.ts` extension.
 - Check before committing: `npm run typecheck` and `npx vitest run`.
+- Android is a Capacitor wrapper (`android/`, `npm run android:apk`, needs JDK 21 + Android SDK; CI builds it). Touch UI: `tools/e2e/ui-touch.cjs`.
 - Releases are tag-driven (`vX.Y.Z-alpha.N`); the notes come from the matching `CHANGELOG.md` section.
 - Commits are one imperative sentence on `main`, as `dnlwtsn <dwatson251@gmail.com>`.
 - The Electron app needs system libraries (`libnss3` and friends) to start; `npm run dev:web` runs the renderer in a browser.

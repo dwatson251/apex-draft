@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- Android: an installable debug APK (`apex-draft-<version>-debug.apk`) is attached to each release, built with Capacitor. It
+  runs in landscape, full screen, and sharing a line opens the Android share sheet.
+- Touch controls: tap to place a point; hold a point to delete it; a **Tap: add / insert / delete** button replaces
+  right-click and Shift-click; pinch to zoom and two fingers to pan the map. Points are easier to grab with a finger.
+- Phone-sized layout: bigger tap targets (48px), safe-area insets, the Menu button at the top-left and a single-row action
+  bar, smaller headings and panels on short screens, no blur effects on touch devices, and touch wording ("Tap", "Pinch").
+- Pauses (menu opens, sound suspends) when the app goes to the background; the Android Back button steps out of menus.
 - Cars that take the flag keep driving round their line at half speed (as ghosts, so they never block anyone still racing)
   instead of stopping on the line. The race ends five seconds after the last car finishes.
 - The mouse wheel zooms while you watch the race: in on the car up to 6x, out to nearly the whole track (0.8x). It is kept

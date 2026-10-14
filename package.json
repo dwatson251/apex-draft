@@ -8,7 +8,9 @@
   "license": "MIT",
   "private": true,
   "main": "out/main/index.js",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "electron-vite dev",
     "dev:web": "vite --config vite.web.config.ts",
@@ -16,12 +18,21 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "dist": "electron-vite build && electron-builder",
-    "dist:dir": "electron-vite build && electron-builder --dir"
+    "dist:dir": "electron-vite build && electron-builder --dir",
+    "build:web": "vite build --config vite.web.config.ts",
+    "android:sync": "npm run build:web && cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/filesystem": "^7.1.9",
+    "@capacitor/share": "^7.0.4",
     "pixi.js": "^8.6.6"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
     "@types/node": "^22.10.0",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",

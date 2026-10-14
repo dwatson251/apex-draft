@@ -93,8 +93,11 @@ export function settingsHtml(o: { muted: boolean; music: boolean; version: strin
     </div>
     <label>Controls</label>
     <div class="keys">
-      ${key("Click", "place a point")}${key("Drag", "move a point, or pan the map")}${key("Right-click", "delete a point")}${key("Shift-click", "insert a point")}
-      ${key("Enter", "finish a segment")}${key("Backspace", "undo")}${key("Scroll", "zoom the map")}${key("M", "mute")}${key("Esc", "menu / back")}
+      ${matchMedia("(pointer: coarse)").matches
+        ? `${key("Tap", "place a point")}${key("Drag a point", "move it")}${key("Hold a point", "delete it")}${key("Tap: insert", "add a point on the line")}
+      ${key("Pinch", "zoom the map")}${key("Two fingers", "pan the map")}${key("Undo", "take back a point")}${key("Back", "menu / back")}`
+        : `${key("Click", "place a point")}${key("Drag", "move a point, or pan the map")}${key("Right-click", "delete a point")}${key("Shift-click", "insert a point")}
+      ${key("Enter", "finish a segment")}${key("Backspace", "undo")}${key("Scroll", "zoom the map")}${key("M", "mute")}${key("Esc", "menu / back")}`}
     </div>
     <div class="bigbtns"><button class="big grey" id="tutorial-reset">Reset tutorial</button></div>
     <p class="ver">v${esc(o.version)}</p>`;

@@ -121,6 +121,13 @@ export class Game {
   private menuBtn!: HTMLButtonElement;
   private modal!: HTMLElement;
   /** a drag that pans the overview, or turns out to be a click */
+  /** touch: what a tap does while drawing (the desktop uses Shift-click and right-click instead) */
+  private tool: "add" | "insert" | "delete" = "add";
+  /** fingers on the screen, for pinch zoom */
+  private touches = new Map<number, { x: number; y: number }>();
+  private pinch: { dist: number; cx: number; cy: number } | null = null;
+  /** holding a point for a moment deletes it */
+  private hold: { timer: number; x: number; y: number } | null = null;
   private pan: { lx: number; ly: number; sx: number; sy: number; moved: boolean; button: number; world: Vec2 } | null = null;
 
   constructor(private app: Application, private view: WorldView, private ui: HTMLElement) {
@@ -145,7 +152,7 @@ export class Game {
     if (!this.settings.phrase) this.settings.phrase = randomPhrase(new Rng((Math.random() * 2 ** 32) >>> 0));
     this.cars = await load<CarConfig[]>("cars", []);
     this.best = await load<Best>("best", {});
-    this.version = (await window.apex?.version()) ?? "dev";
+    this.version = (await window.apex?.version?.()) ?? "dev";
     this.audio.setMuted(!!this.settings.muted);
     this.audio.setMusic(!this.settings.musicOff);
     const c = this.app.canvas;
@@ -265,6 +272,20 @@ export class Game {
     if (this.tutBackup) { this.settings = this.tutBackup; this.tutBackup = null; this.normaliseSettings(); }
   }
 
+  /** Android Back: step out of menus the way Escape does. Returns false when there is nowhere left to go. */
+  handleBack(): boolean {
+    if (this.menuOpen && this.inGame && this.screen === "home") { this.closeMenu(); return true; }
+    if (this.menuOpen && !this.inGame && this.screen === "home") return false;
+    this.toggleMenu();
+    return true;
+  }
+
+  /** The app left the screen: pause the sound and open the pause menu if a game is on. */
+  setVisible(visible: boolean): void {
+    this.audio.setSuspended(!visible);
+    if (!visible && this.inGame && !this.menuOpen) this.toggleMenu();
+  }
+
   private toggleMenu(): void {
     if (this.menuOpen) {
       if (this.inGame) { if (this.screen === "settings") { this.screen = "home"; this.renderMenu(); } else this.closeMenu(); }
@@ -382,7 +403,7 @@ export class Game {
     this.on(el, "#h-weekend", () => this.openSetup("weekend"));
     this.on(el, "#h-tutorial", () => this.startTutorial());
     this.on(el, "#h-settings", () => this.go("settings"));
-    this.on(el, "#h-quit", () => void window.apex?.quit());
+    this.on(el, "#h-quit", () => void window.apex?.quit?.());
   }
 
   private openSetup(flow: Flow): void {
@@ -706,8 +727,8 @@ export class Game {
     return out;
   }
 
-  private hit(d: DrawState, p: Vec2): { kind: HandleKind; i: number } | null {
-    const r = Math.max(4, 11 / this.view.scale);
+  private hit(d: DrawState, p: Vec2, touch = false): { kind: HandleKind; i: number } | null {
+    const r = Math.max(4, (touch ? 26 : 11) / this.view.scale);
     let best: { kind: HandleKind; i: number } | null = null, bd = r;
     for (const h of this.handles(d)) {
       const dd = Math.hypot(h.p.x - p.x, h.p.y - p.y);
@@ -749,10 +770,11 @@ export class Game {
     const pv = this.preview(d);
     const needStart = d.mode === "lap" && d.seg === 0 && !d.line;
     const title = d.mode === "lap" ? `Lap 1 · segment ${d.seg + 1} of ${n}` : `Editing segment ${d.seg + 1}${d.queue.length ? ` · ${d.queue.length} more to go` : ""}`;
-    const status = needStart ? "Click the white start line to place your start." : pv ? (pv.ok ? '<span class="good">Line is clear</span>' : '<span class="bad">Line leaves the road or hits something</span>') : "";
+    const status = needStart ? `${coarse() ? "Tap" : "Click"} the white start line to place your start.` : pv ? (pv.ok ? '<span class="good">Line is clear</span>' : '<span class="bad">Line leaves the road or hits something</span>') : "";
     const last = d.mode === "lap" && d.seg === n - 1 ? ' <span class="dim">· last segment: it returns to your start</span>' : "";
     this.bar.set([
       { id: "undo", label: "Undo", color: "orange", tip: "Take back the last point you placed (Backspace, or right-click a point to delete just that one).", onClick: () => this.undo() },
+      ...(coarse() ? [{ id: "tool", label: TOOL_LABEL[this.tool], color: "cyan" as const, tip: "What a tap does: add a point, insert one on the line, or delete one.", onClick: () => { this.tool = TOOL_NEXT[this.tool]; this.renderDraw(); } }] : []),
       { id: "clear", label: "Clear", color: "pink", tip: "Remove every point you have placed in this segment and start it again.", onClick: () => { d.pts = []; d.end = d.mode === "amend" ? d.end : null; if (needStart) d.line = null; this.renderDraw(); } },
       ...(this.run.realism ? [{ id: "pits", label: "Pit strategy", color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap.", onClick: () => this.togglePlan() }] : []),
       { id: "fin", label: "Finish segment", color: "yellow", wide: true, disabled: !(pv && pv.ok && !needStart), tip: "Lock in this segment (Enter). Click to place points; drag any point, the square (where it starts) or the diamond (where it ends) to move it along the road edge; Shift+click inserts a point.", onClick: () => this.finishSegment() },
@@ -765,6 +787,17 @@ export class Game {
   private onPointerDown(e: PointerEvent): void {
     const d = this.draw;
     const p = this.view.toWorld(e.clientX, e.clientY);
+    const touch = e.pointerType === "touch";
+    if (touch) {
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.touches.size === 2 && !d) {
+        // a second finger turns the gesture into pinch zoom and two-finger pan
+        this.pan = null;
+        this.pinch = this.pinchNow();
+        return;
+      }
+      if (this.touches.size > 1) return;
+    }
     if (d) {
       if (e.button === 2) {
         const h = this.hit(d, p);
@@ -772,16 +805,22 @@ export class Game {
         return;
       }
       if (e.button !== 0) return;
-      const h = this.hit(d, p);
-      if (h) {
+      const h = this.hit(d, p, touch);
+      const tool = e.shiftKey ? "insert" : touch ? this.tool : "add";
+      if (touch && tool === "delete") {
+        if (h?.kind === "pt") { d.pts.splice(h.i, 1); d.warn = ""; this.vibrate(); this.renderDraw(); }
+        return;
+      }
+      if (h && !(touch && tool === "insert")) {
         d.drag = h;
         this.app.canvas.setPointerCapture(e.pointerId);
+        if (touch && h.kind === "pt") this.startHold(e, h.i);
         this.drawWorld();
         return;
       }
       d.warn = "";
       if (d.mode === "lap" && d.seg === 0 && !d.line) d.line = beginLine(this.track, p);
-      else if (e.shiftKey) this.insertPoint(d, p);
+      else if (tool === "insert") this.insertPoint(d, p);
       else d.pts.push(p);
       this.renderDraw();
     } else if (this.view.cameraMode === "overview") {
@@ -790,6 +829,30 @@ export class Game {
       this.app.canvas.setPointerCapture(e.pointerId);
     }
   }
+
+  private pinchNow(): { dist: number; cx: number; cy: number } {
+    const [a, b] = [...this.touches.values()] as [{ x: number; y: number }, { x: number; y: number }];
+    return { dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+  }
+
+  private vibrate(): void { try { navigator.vibrate?.(15); } catch { /* not supported */ } }
+
+  /** Touch has no right-click: keep a finger still on a point for a moment and it is deleted. */
+  private startHold(e: PointerEvent, i: number): void {
+    this.cancelHold();
+    const timer = window.setTimeout(() => {
+      this.hold = null;
+      const d = this.draw;
+      if (!d?.drag || d.drag.kind !== "pt") return;
+      d.pts.splice(i, 1); d.drag = null; d.warn = "";
+      try { this.app.canvas.releasePointerCapture(e.pointerId); } catch { /* not captured */ }
+      this.vibrate();
+      this.renderDraw();
+    }, 500);
+    this.hold = { timer, x: e.clientX, y: e.clientY };
+  }
+
+  private cancelHold(): void { if (this.hold) { clearTimeout(this.hold.timer); this.hold = null; } }
 
   private pickAt(p: Vec2): void {
     if (!this.pick) return;
@@ -815,6 +878,15 @@ export class Game {
   }
 
   private onPointerMove(e: PointerEvent): void {
+    if (this.touches.has(e.pointerId)) this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pinch && this.touches.size >= 2) {
+      const n = this.pinchNow();
+      this.view.zoomBy(n.dist / this.pinch.dist, n.cx, n.cy);
+      this.view.panBy(n.cx - this.pinch.cx, n.cy - this.pinch.cy);
+      this.pinch = n;
+      return;
+    }
+    if (this.hold && Math.hypot(e.clientX - this.hold.x, e.clientY - this.hold.y) > 10) this.cancelHold();
     if (this.pan) {
       const q = this.pan;
       if (!q.moved && Math.hypot(e.clientX - q.sx, e.clientY - q.sy) > 6) q.moved = true;
@@ -834,6 +906,12 @@ export class Game {
   }
 
   private onPointerUp(e: PointerEvent): void {
+    this.cancelHold();
+    if (this.touches.delete(e.pointerId) && this.pinch) {
+      if (this.touches.size < 2) this.pinch = null;
+      this.pan = null;
+      return;
+    }
     if (this.pan) {
       const q = this.pan;
       this.pan = null;
@@ -1477,6 +1555,7 @@ export class Game {
       step = "Done"; text = "Tutorial complete. Draw, race, pit, adjust. Try <b>Quick Race</b> next, or a <b>Race Weekend</b>.";
     }
     if (!text) { el.style.display = "none"; return; }
+    if (coarse()) text = text.replace(/Click/g, "Tap").replace(/click/g, "tap").replace(/press <b>Backspace<\/b> to undo/, "press <b>Undo</b>").replace(/ \(or <b>Enter<\/b>\)/, "");
     el.innerHTML = `<div class="step">Tutorial · ${step}</div><p>${text}</p><button class="tut-skip" id="tut-skip">${step === "Done" ? "Close" : "Skip tutorial"}</button>`;
     el.style.display = "block";
     el.querySelector("#tut-skip")!.addEventListener("click", () => this.showMenu());
@@ -1524,8 +1603,12 @@ export class Game {
   }
 }
 
+const coarse = (): boolean => matchMedia("(pointer: coarse)").matches;
+const TOOL_LABEL = { add: "Tap: add", insert: "Tap: insert", delete: "Tap: delete" } as const;
+const TOOL_NEXT = { add: "insert", insert: "delete", delete: "add" } as const;
+
 async function saveFile(name: string, text: string): Promise<void> {
-  if (window.apex) { await window.apex.exportLine(name, text); return; }
+  if (window.apex?.exportLine) { await window.apex.exportLine(name, text); return; }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
   a.download = `${name}.apexline.json`;
@@ -1534,7 +1617,7 @@ async function saveFile(name: string, text: string): Promise<void> {
 }
 
 function pickFiles(): Promise<string[]> {
-  if (window.apex) return window.apex.importLines();
+  if (window.apex?.importLines) return window.apex.importLines();
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file"; input.multiple = true; input.accept = ".json";

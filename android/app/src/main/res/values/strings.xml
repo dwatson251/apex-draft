@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Apex Draft</string>
+    <string name="title_activity_main">Apex Draft</string>
+    <string name="package_name">com.dwatson251.apexdraft</string>
+    <string name="custom_url_scheme">com.dwatson251.apexdraft</string>
+</resources>

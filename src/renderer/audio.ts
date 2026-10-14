@@ -82,6 +82,11 @@ export class CarAudio {
   isMuted(): boolean { return this.muted; }
   /** Fast-forward: the engines would just be a chirp. */
   setDucked(d: boolean): void { if (d !== this.ducked) { this.ducked = d; this.applyMaster(); } }
+  /** The app is in the background (Android): stop the audio clock; coming back resumes it. */
+  setSuspended(s: boolean): void {
+    if (!this.ctx) return;
+    if (s) void this.ctx.suspend(); else void this.ctx.resume();
+  }
   setMusic(on: boolean): void {
     this.musicOn = on;
     if (on) this.startMusic(); else this.stopMusic();

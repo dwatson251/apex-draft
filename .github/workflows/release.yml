@@ -1,5 +1,5 @@
 # A tag (v0.1.0-alpha.1, v1.0.0, ...) builds installers for Windows, Linux and macOS and publishes them as a
-# GitHub release. Tags with alpha/beta/rc are marked as pre-releases. Builds are unsigned.
+# GitHub release, plus a debug APK for Android sideloading. Tags with alpha/beta/rc are marked as pre-releases. Builds are unsigned.
 name: Release
 on:
   push:
@@ -43,8 +43,31 @@ jobs:
             release/*.dmg
           if-no-files-found: error
 
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
+      # The app version is the tag without its "v"; the build number counts up with the run.
+      - run: |
+          v="${GITHUB_REF_NAME#v}"
+          sed -i "s/versionName \".*\"/versionName \"$v\"/; s/versionCode [0-9]*/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
+      - run: npm run android:apk
+      - run: mkdir -p apk && cp android/app/build/outputs/apk/debug/app-debug.apk "apk/apex-draft-${GITHUB_REF_NAME#v}-debug.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-android
+          path: apk/*.apk
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
