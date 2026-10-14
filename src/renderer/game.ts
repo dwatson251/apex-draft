@@ -51,7 +51,7 @@ interface DrawState {
 interface Motion { v: number; acc: number; slip: number; braking: boolean }
 
 export class Game {
-  private settings: Settings = { phrase: "", laps: 3, mode: "race", rivals: 5, car: defaultCar(), realism: true, obstacles: true, startTyre: "medium", pitPlan: [] };
+  private settings: Settings = { phrase: "", laps: 3, mode: "race", rivals: 5, car: defaultCar(), realism: false, obstacles: true, startTyre: "medium", pitPlan: [] };
   private cars: CarConfig[] = [];
   private best: Best = {};
   private imported: LineFile[] = [];
@@ -107,7 +107,9 @@ export class Game {
 
   async start(): Promise<void> {
     this.settings = { ...this.settings, ...(await load<Partial<Settings>>("settings", {})) };
-    if (typeof this.settings.realism !== "boolean") this.settings.realism = true;
+    if (typeof this.settings.realism !== "boolean") this.settings.realism = false;
+    // realism (tyres, fuel, weather) is switched off for now: settings saved before that decision follow it once
+    if (this.settings.realismVersion !== 2) { this.settings.realism = false; this.settings.realismVersion = 2; }
     if (typeof this.settings.obstacles !== "boolean") this.settings.obstacles = true;
     this.normaliseSettings();
     if (!this.settings.phrase) this.settings.phrase = randomPhrase(new Rng((Math.random() * 2 ** 32) >>> 0));
@@ -334,11 +336,11 @@ export class Game {
         <div ${s.mode === "trial" ? 'style="display:none"' : ""}><label>Rivals</label><select id="rivals" class="fancy" ${lock}>${[1, 2, 3, 4, 5, 6, 7].map((n) => `<option ${n === s.rivals ? "selected" : ""}>${n}</option>`).join("")}</select></div>
       </div>
       <div class="checks">
-        <label><input type="checkbox" id="realism" ${s.realism ? "checked" : ""} ${lock}/> Realism: tyre wear, fuel and pit stops</label>
+        <label><input type="checkbox" id="realism" ${s.realism ? "checked" : ""} ${lock}/> Realism: tyre wear, fuel, pit stops, tyre choice and weather</label>
         <label><input type="checkbox" id="obstacles" ${s.obstacles ? "checked" : ""}/> Obstacles: boxes and water</label>
       </div>
       <p class="dim blurb">You can only change your line while you are in the pits, so plan your stops.</p>
-      ${racing ? "" : `<label>Starting tyre</label><div class="tyrepick">${COMPOUND_IDS.map((c) => `<button class="tyrebtn ${s.startTyre === c ? "on" : ""}" data-tyre="${c}" title="${esc(COMPOUNDS[c].blurb)}">${tyreIcon(c, 54)}<span>${COMPOUNDS[c].name}</span></button>`).join("")}</div>`}
+      ${racing || !s.realism ? "" : `<label>Starting tyre</label><div class="tyrepick">${COMPOUND_IDS.map((c) => `<button class="tyrebtn ${s.startTyre === c ? "on" : ""}" data-tyre="${c}" title="${esc(COMPOUNDS[c].blurb)}">${tyreIcon(c, 54)}<span>${COMPOUNDS[c].name}</span></button>`).join("")}</div>`}
       ${racing ? '<p class="dim">Laps, mode, rivals and realism are fixed while a race is under way.</p>' : ""}
       <p class="dim">Car: <b>${esc(s.car.name)}</b> (${carCost(s.car)}/${CAR_BUDGET} points)
         ${s.mode === "race" ? `· Imported rival lines for this track: <b>${matching.length}</b>` : ""}
@@ -369,7 +371,7 @@ export class Game {
       const on = (e.target as HTMLInputElement).checked;
       void this.changeSeed(() => { s.obstacles = on; });
     });
-    el.querySelector("#realism")!.addEventListener("change", (e) => { s.realism = (e.target as HTMLInputElement).checked; this.persist(); this.renderMenu(); });
+    el.querySelector("#realism")!.addEventListener("change", (e) => { s.realism = (e.target as HTMLInputElement).checked; if (!s.realism) this.closePlan(); this.persist(); this.renderMenu(); });
     el.querySelector("#laps")!.addEventListener("change", (e) => {
       s.laps = Number((e.target as HTMLInputElement).value);
       this.normaliseSettings();
@@ -926,7 +928,7 @@ export class Game {
         <div class="tyrepick big">${COMPOUND_IDS.map((c) => `<button class="tyrebtn" data-add="${c}" ${can ? "" : "disabled"} title="${esc(COMPOUNDS[c].blurb)}">${tyreIcon(c, 74)}<span>${COMPOUNDS[c].name}</span></button>`).join("")}</div>
       </div>
       <p class="${reason || this.planMsg ? "bad" : "dim"}">${esc(reason || this.planMsg || "Pick the lap, then tap a tyre to queue the stop.")}</p>
-      ${this.race ? "" : `<label>Starting tyre</label><div class="tyrepick">${COMPOUND_IDS.map((c) => `<button class="tyrebtn ${s.startTyre === c ? "on" : ""}" data-start="${c}" title="${esc(COMPOUNDS[c].blurb)}">${tyreIcon(c, 46)}<span>${COMPOUNDS[c].name}</span></button>`).join("")}</div>`}
+      ${this.race || !s.realism ? "" : `<label>Starting tyre</label><div class="tyrepick">${COMPOUND_IDS.map((c) => `<button class="tyrebtn ${s.startTyre === c ? "on" : ""}" data-start="${c}" title="${esc(COMPOUNDS[c].blurb)}">${tyreIcon(c, 46)}<span>${COMPOUNDS[c].name}</span></button>`).join("")}</div>`}
     </div>`;
     const root = this.planLayer;
     root.querySelector("#planclose")?.addEventListener("click", () => this.closePlan());
@@ -942,7 +944,7 @@ export class Game {
   private startRace(): void {
     this.rivalEntrants = this.settings.mode === "trial" ? [] : this.makeRivals();
     this.me = { id: ME, name: "You", car: this.playerCar(), lines: Array.from({ length: this.settings.laps }, () => this.currentLine), isPlayer: true, pitPlan: this.settings.pitPlan, startTyre: this.settings.startTyre };
-    this.race = new Race(this.track, [this.me, ...this.rivalEntrants], this.settings.laps, { realism: this.settings.realism });
+    this.race = new Race(this.track, [this.me, ...this.rivalEntrants], this.settings.laps, { realism: this.settings.realism, weather: this.settings.realism });
     this.lapNo = 0;
     this.view.clearSkids();
     this.skidTick = 0;

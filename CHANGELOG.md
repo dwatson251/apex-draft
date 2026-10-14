@@ -19,6 +19,8 @@
   the race. Never which lap, how hard or for how long.
 - Bots read the road: they pit for wets or slicks when the road changes, and redraw their lines at each edit stop,
   leaning toward the grip their tyre wants.
+- Realism covers tyre wear, fuel, pit stops, the choice of tyre and the weather: switch it off and none of them apply, and
+  there are no pit stops, so no edits once the race starts. It is off by default for now.
 - Collisions have consequences instead of being forbidden: a nudge from behind slows the car behind and speeds up the one
   in front (which can then miss its braking point and run wide), side by side both get kicked apart equally, and a T-bone
   throws the struck car sideways and costs both a lot of speed while the striker keeps its line. Knocked cars come back

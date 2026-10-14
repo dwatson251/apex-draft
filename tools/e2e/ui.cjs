@@ -37,6 +37,26 @@ const OUT = process.env.SHOTS || "";
   ok("Random with nothing drawn just changes the track", (await G(() => window.__game.settings.phrase)) !== p0 && (await G(() => getComputedStyle(document.getElementById("modal")).display)) === "none");
   await shot("title");
 
+  // ---------------- realism covers tyres, fuel, weather and the choice of tyre ----------------
+  ok("realism is off by default", !(await page.isChecked("#realism")));
+  ok("so there is no starting tyre choice and no forecast", (await page.$(".tyrepick")) === null && (await page.$(".forecast")) === null);
+  await page.click("#realism"); await page.waitForTimeout(400);
+  ok("switching it on brings the tyre choice and forecast", (await page.$$(".tyrepick .tyrebtn")).length === 3 && (await page.$(".forecast")) !== null);
+  await page.click("#realism"); await page.waitForTimeout(400);
+  ok("and off again takes them away", (await page.$(".tyrepick")) === null && (await page.$(".forecast")) === null);
+  {
+    // a rainy seed with realism off: no rain, no wet road, no rain in the sim at all
+    const rainy = await G(() => { const s = window.__sim; for (let i = 0; i < 4000; i++) { const p = s.randomPhrase(new s.Rng(i + 5)); const t = s.generateTrack(p); if (s.weatherFor(t.seed, 6, t.biome).showers.length) return p; } return null; });
+    const hash = (real) => G(([p, real]) => { const s = window.__sim; const t = s.generateTrack(p); return "#" + s.encodeShare({ phrase: t.phrase, laps: 6, mode: "race", rivals: 3, car: { name: "Standard", accel: 6, top: 6, grip: 6, brake: 6 }, obstacles: true, realism: real, playing: true, line: s.botLine(t, 5, 1), startTyre: "wet", pitPlan: [] }); }, [rainy, real]);
+    for (const real of [false, true]) {
+      await open(BASE + (await hash(real))); await page.waitForSelector("#bar-go"); await settle(1800);
+      await page.click("#bar-go"); await page.waitForSelector("#bar-skip");
+      const r = await G(() => { const race = window.__game.race; return { rain: race.events.some((e) => e.type === "rain"), wet: Math.max(0, ...race.wetSnaps.map((s) => Math.max(...s.slice(0, race.field.cells)))), showers: race.weather.showers.length }; });
+      ok(`weather ${real ? "happens with realism on" : "does not happen with realism off"}`, real ? r.rain && r.wet > 20 : !r.rain && r.wet === 0 && r.showers === 0, JSON.stringify(r));
+    }
+  }
+  await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=2"); await page.waitForSelector("#go"); await settle(2500);
+
   // ---------------- start, draw, reload ----------------
   await page.click("#go"); await page.waitForSelector("#bar-fin"); await settle();
   ok("starting closes the menu and shows the Menu button and the bottom bar", (await G(() => getComputedStyle(document.getElementById("menu")).display)) === "none" && (await G(() => getComputedStyle(document.getElementById("menubtn")).display)) === "block" && !!(await page.$("#bar-undo")));

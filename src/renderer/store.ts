@@ -38,6 +38,8 @@ export interface Settings {
   musicOff?: boolean;
   /** tyre wear, fuel and pit stops */
   realism: boolean;
+  /** which decision about realism the saved value follows */
+  realismVersion?: number;
   /** boxes and water on the road */
   obstacles: boolean;
   startTyre: Compound;

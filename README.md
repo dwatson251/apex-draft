@@ -35,7 +35,7 @@ Installers for Windows, Linux (AppImage) and macOS are on the
 - **Contact.** Cars can touch. A shunt from behind, a squeeze alongside and a T-bone each do what you would expect.
 - **Tyres, fuel and pit stops.** Tyres wear, so grip fades; the tank runs down. Tick "Pit at the end of this lap" in the
   picker and your car drives itself into the pit lane beside the start straight, stops in its box and comes out on fresh
-  tyres with a full tank. Never stopping adds a penalty. Run dry and the car limps to the pits for an emergency refuel (slow, no new tyres), then carries on. Switch it all off with Realism.
+  tyres with a full tank. Never stopping adds a penalty. Run dry and the car limps to the pits for an emergency refuel (slow, no new tyres), then carries on. Switch it all off with Realism (tyre wear, fuel, pit stops, tyre choice and weather all go together). Realism is off by default for now.
 - **Places and machines.** The phrase also picks where you are (countryside, desert, snow, city, the Moon: each with its
   own grip and scenery) and what you are driving (go-karts, formula cars, rally cars, muscle cars, trucks or tanks).
 - **Share and resume.** The address holds the track, the settings and the segments you have drawn. Copy it to share a
