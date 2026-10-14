@@ -1,6 +1,8 @@
 import { CAR_R, ROAD_HALF, centreAt, type Segment, type Track } from "./track.ts";
 import { validateLine, type Line } from "./line.ts";
 import { Rng } from "./rng.ts";
+import { tyreGrip, type Compound } from "./tyres.ts";
+import type { WetField } from "./trackwet.ts";
 import { add, dot, mul, sub, type Vec2 } from "./vec.ts";
 
 const TS = [0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1];
@@ -37,7 +39,13 @@ const position = (track: Track, w: Wp): Vec2 => {
  * A racing line from the track geometry: waypoints along every segment relaxed toward the shortest path
  * (wide in, clip the apex, wide out), kept clear of obstacles. `skill` in [0, 1]: lower is sloppier.
  */
-export function botLine(track: Track, seed: number, skill: number): Line {
+export interface BotLineOpts {
+  /** the tyre the car is on, and the state of the road: the line then leans toward the grippiest bit of road */
+  compound?: Compound;
+  field?: WetField;
+}
+
+export function botLine(track: Track, seed: number, skill: number, opts: BotLineOpts = {}): Line {
   const rng = new Rng(seed);
   const build = (noise: number, iterations: number, prune = true): Line | null => {
     const wps: Wp[] = [];
@@ -57,6 +65,20 @@ export function botLine(track: Track, seed: number, skill: number): Line {
         const c = centreAt(track.segments[w.seg]!, w.t);
         const want = dot(sub({ x: (prev.x + next.x) / 2, y: (prev.y + next.y) / 2 }, c.p), c.n);
         w.l = Math.min(w.hi, Math.max(w.lo, w.l + (want - w.l) * 0.5));
+      }
+    }
+    // on a wet or a rubbered road the best line is not always the shortest: lean toward the grip this tyre wants
+    const { compound, field } = opts;
+    if (compound && field) {
+      for (const w of wps) {
+        let best = w.l, bestScore = -Infinity;
+        for (let l = Math.max(w.lo, w.l - 14); l <= Math.min(w.hi, w.l + 14); l += 2) {
+          const q = position(track, { ...w, l }), c = field.cellAt(q.x, q.y);
+          const g = c < 0 ? 1 : tyreGrip(compound, field.wet[c]!, field.use[c]!);
+          const score = g - 0.004 * Math.abs(l - w.l);
+          if (score > bestScore) { bestScore = score; best = l; }
+        }
+        w.l = best;
       }
     }
     if (noise > 0) for (const w of wps) w.l = Math.min(w.hi, Math.max(w.lo, w.l + rng.range(-noise, noise)));

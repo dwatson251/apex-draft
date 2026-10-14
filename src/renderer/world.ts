@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, RenderTexture, Sprite } from "pixi.js";
-import { CELL, ROAD_HALF, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
+import { CELL, ROAD_HALF, WET_LAT, WET_LONG, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
 import { buildCar, type CarShape } from "./cars.ts";
 import { buildScenery, MARGIN_CELLS, type PlaneState, type Scenery } from "./scenery.ts";
 import { Sky } from "./sky.ts";
@@ -36,6 +36,9 @@ export class WorldView {
   private grid = new Graphics();
   private segLayer = new Container();
   private highlight = new Graphics();
+  private wetG = new Graphics();
+  private wetCells: number[][] = [];
+  private wetShown: Uint8Array | null | undefined;
   private skidSprite = new Sprite();
   private lines = new Graphics();
   private carsLayer = new Container();
@@ -59,7 +62,7 @@ export class WorldView {
   private clock = 0;
 
   constructor(readonly app: Application) {
-    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.highlight, this.skidSprite, this.sky.shadows, this.lines, this.carsLayer, this.crew, this.sparkG, this.sky.air);
+    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.wetG, this.highlight, this.skidSprite, this.sky.shadows, this.lines, this.carsLayer, this.crew, this.sparkG, this.sky.air);
     app.stage.addChild(this.root);
     app.renderer.on("resize", () => this.applyCamera());
     this.setBounds(700, 500);
@@ -229,6 +232,9 @@ export class WorldView {
     this.skidSprite.visible = false;
     this.grid.clear();
     this.highlight.clear();
+    this.wetG.clear();
+    this.wetCells = [];
+    this.wetShown = undefined;
   }
 
   private drawGrid(cols: number, rows: number, dark: boolean): void {
@@ -256,6 +262,20 @@ export class WorldView {
       const art = buildSegmentArt(track, s);
       this.arts.set(s.index, art);
       this.segLayer.addChild(art.root);
+    }
+    // one polygon for each bin of the wet field, worked out once
+    const samples = track.segments[0]!.center.length;
+    for (const seg of track.segments) {
+      for (let lo = 0; lo < WET_LONG; lo++) {
+        for (let la = 0; la < WET_LAT; la++) {
+          const i0 = Math.floor((lo * samples) / WET_LONG), i1 = Math.min(samples - 1, Math.floor(((lo + 1) * samples) / WET_LONG));
+          const l0 = -ROAD_HALF + (la * 2 * ROAD_HALF) / WET_LAT, l1 = l0 + (2 * ROAD_HALF) / WET_LAT;
+          const pts: number[] = [];
+          for (let i = i0; i <= i1; i++) pts.push(seg.center[i]!.x + seg.normals[i]!.x * l0, seg.center[i]!.y + seg.normals[i]!.y * l0);
+          for (let i = i1; i >= i0; i--) pts.push(seg.center[i]!.x + seg.normals[i]!.x * l1, seg.center[i]!.y + seg.normals[i]!.y * l1);
+          this.wetCells.push(pts);
+        }
+      }
     }
     this.skidTex = RenderTexture.create({ width: b.w, height: b.h, resolution: SKID_RES });
     this.skidSprite.texture = this.skidTex;
@@ -316,6 +336,30 @@ export class WorldView {
   }
 
   clearLines(): void { this.lines.clear(); }
+
+  /**
+   * Paint how wet the road is (and how much it has been driven) from a snapshot of the sim's wet field: dark, glossy
+   * where it is wet, and lighter along the dry line the cars have worn. null clears it. Redrawn only when it changes.
+   */
+  setWet(snap: Uint8Array | null, rain: number): void {
+    this.sky.setRain(rain);
+    if (snap === this.wetShown) return;
+    this.wetShown = snap;
+    const g = this.wetG.clear();
+    if (!snap) return;
+    const cells = this.wetCells.length;
+    for (let i = 0; i < cells; i++) {
+      const w = snap[i]! / 255, u = snap[cells + i]! / 255, pts = this.wetCells[i]!;
+      if (w > 0.04) {
+        g.poly(pts).fill({ color: 0x0b2038, alpha: 0.5 * w });
+        // a sheen that shows where the water lies: strongest on bits nobody has driven
+        g.poly(pts).fill({ color: 0x9cc8ff, alpha: 0.11 * w * (1 - u * 0.8) });
+      } else if (u > 0.25) {
+        g.poly(pts).fill({ color: 0x000000, alpha: 0.07 * u }); // rubbered in
+      }
+      if (u > 0.3 && w < 0.6) g.poly(pts).fill({ color: 0xffffff, alpha: 0.1 * u * (1 - w) }); // the dry line, paler
+    }
+  }
 
   /** The aeroplane, if one is in the air (or on the runway) right now. */
   planeState(): PlaneState | null { return this.decor?.visible ? this.scenery?.planeState() ?? null : null; }

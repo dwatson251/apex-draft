@@ -54,6 +54,7 @@ export class CarAudio {
   private musicTimer: number | null = null;
   private nextStep = 0;
   private stepNo = 0;
+  private rainVoice: { gain: GainNode; noise: AudioBufferSourceNode } | null = null;
   private plane: { gain: GainNode; osc: OscillatorNode[]; noise: AudioBufferSourceNode; filter: BiquadFilterNode; pan: StereoPannerNode | null } | null = null;
 
   /** Needs a user gesture the first time; call it from a click. */
@@ -145,6 +146,7 @@ export class CarAudio {
     }
     this.voices.clear();
     this.planeSound(null);
+    this.rain(0);
   }
 
   // ---------- one-shots ----------
@@ -244,6 +246,28 @@ export class CarAudio {
     }
     this.burst(bus, t + 1.15, 0.1, 1700, 2.5, 0.5, 0.004);
     window.setTimeout(() => bus.disconnect(), 3000);
+  }
+
+  // ---------- rain ----------
+  /** The patter of rain on everything: filtered noise, louder as it rains harder. 0 fades it out. */
+  rain(intensity: number): void {
+    if (!this.ctx || !this.fx) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    if (!this.rainVoice) {
+      if (intensity <= 0.02) return;
+      const noise = ctx.createBufferSource(); noise.buffer = this.noise; noise.loop = true;
+      const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 900;
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 5200; bp.Q.value = 0.5;
+      const gain = ctx.createGain(); gain.gain.value = 0;
+      noise.connect(hp); hp.connect(bp); bp.connect(gain); gain.connect(this.fx);
+      noise.start();
+      this.rainVoice = { gain, noise };
+    }
+    this.rainVoice.gain.gain.setTargetAtTime(intensity > 0.02 ? 0.02 + 0.07 * intensity : 0, t, 0.5);
+    if (intensity <= 0.02) {
+      const dead = this.rainVoice;
+      window.setTimeout(() => { if (this.rainVoice === dead && dead.gain.gain.value < 0.001) { try { dead.noise.stop(); dead.gain.disconnect(); } catch { /* stopped */ } this.rainVoice = null; } }, 2500);
+    }
   }
 
   // ---------- aeroplane ----------

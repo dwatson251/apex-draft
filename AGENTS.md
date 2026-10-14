@@ -11,5 +11,7 @@ TypeScript + PixiJS + Electron racing-line game. See `README.md` and `docs/DESIG
 - The Electron app needs system libraries (`libnss3` and friends) to start; `npm run dev:web` runs the renderer in a browser.
 - Track-affecting settings (the phrase, obstacles) are part of the seed. Anything that changes them while a drawing exists
   must go through `Game.changeSeed`, which asks first.
-- To look at the UI from WSL, run `npm run dev:web` and drive Windows Chrome over CDP (see docs/DEVELOPMENT.md notes in
-  the repo history); dev URLs: `?demo`, `?draw=N`, `?draw=N&amend`.
+- To look at the UI from WSL, run `npm run dev:web` and drive Windows Chrome over CDP: start it with
+  `chrome.exe --headless=new --remote-debugging-port=9333 --use-angle=swiftshader --enable-unsafe-swiftshader`, then run
+  `PLAYWRIGHT=/path/to/playwright node tools/e2e/ui.cjs`. Dev URLs: `?demo`, `?draw=N`, `?draw=N&amend`; `window.__game` and
+  `window.__sim` exist in dev.

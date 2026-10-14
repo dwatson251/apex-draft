@@ -31,6 +31,10 @@ export class Sky {
   weather: Weather = { cover: 0.5, tint: 0xb7c3d8, snow: false, birds: true, windX: 9, windY: 3 };
   private flakes: { x: number; y: number; vy: number; vx: number; r: number }[] = [];
   private snowG = new Graphics();
+  private rainG = new Graphics();
+  private dim = new Graphics();
+  private rain = 0;
+  private drops: { x: number; y: number; v: number; l: number }[] = [];
   private clouds: Cloud[] = [];
   private birds: Bird[] = [];
   private w = 700;
@@ -54,6 +58,12 @@ export class Sky {
   /** Clouds and birds only show while the sky is active. */
   setActive(on: boolean): void { this.on = on; }
   isOn(): boolean { return this.on; }
+
+  /** How hard it is raining, 0 to 1: streaks of rain, and the whole scene dimmed. */
+  setRain(r: number): void {
+    this.rain = r;
+    if (r > 0 && this.drops.length === 0) this.drops = Array.from({ length: 260 }, () => ({ x: Math.random() * (this.w + 500) - 250, y: Math.random() * (this.h + 500) - 250, v: 340 + Math.random() * 160, l: 5 + Math.random() * 7 }));
+  }
 
   private rebuildClouds(): void {
     for (const c of this.clouds) { c.air.destroy(); c.shadow.destroy(); }
@@ -115,6 +125,19 @@ export class Sky {
       c.air.position.set(c.x, c.y);
       c.shadow.position.set(c.x + SHADOW_DX, c.y + SHADOW_DY);
     }
+    // rain: streaks falling at a slant, and a grey-blue dimming of everything
+    if (this.rain > 0.02) {
+      if (!this.rainG.parent) { this.air.addChild(this.dim, this.rainG); }
+      this.dim.clear().rect(-2200, -2200, this.w + 4400, this.h + 4400).fill({ color: 0x0a1a33, alpha: 0.26 * this.rain });
+      const g = this.rainG.clear(), shown = Math.floor(this.drops.length * Math.min(1, this.rain));
+      for (let i = 0; i < shown; i++) {
+        const d = this.drops[i]!;
+        d.y += d.v * dt; d.x -= d.v * 0.18 * dt;
+        if (d.y > this.h + 250) { d.y = -250; d.x = Math.random() * (this.w + 500) - 250; }
+        g.moveTo(d.x, d.y).lineTo(d.x + d.l * 0.18, d.y - d.l);
+      }
+      g.stroke({ width: 0.7, color: 0xcfe3ff, alpha: 0.5 });
+    } else if (this.rainG.parent) { this.rainG.clear(); this.dim.clear(); }
     if (this.on && this.weather.birds && (this.nextFlock -= dt) <= 0) { this.spawnFlock(); this.nextFlock = 9 + Math.random() * 14; }
     if (this.weather.snow) {
       if (!this.snowG.parent) this.air.addChild(this.snowG);

@@ -1,6 +1,27 @@
 # Changelog
 
 ## 0.1.0-alpha.1
+- Races up to 50 laps, run in blocks: you edit your line every N laps (recommended: a fifth of the race, at least 1) and
+  the cars drive the laps in between by themselves. Fuel range and tyre life stretch with the race, so a few stops are
+  enough for a long one.
+- Pit strategy is queued ahead: up to 5 stops, one per lap, only on laps still to come and never the last lap. Adding a
+  stop is a lap and a tyre, picked from big tyre icons (soft red, medium yellow, wet blue). Plan it from the map or while
+  editing a segment; stops already behind you are locked.
+- Three tyres: soft (most dry grip, wears fastest), medium (the default), wet (worse in the dry and wears fast there,
+  but it is the only tyre that works on a soaked track, where it also lasts longest).
+- Weather comes from the seed: the same phrase and lap count always rain at the same moments (none on the Moon, rarely in
+  the desert). Each piece of road has its own wetness. Rain wets it, it dries slowly, and the lines the cars drive dry
+  it much faster: that becomes the dry line. In the rain the same worn line is polished and slippery, so wets want the
+  quiet wet line. Slicks on a soaked road have almost no grip and may spin. You see rain, a darkened and glossy wet
+  road and the paler dry line; the numbers stay hidden.
+- Bots read the road: they pit for wets or slicks when the road changes, and redraw their lines at each edit stop,
+  leaning toward the grip their tyre wants.
+- Collisions have consequences instead of being forbidden: a nudge from behind slows the car behind and speeds up the one
+  in front (which can then miss its braking point and run wide), side by side both get kicked apart equally, and a T-bone
+  throws the struck car sideways and costs both a lot of speed while the striker keeps its line. Knocked cars come back
+  to their line. There are sparks and a thump.
+- The side panels are gone: big colour buttons at the bottom centre with text on hover, a hint line above them, and a
+  slim info card at the top left.
 - First playable build: seeded tracks, line drawing, car AI, rivals, amend rounds, power-ups, garage.
 - Edit anything you have drawn: drag points, the square where a segment starts and the diamond where it ends (they
   slide along the road edge and bring the neighbouring segment with them, start line included). Right-click deletes,

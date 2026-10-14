@@ -30,6 +30,31 @@
 - **Amending**: joins stay fixed, so redrawing a segment never breaks the loop. Up to 3 segments may differ from the line
   just raced.
 
+## Collisions
+- Cars still try not to touch (`trafficLimit`), and when they do, `impact.ts` decides what happens: an impulse along the
+  line between the two centres, shared by mass (`vehicles.ts` has a mass per class). Each car also has a sideways offset
+  from its line and a sideways speed; a spring pulls it back in about a second (`settle` in `race.ts`).
+- Rear-end hits slow the rear car and speed the front one; side hits kick both apart equally; a T-bone sends the struck car
+  sideways and costs both a lot of speed (the striker's impulse is along its own heading, so it keeps its line).
+- A car carrying more speed than the bend allows (after being shoved into a braking zone) is pulled outward by the grip it
+  lacks and runs wide. The same mechanism makes a slick-shod car spin in the wet.
+- `tests/collision.test.ts` tests the rules on hand-built geometry, then inside a race.
+
+## Tyres, weather and a drying track
+- `tyres.ts`: soft, medium and wet compounds, `tyreGrip(compound, wet, use)` and `wearRate`. `weather.ts`: showers laid out
+  in laps from the seed and lap count. `trackwet.ts`: a `WetField` of 6 x 8 bins per segment holding `wet` and `use`.
+- Rain wets bins, they dry slowly, and each car that drives over a bin dries it and adds `use`. High `use` polishes the
+  line in the wet (less grip) and rubbers it in when dry. The profile for each lap takes its per-sample grip from the field
+  at lap start (`ProfileOpts.gripAt`).
+- Fuel and tyre constants scale with the race length (`raceScale`) so five stops cover fifty laps.
+- `Entrant.pitPlan` is the player's queue (max `MAX_PIT_STOPS`); bots decide from fuel, tyres and the road they see, and
+  `Race.replanBots` redraws their lines at each edit stop.
+- The race records a wet-field snapshot and the rain once a second for replay.
+
+## Interface
+- Blocks: `Game.nextBlock` runs `editEvery` laps, then returns to the picker. The pit strategy panel (`renderPlan`) and
+  `addStop` enforce the limits; the bottom bar is `bar.ts`.
+
 ## Tyres, fuel and the pits
 - `pit.ts`: the pit lane runs beside the two straights either side of the start line (`track.pit`, with a seeded side).
   Every track is generated so that those two cells are plain straights.

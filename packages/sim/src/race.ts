@@ -2,6 +2,7 @@ import { carStats, type CarConfig } from "./car.ts";
 import { biomeOf, type Biome } from "./biomes.ts";
 import { vehicleOf } from "./vehicles.ts";
 import { impact } from "./impact.ts";
+import { botLine } from "./bots.ts";
 import { Rng } from "./rng.ts";
 import { COMPOUNDS, spinRate, tyreGrip, wearRate, type Compound } from "./tyres.ts";
 import { rainAt, weatherFor, type Weather } from "./weather.ts";
@@ -92,6 +93,8 @@ export interface Entrant {
   pitPlan?: PitStop[];
   /** tyre on the grid; medium if left out */
   startTyre?: Compound;
+  /** how a bot draws its lines, so that it can redraw them as the road changes */
+  bot?: { seed: number; skill: number };
 }
 
 export interface RaceCar {
@@ -190,7 +193,7 @@ export class Race {
   readonly events: RaceEvent[] = [];
   tick = 0;
   private profiles = new Map<string, Profile>();
-  private lapLen: number;
+  readonly lapLen: number;
   private biome: Biome;
   readonly weather: Weather;
   readonly field: WetField;
@@ -260,7 +263,8 @@ export class Race {
     // the state of the road changes, so a path built for one moment is only good for a little while
     const gen = Math.floor(this.tick / 600);
     if (gen !== this.profGen) { this.profiles.clear(); this.profGen = gen; }
-    const idx = Math.min(Math.max(lap, 0), e.lines.length - 1);
+    let idx = Math.min(Math.max(lap, 0), e.lines.length - 1);
+    while (idx > 0 && !e.lines[idx]) idx--; // laps with no line of their own drive the last one that was set
     const k = `${e.id}:${idx}:${+pitIn}${+pitOut}:${Math.round(grip * 200)}:${Math.round(accel * 200)}:${tyre ?? "-"}`;
     let p = this.profiles.get(k);
     if (!p) {
@@ -269,6 +273,21 @@ export class Race {
       this.profiles.set(k, p);
     }
     return p;
+  }
+
+  /**
+   * Bots look at the road and draw a fresh line for the laps `from` to `from + count - 1`, leaning toward the grip their
+   * tyre wants: the dry line on slicks, the quiet wet line on wets. The player draws their own.
+   */
+  replanBots(from: number, count: number): void {
+    for (const c of this.cars) {
+      const e = c.entrant;
+      if (!e.bot || e.isPlayer || !this.alive(c)) continue;
+      const line = botLine(this.track, e.bot.seed + from * 7919, e.bot.skill, { compound: c.compound, field: this.field });
+      for (let k = 0; k < count; k++) e.lines[from + k] = line;
+      this.forget(e.id);
+      c.needProf = true;
+    }
   }
 
   /** Call after setting a new line on an entrant so that later laps use it. */

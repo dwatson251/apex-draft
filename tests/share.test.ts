@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { botLine, decodeShare, defaultCar, encodeShare, generateTrack, validateLine, type ShareState } from "@apex/sim";
 
-const base = (): ShareState => ({ phrase: "Healthy Bear eats tuna", laps: 4, mode: "race", rivals: 6, car: { name: "Zoom ünï", accel: 8, top: 5, grip: 7, brake: 4 }, obstacles: false, realism: true, playing: true });
+const base = (): ShareState => ({ phrase: "Healthy Bear eats tuna", laps: 40, mode: "race", rivals: 6, car: { name: "Zoom ünï", accel: 8, top: 5, grip: 7, brake: 4 }, obstacles: false, realism: true, playing: true, editEvery: 4, startTyre: "soft", pitPlan: [{ lap: 6, tyre: "wet" }, { lap: 14, tyre: "medium" }] });
 
 describe("share links", () => {
   it("round trip the track, settings and car", () => {
@@ -28,11 +28,36 @@ describe("share links", () => {
   });
   it("carries nothing about a race", () => {
     const keys = Object.keys(decodeShare(encodeShare(base())) as object).sort();
-    expect(keys).toEqual(["car", "laps", "mode", "obstacles", "phrase", "playing", "realism", "rivals"]);
+    expect(keys).toEqual(["car", "editEvery", "laps", "mode", "obstacles", "phrase", "pitPlan", "playing", "realism", "rivals", "startTyre"]);
   });
   it("is the same every time, and rejects junk instead of throwing", () => {
     expect(encodeShare(base())).toBe(encodeShare(base()));
     for (const junk of ["", "!!!", "AAAA", "AQ", encodeShare(base()).slice(0, 12)]) expect(typeof decodeShare(junk)).toBe("string");
     expect(defaultCar().name).toBe("Standard");
+  });
+  it("carries 50 laps, the edit stops, the start tyre and up to five queued stops", () => {
+    const back = decodeShare(encodeShare({ ...base(), laps: 50, editEvery: 10, pitPlan: [8, 16, 24, 32, 40].map((lap) => ({ lap, tyre: "medium" as const })) })) as ShareState;
+    expect(back.laps).toBe(50);
+    expect(back.editEvery).toBe(10);
+    expect(back.pitPlan.map((p) => p.lap)).toEqual([8, 16, 24, 32, 40]);
+    expect(back.startTyre).toBe("soft");
+    // more than five are cut off
+    expect((decodeShare(encodeShare({ ...base(), pitPlan: Array.from({ length: 9 }, (_, i) => ({ lap: i + 1, tyre: "soft" as const })) })) as ShareState).pitPlan).toHaveLength(5);
+  });
+  it("still opens a version 1 link", () => {
+    const bytes: number[] = [1, 1 | 2 | 4 | 8, 3 | (5 << 4), 0x66 | (0x66 << 8) & 0xff, 0];
+    // levels: accel 6, top 6, grip 6, brake 6 = 0x6666
+    bytes.splice(3, 2, 0x66, 0x66);
+    const name = new TextEncoder().encode("Old"), phrase = new TextEncoder().encode("quiet-fox-hugs-kites");
+    bytes.push(name.length, ...name, phrase.length, ...phrase);
+    const code = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const back = decodeShare(code) as ShareState;
+    expect(typeof back).toBe("object");
+    expect(back.phrase).toBe("quiet-fox-hugs-kites");
+    expect(back.laps).toBe(3);
+    expect(back.rivals).toBe(5);
+    expect(back.startTyre).toBe("medium");
+    expect(back.pitPlan).toEqual([]);
+    expect(back.editEvery).toBe(1);
   });
 });

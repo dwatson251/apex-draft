@@ -70,3 +70,47 @@ button.big.grey { background: linear-gradient(#a5adc4, #6b7390); }
 .dialog h2 { font-size: 24px; margin: 0 0 8px; } .dialog p { color: var(--text); font-size: 15px; margin: 0 0 14px; }
 .dialog-buttons { display: flex; flex-wrap: wrap; }
 .dialog-buttons button.big { font-size: 15px; padding: 14px 18px; }
+
+/* ---------- the bottom-centre bar ---------- */
+#bar { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; gap: 6px; z-index: 3; pointer-events: auto; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 330px); }
+#bar button.big { margin: 0 4px; padding: 15px 22px; font-size: 17px; }
+#bar button.big.wide { flex: 0 0 auto; font-size: 20px; padding: 16px 34px; }
+#bar button.big:disabled { opacity: 0.4; filter: grayscale(0.5); cursor: default; }
+#hint { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 3; pointer-events: none; max-width: min(760px, calc(100% - 340px)); padding: 9px 18px; border-radius: 14px; background: rgba(19, 23, 38, 0.86); border: 1px solid var(--line); text-align: center; font-size: 14px; line-height: 1.35; }
+#hint b { color: var(--accent); } #hint .dim { color: var(--dim); }
+#tip { position: fixed; z-index: 20; pointer-events: none; max-width: 340px; padding: 9px 13px; border-radius: 11px; background: #0c0f1a; border: 1px solid #44527f; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); font-size: 13px; line-height: 1.35; }
+.panel.plan { left: 50%; bottom: 170px; top: auto; right: auto; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); max-height: calc(100% - 220px); overflow: auto; z-index: 4; border-color: #4a5a90; }
+.timeline { display: flex; gap: 2px; margin: 8px 0 12px; }
+.timeline i { flex: 1; min-width: 5px; height: 22px; border-radius: 3px; background: #26304f; position: relative; }
+.timeline i.done { background: #3a4260; opacity: 0.55; } .timeline i.now { background: #4a6bd0; } .timeline i.edit { box-shadow: inset 3px 0 0 var(--accent); }
+.timeline i.stop::after { content: ""; position: absolute; left: 50%; top: -5px; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%; background: var(--stop, #ffd84a); border: 2px solid #0c0f1a; }
+.stoprow { display: flex; align-items: center; gap: 10px; margin: 6px 0; } .stoprow .n { width: 62px; color: var(--dim); }
+.stoprow input[type=number] { width: 78px; padding: 8px; font: 700 16px system-ui; background: #0a0e1b; color: #fff; border: 2px solid #34508f; border-radius: 10px; }
+.chipbtn { padding: 6px 14px; border-radius: 999px; border: 2px solid transparent; font: 800 13px system-ui; color: #14161c; cursor: pointer; opacity: 0.55; margin: 0; }
+.chipbtn.on { opacity: 1; border-color: #fff; } .chipbtn:hover:not(:disabled) { opacity: 1; filter: none; }
+.chipbtn.soft { background: #ff4a4a; } .chipbtn.medium { background: #ffd84a; } .chipbtn.wet { background: #4aa8ff; }
+.rm { padding: 4px 10px; margin: 0; background: #3b2230; }
+.tyrechip { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 2px solid #0c0f1a; }
+.tyrepick { display: flex; gap: 10px; margin: 4px 0 6px; }
+.tyrebtn { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0; padding: 8px 14px 6px; border-radius: 14px; background: #1d253c; border: 2px solid transparent; color: #fff; font: 800 12px system-ui; letter-spacing: .5px; text-transform: uppercase; cursor: pointer; }
+.tyrebtn.on { border-color: var(--accent); background: #2a3556; } .tyrebtn:hover { filter: brightness(1.15); }
+.tyrebtn svg { display: block; }
+.adder { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.lapstep { display: flex; align-items: center; gap: 10px; background: #0e1322; border: 2px solid #34508f; border-radius: 16px; padding: 8px 10px; }
+.lapstep > div { text-align: center; min-width: 74px; } .lapstep b { display: block; font-size: 30px; line-height: 1; }
+.lapstep button { width: 44px; height: 44px; margin: 0; padding: 0; font-size: 24px; font-weight: 900; border-radius: 12px; }
+.tyrepick.big { gap: 14px; } .tyrepick.big .tyrebtn { padding: 10px 18px 8px; font-size: 14px; } .tyrepick.big .tyrebtn:disabled { opacity: 0.35; cursor: default; }
+.tyrepick.big .tyrebtn:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-2px); }
+.queue { margin: 4px 0; max-height: 220px; overflow: auto; }
+.stoprow { background: #161c30; border-radius: 12px; padding: 6px 10px; }
+#planlayer { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+#planlayer .panel { pointer-events: auto; }
+.slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 6px 0 4px; }
+.slot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px 8px; border-radius: 14px; background: #1a2240; border: 2px solid #34508f; min-height: 108px; justify-content: center; }
+.slot b { font-size: 16px; } .slot span { font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; font-weight: 700; }
+.slot.empty { background: transparent; border: 2px dashed #34406a; color: #5a668f; } .slot.empty span { color: #6a77a5; } .slot.empty em { font-style: normal; font-size: 12px; }
+.slot.locked { opacity: 0.55; } .slot em { font-style: normal; font-size: 11px; color: var(--dim); }
+.slot .rm { position: absolute; top: 5px; right: 5px; padding: 2px 8px; font-size: 12px; border-radius: 8px; }
+.panel.plan { overflow: visible; max-height: none; padding: 14px 18px; }
+.panel.plan label { margin-top: 10px; } .panel.plan .tyrepick { margin: 2px 0; }
+.panel.plan .timeline { margin: 4px 0 8px; }

@@ -196,3 +196,54 @@ describe("tyres and weather in a race", () => {
     expect(r2.results()[0]!.dnf).toBe(true);
   });
 });
+
+import { lapCurve, validateLine, WetField as WF } from "@apex/sim";
+
+describe("bots read the road", () => {
+  const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
+  const centreMiss = (line: ReturnType<typeof botLine>, base: ReturnType<typeof botLine>) => {
+    const a = lapCurve(line, t.segments.length).map((d) => d.p), b = lapCurve(base, t.segments.length).map((d) => d.p);
+    let sum = 0;
+    for (let i = 0; i < a.length; i += 3) { let best = Infinity; for (const q of b) best = Math.min(best, Math.hypot(a[i]!.x - q.x, a[i]!.y - q.y)); sum += best; }
+    return sum / Math.ceil(a.length / 3);
+  };
+
+  it("a bot on wets leaves the worn wet line for the quiet side, and the line stays valid", () => {
+    const base = botLine(t, 9, 0.9);
+    const f = new WF(t);
+    for (let k = 0; k < 900; k++) f.update(0.1, 1, base.segs.flat().map((p) => ({ x: p.x, y: p.y })));
+    const moved = botLine(t, 9, 0.9, { compound: "wet", field: f });
+    expect(validateLine(t, moved).ok).toBe(true);
+    expect(centreMiss(moved, base)).toBeGreaterThan(0.8);
+  });
+
+  it("with a dry, untouched track nothing changes", () => {
+    const base = botLine(t, 9, 0.9);
+    const same = botLine(t, 9, 0.9, { compound: "medium", field: new WF(t) });
+    expect(centreMiss(same, base)).toBeLessThan(0.5);
+  });
+
+  it("a bot on slicks seeks the dry line as the track dries", () => {
+    const base = botLine(t, 9, 0.9), cars = base.segs.flat().map((p) => ({ x: p.x, y: p.y }));
+    const f = new WF(t);
+    for (let k = 0; k < 600; k++) f.update(0.1, 1, []);
+    for (let k = 0; k < 600; k++) f.update(0.1, 0, cars);
+    const line = botLine(t, 9, 0.9, { compound: "medium", field: f });
+    expect(validateLine(t, line).ok).toBe(true);
+    // it stays on or near the driven line, which is the drier one
+    expect(centreMiss(line, base)).toBeLessThan(6);
+  });
+
+  it("replanning at an edit stop gives every bot a fresh line for the block", () => {
+    const es: Entrant[] = Array.from({ length: 3 }, (_, i) => ({ id: `b${i}`, name: `B${i}`, car: defaultCar(), lines: [botLine(t, i + 1, 0.8)], isPlayer: i === 0, bot: i ? { seed: i + 1, skill: 0.8 } : undefined }));
+    const r = new Race(t, es, 8);
+    for (let k = 0; k < 600; k++) r.field.update(0.1, 1, []);
+    es[1]!.lines[1] = es[1]!.lines[0]!;
+    r.replanBots(2, 3);
+    expect(es[1]!.lines[2]).toBeDefined();
+    expect(es[1]!.lines[4]).toBe(es[1]!.lines[2]);
+    expect(es[0]!.lines[2]).toBeUndefined(); // the player's own lines are left alone
+    r.runToEnd();
+    expect(r.cars.every((c) => c.finishTime !== null || c.out)).toBe(true);
+  });
+});
