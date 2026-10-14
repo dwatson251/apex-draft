@@ -32,6 +32,8 @@ Installers for Windows, Linux (AppImage) and macOS are on the
 - **Long races and strategy.** Up to 50 laps. You can only change your line while you are in the pits (up to 3 segments
   per stop), so queue up to five pit stops in advance (a lap and a tyre: soft, medium or wet). The seed brings weather: rain wets the road unevenly, the lines
   cars drive dry it, and the dry line is where slicks want to be. You only get a vague forecast (rain at the beginning, middle or end of the race), never the lap or how long.
+- **Drafting.** Follow close behind a car, in its lane, and you get a slipstream: a little more top speed and acceleration,
+  more the closer you are and the faster you are going. It works in every mode.
 - **Contact.** Cars can touch. A shunt from behind, a squeeze alongside and a T-bone each do what you would expect.
 - **Tyres, fuel and pit stops.** Tyres wear, so grip fades; the tank runs down. Tick "Pit at the end of this lap" in the
   picker and your car drives itself into the pit lane beside the start straight, stops in its box and comes out on fresh

@@ -19,6 +19,9 @@
   the race. Never which lap, how hard or for how long.
 - Bots read the road: they pit for wets or slicks when the road changes, and redraw their lines at each edit stop,
   leaning toward the grip their tyre wants.
+- Drafting, in every mode: tucked in close behind another car, in its lane and going the same way, a car gets a slightly
+  higher top speed (up to +8%, only where it is at top speed, not in a bend) and quicker acceleration (up to +30%). It is
+  worth more the closer the gap and the faster the follower is going.
 - Realism covers tyre wear, fuel, pit stops, the choice of tyre and the weather: switch it off and none of them apply, and
   there are no pit stops, so no edits once the race starts. It is off by default for now.
 - Collisions have consequences instead of being forbidden: a nudge from behind slows the car behind and speeds up the one

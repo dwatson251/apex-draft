@@ -30,6 +30,13 @@
 - **Amending**: joins stay fixed, so redrawing a segment never breaks the loop. Up to 3 segments may differ from the line
   just raced.
 
+## Drafting
+- `Race.draft(car)` is 0 to 1: how close the car is behind another one (within `DRAFT_RANGE`), in its lane (6.5 units across),
+  going its way, times the square of its speed over 110. The boost is applied in `step`: `DRAFT_TOP` (8%) on the target
+  speed where the car is at its top speed (never in a bend, so it cannot raise a corner limit) and `DRAFT_ACCEL` (30%) on
+  acceleration. `RaceRules.draft = false` switches it off (tests only). The traffic logic still stops a follower closing
+  inside the safe gap, so drafting helps it keep up and close in, and does not by itself pass cars.
+
 ## Collisions
 - Cars still try not to touch (`trafficLimit`), and when they do, `impact.ts` decides what happens: an impulse along the
   line between the two centres, shared by mass (`vehicles.ts` has a mass per class). Each car also has a sideways offset

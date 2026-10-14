@@ -25,6 +25,10 @@ const OFF_C = 10.8;
 const OFF_MAX = 26;
 /** Hits gentler than this make no sound. */
 const BUMP_MIN = 6;
+/** Sitting close behind another car cuts the air: how far back the slipstream reaches, and what it is worth at best. */
+export const DRAFT_RANGE = 42;
+export const DRAFT_TOP = 0.08;
+export const DRAFT_ACCEL = 0.3;
 /** A car counts as being on my path when its centre is this close to it. */
 const LATERAL = 8;
 const PLAN_STEP = 3;
@@ -64,6 +68,8 @@ export interface RaceRules {
   realism: boolean;
   /** rain and a track that wets and dries (default on) */
   weather?: boolean;
+  /** slipstream behind another car (default on, in every mode) */
+  draft?: boolean;
 }
 
 /** A pit stop planned in advance: drive in at the end of this lap and come out on this tyre. */
@@ -507,6 +513,25 @@ export class Race {
     }
   }
 
+  /**
+   * How much of a slipstream this car is in, 0 to 1: tucked in close behind another car, in its lane and going its way.
+   * It is worth more the closer the gap and, because drag grows with speed, the faster the car following.
+   */
+  draft(c: RaceCar, racing: RaceCar[]): number {
+    if (this.rules.draft === false || c.ghost || c.dwell > 0 || c.v < 20 || c.prof.lane[indexAt(c.prof, c.s)]) return 0;
+    const hx = Math.cos(c.h), hy = Math.sin(c.h);
+    let near = 0;
+    for (const o of racing) {
+      if (o === c || o.ghost || o.dwell > 0) continue;
+      const dx = o.x - c.x, dy = o.y - c.y, along = dx * hx + dy * hy;
+      if (along < 3 || along > DRAFT_RANGE) continue;
+      if (Math.abs(-dx * hy + dy * hx) > 6.5 || Math.cos(o.h - c.h) < 0.9) continue;
+      near = Math.max(near, 1 - (along - 3) / (DRAFT_RANGE - 3));
+    }
+    const speed = Math.min(1, c.v / 110);
+    return near * speed * speed;
+  }
+
   /** The car's stats on this surface. */
   private stats(c: RaceCar) {
     const st = carStats(c.entrant.car);
@@ -550,6 +575,9 @@ export class Race {
       const st = this.stats(c);
       const i = indexAt(p, c.s);
       let target = sampleAt(p, p.vLim, c.s);
+      // in a slipstream: a little more top speed (only where the car is at its top speed, not in a bend) and quicker acceleration
+      const dr = this.draft(c, racing);
+      if (dr > 0 && target >= st.vTop * 0.97) target *= 1 + DRAFT_TOP * dr;
       if (c.limp) target = Math.min(target, LIMP_SPEED);
       const stopping = c.pitIn && !c.pitDone && p.pitS !== undefined;
       // brake to stop exactly in the box
@@ -563,7 +591,7 @@ export class Race {
           if ((o.x - c.x) * hx + (o.y - c.y) * hy > 0) target = Math.min(target, Math.max(0, o.v - 14));
         }
       }
-      let v = c.v > target ? Math.max(target, c.v - st.brake * TICK) : Math.min(target, c.v + st.accel * p.accelMul[i]! * TICK);
+      let v = c.v > target ? Math.max(target, c.v - st.brake * TICK) : Math.min(target, c.v + st.accel * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * TICK);
       let s = c.s + v * TICK;
       if (stopping && c.dwell === 0 && p.pitS! - s < 0.5 && v < 5) { s = p.pitS!; v = 0; arrived.push(c); }
       next.set(c, { v, s });
