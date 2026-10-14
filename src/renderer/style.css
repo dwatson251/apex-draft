@@ -114,3 +114,4 @@ button.big.grey { background: linear-gradient(#a5adc4, #6b7390); }
 .panel.plan { overflow: visible; max-height: none; padding: 14px 18px; }
 .panel.plan label { margin-top: 10px; } .panel.plan .tyrepick { margin: 2px 0; }
 .panel.plan .timeline { margin: 4px 0 8px; }
+.forecast { margin: 0 0 8px; color: #9fc4ff; font-weight: 600; font-size: 14px; }

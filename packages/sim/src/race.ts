@@ -51,6 +51,8 @@ export const FUEL_MASS_ACCEL = 0.1;
 /** Speed of a car that has run dry, as it heads for the pits, units/s. */
 export const LIMP_SPEED = 30;
 const STOP_TICKS = Math.round(PIT_STOP_TIME * 60);
+/** An emergency refuel is a slow splash of fuel by whoever is nearest: half as long again as a planned stop, no new tyres. */
+const EMERGENCY_TICKS = Math.round(PIT_STOP_TIME * 60 * 1.5);
 
 /** Fuel one lap costs this car, in tank units: the standard car uses TANK / FUEL_LAPS. */
 export function fuelPerLap(car: CarConfig, laps = 3): number {
@@ -145,8 +147,12 @@ export interface RaceCar {
   pitDone: boolean;
   /** ticks of service left */
   dwell: number;
-  /** out of fuel and limping to the pits to retire */
+  /** out of fuel and limping to the pits for an emergency refuel */
   limp: boolean;
+  /** the stop it is heading for (or in) is an emergency one */
+  emergency: boolean;
+  /** emergency refuels so far */
+  emergencies: number;
   /** retired: parked in the pits */
   out: boolean;
   outProg: number;
@@ -182,9 +188,11 @@ export interface CarResult {
   rawTime: number | null;
   /** added for never pitting */
   penalty: number;
-  /** retired, out of fuel */
+  /** retired (nothing retires a car any more, but the field stays for results that carry it) */
   dnf: boolean;
   pits: number;
+  /** how many of those were emergency refuels */
+  emergencies: number;
   lapTimes: number[];
 }
 
@@ -236,7 +244,7 @@ export class Race {
         s: slot === 0 ? 0 : p0.length - back, v: 0, x: 0, y: 0, h: 0,
         ghost: false, stuck: 0, ghostFor: 0, powered: false, freeUntil: 0, lapStart: slot === 0 ? [0] : [], finishTime: null,
         trace: [], prog: [], vtrace: [], gtrace: [], ftrace: [], ttrace: [], ptrace: [],
-        fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, limp: false, out: false, outProg: 0,
+        fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerLap(e.car, laps) / this.lapLen, wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
         compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, ctrace: [],
         hp: 0, off: 0, offV: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, mass: vehicleOf(e.car.type).mass, anchored: false,
@@ -511,9 +519,10 @@ export class Race {
   /** Tyres and fuel are topped up and the car is let go. */
   private finishStop(c: RaceCar): void {
     c.fuel = TANK;
-    c.tyre = 1;
-    if (c.nextTyre) c.compound = c.nextTyre;
+    if (c.emergency) { c.emergencies++; c.emergency = false; } // fuel only: the tyres stay as they are
+    else { c.tyre = 1; if (c.nextTyre) c.compound = c.nextTyre; }
     c.nextTyre = null;
+    c.limp = false;
     c.pits++;
     c.pitDone = true;
     this.emit(c.entrant.id, "pitEnd");
@@ -595,12 +604,13 @@ export class Race {
       if (c.finishTime === null) this.place(c);
     }
     this.collide(racing);
-    // out of fuel: limp to the pits and retire there
+    // out of fuel: limp to the pits for an emergency refuel, then carry on
     for (const c of racing) {
       if (!this.rules.realism || c.limp || c.finishTime !== null || c.fuel > 0) continue;
       c.limp = true;
       this.emit(c.entrant.id, "dry");
       if (!c.pitIn) {
+        c.emergency = true;
         const real = 1 - TYRE_GRIP_LOSS * (1 - c.tyre);
         const np = this.build(c.entrant, Math.max(c.lap, 0), true, c.pitOut, real, 1, c.compound);
         // too late to turn in this lap? it goes round once more at limp speed and turns in next time
@@ -608,8 +618,8 @@ export class Race {
       }
     }
     for (const c of arrived) {
-      if (c.limp) { c.out = true; c.outProg = this.progress(c); c.v = 0; this.emit(c.entrant.id, "out"); }
-      else { c.dwell = STOP_TICKS; this.emit(c.entrant.id, "pitStart"); }
+      c.dwell = c.emergency ? EMERGENCY_TICKS : STOP_TICKS;
+      this.emit(c.entrant.id, "pitStart");
     }
     for (const c of racing) if (c.dwell > 0 && !arrived.includes(c) && --c.dwell === 0) this.finishStop(c);
     this.record();
@@ -648,7 +658,7 @@ export class Race {
       }
       return {
         id: c.entrant.id, name: c.entrant.name, isPlayer: !!c.entrant.isPlayer, slot: c.slot, position: i + 1,
-        finishTime: adj(c), rawTime: c.finishTime, penalty: this.penaltyOf(c), dnf: c.out, pits: c.pits, lapTimes,
+        finishTime: adj(c), rawTime: c.finishTime, penalty: this.penaltyOf(c), dnf: c.out, pits: c.pits, emergencies: c.emergencies, lapTimes,
       };
     });
   }

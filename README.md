@@ -31,11 +31,11 @@ Installers for Windows, Linux (AppImage) and macOS are on the
   or **H** ghost (pass through cars).
 - **Long races and strategy.** Up to 50 laps, in blocks: you edit your line every N laps. Queue up to five pit stops
   in advance (a lap and a tyre: soft, medium or wet). The seed brings weather: rain wets the road unevenly, the lines
-  cars drive dry it, and the dry line is where slicks want to be.
+  cars drive dry it, and the dry line is where slicks want to be. You only get a vague forecast (rain at the beginning, middle or end of the race), never the lap or how long.
 - **Contact.** Cars can touch. A shunt from behind, a squeeze alongside and a T-bone each do what you would expect.
 - **Tyres, fuel and pit stops.** Tyres wear, so grip fades; the tank runs down. Tick "Pit at the end of this lap" in the
   picker and your car drives itself into the pit lane beside the start straight, stops in its box and comes out on fresh
-  tyres with a full tank. Never stopping adds a penalty, and running dry retires the car. Switch it all off with Realism.
+  tyres with a full tank. Never stopping adds a penalty. Run dry and the car limps to the pits for an emergency refuel (slow, no new tyres), then carries on. Switch it all off with Realism.
 - **Places and machines.** The phrase also picks where you are (countryside, desert, snow, city, the Moon: each with its
   own grip and scenery) and what you are driving (go-karts, formula cars, rally cars, muscle cars, trucks or tanks).
 - **Share and resume.** The address holds the track, the settings and the segments you have drawn. Copy it to share a

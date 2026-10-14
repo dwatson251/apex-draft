@@ -37,3 +37,27 @@ export function rainAt(w: Weather, lap: number): number {
   }
   return r;
 }
+
+export type RacePhase = "beginning" | "middle" | "end";
+
+/**
+ * What a forecaster would say, and no more: when rain is expected, as the beginning, the middle or the end of the race.
+ * It never says which lap, how hard, or for how long. A shower counts toward the phase it starts in.
+ */
+export function forecast(w: Weather, laps: number): RacePhase[] {
+  const out = new Set<RacePhase>();
+  for (const sh of w.showers) {
+    const at = laps > 0 ? sh.start / laps : 0;
+    out.add(at < 1 / 3 ? "beginning" : at < 2 / 3 ? "middle" : "end");
+  }
+  return (["beginning", "middle", "end"] as const).filter((p) => out.has(p));
+}
+
+/** The forecast as a sentence. */
+export function forecastText(phases: RacePhase[]): string {
+  if (phases.length === 0) return "No rain expected.";
+  const name = (p: RacePhase) => (p === "beginning" ? "at the beginning of the race" : p === "middle" ? "in the middle of the race" : "near the end of the race");
+  if (phases.length === 1) return `Rain expected ${name(phases[0]!)}.`;
+  const parts = phases.map(name);
+  return `Rain expected ${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}.`;
+}

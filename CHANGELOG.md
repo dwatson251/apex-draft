@@ -14,6 +14,8 @@
   it much faster: that becomes the dry line. In the rain the same worn line is polished and slippery, so wets want the
   quiet wet line. Slicks on a soaked road have almost no grip and may spin. You see rain, a darkened and glossy wet
   road and the paler dry line; the numbers stay hidden.
+- With weather on, the menu and the picker give a vague forecast: rain at the beginning, in the middle or near the end of
+  the race. Never which lap, how hard or for how long.
 - Bots read the road: they pit for wets or slicks when the road changes, and redraw their lines at each edit stop,
   leaning toward the grip their tyre wants.
 - Collisions have consequences instead of being forbidden: a nudge from behind slows the car behind and speeds up the one
@@ -33,7 +35,7 @@
 - A retro look for the course, with skid marks, a bobbing crowd, kerbs, apex paint, a pit lane and garages.
 - Tyres and fuel: tyres wear (grip fades lap by lap), the tank runs down. Pit lane beside the start straight: slow lane,
   a box to stop in, fresh tyres and a full tank. Finish without ever stopping and you pay a penalty; run dry and the car
-  limps to the pits and retires, last. Bots stop on their own when they need to. Turn it all off with Realism.
+  limps to the pits for a slow emergency refuel (no new tyres) and carries on. Bots stop on their own when they need to. Turn it all off with Realism.
 - Vehicle classes picked by the phrase: go-karts, formula cars, rally cars, muscle cars, trucks, tanks, each with its own
   dynamics, fuel use, tyre wear, look and engine sound.
 - Places picked by the phrase: countryside, desert, snow and ice, city streets, the Moon. Each has its own scenery and

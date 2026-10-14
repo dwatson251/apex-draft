@@ -115,7 +115,7 @@ describe("a wet track", () => {
   });
 });
 
-import { Race, defaultCar, type Compound, type Entrant } from "@apex/sim";
+import { Race, defaultCar, forecast, forecastText, type Compound, type Entrant } from "@apex/sim";
 
 describe("tyres and weather in a race", () => {
   const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
@@ -189,11 +189,13 @@ describe("tyres and weather in a race", () => {
     expect(me.dnf).toBe(false);
     expect(me.pits).toBe(4);
     expect(r.results().every((x) => !x.dnf)).toBe(true);
-    // without stops a car would run dry long before the end
+    // without stops a car runs dry long before the end: it limps in, is refuelled, and still finishes
     const none: Entrant[] = [{ id: "n", name: "n", car: defaultCar(), lines: [botLine(t, 2, 1)], isPlayer: true, pitPlan: [] }];
     const r2 = new Race(t, none, 50, { realism: true, weather: false });
     r2.runToEnd();
-    expect(r2.results()[0]!.dnf).toBe(true);
+    expect(r2.results()[0]!.dnf).toBe(false);
+    expect(r2.results()[0]!.finishTime).not.toBeNull();
+    expect(r2.results()[0]!.emergencies).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -245,5 +247,37 @@ describe("bots read the road", () => {
     expect(es[0]!.lines[2]).toBeUndefined(); // the player's own lines are left alone
     r.runToEnd();
     expect(r.cars.every((c) => c.finishTime !== null || c.out)).toBe(true);
+  });
+});
+
+describe("the forecast", () => {
+  it("only says beginning, middle or end", () => {
+    expect(forecast({ showers: [{ start: 0.5, end: 3, intensity: 1 }] }, 12)).toEqual(["beginning"]);
+    expect(forecast({ showers: [{ start: 5, end: 6, intensity: 1 }] }, 12)).toEqual(["middle"]);
+    expect(forecast({ showers: [{ start: 10, end: 11.5, intensity: 1 }] }, 12)).toEqual(["end"]);
+    expect(forecast({ showers: [{ start: 1, end: 2, intensity: 0.5 }, { start: 9, end: 10, intensity: 0.9 }] }, 12)).toEqual(["beginning", "end"]);
+    expect(forecast({ showers: [] }, 12)).toEqual([]);
+  });
+  it("is the same for a short shower and a long one that start together: no hint of how long", () => {
+    const short = forecast({ showers: [{ start: 1, end: 1.5, intensity: 1 }] }, 12);
+    const long = forecast({ showers: [{ start: 1, end: 6, intensity: 0.3 }] }, 12);
+    expect(short).toEqual(long);
+  });
+  it("reads as plain sentences with no lap numbers, durations or strengths", () => {
+    const lines = [
+      forecastText([]), forecastText(["beginning"]), forecastText(["middle"]), forecastText(["end"]),
+      forecastText(["beginning", "end"]), forecastText(["beginning", "middle", "end"]),
+    ];
+    expect(lines[0]).toBe("No rain expected.");
+    expect(lines[1]).toBe("Rain expected at the beginning of the race.");
+    expect(lines[2]).toBe("Rain expected in the middle of the race.");
+    expect(lines[4]).toBe("Rain expected at the beginning of the race and near the end of the race.");
+    for (const l of lines) expect(l).not.toMatch(/\d|lap|heavy|light|hard|minute|second/i);
+  });
+  it("matches the real weather for any seed", () => {
+    for (let i = 0; i < 100; i++) {
+      const w = weatherFor(i * 977 + 3, 20, "grass");
+      expect(forecast(w, 20).length > 0).toBe(w.showers.length > 0);
+    }
   });
 });

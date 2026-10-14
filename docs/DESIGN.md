@@ -63,7 +63,8 @@
   clamp instead of wrapping.
 - `race.ts`: fuel burns with distance, tyres with distance and cornering load. Grip and weight are fixed at the start of
   each lap, so wear shows lap by lap. The player says which laps to pit in (`entrant.pit`); bots work it out and take
-  turns. Never stopping adds `PIT_PENALTY`; running dry makes the car limp to the box and retire (last place).
+  turns. Never stopping adds `PIT_PENALTY`; running dry makes the car limp (slowly) to the box for an emergency refuel: a stop half as long again as a planned one, fuel only, then it carries on. Nothing retires a car any more.
+- `forecast()` in `weather.ts` is all the player is told about the weather: the phases of the race (beginning, middle, end) in which a shower starts. Never a lap, an intensity or a length.
 - A pair of cars that hold each other up for two seconds pass through each other until clear, and the old 20-second
   failsafe is still behind that.
 

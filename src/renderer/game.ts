@@ -3,7 +3,7 @@ import {
   BIOMES, CAR_BUDGET, CELL, MAX_AMENDS, PIT_PENALTY, PIT_STOP_TIME, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
   defaultCar, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
   phraseToSeed, previewSegment, projectToGate, randomPhrase, serializeLineFile, setSegment, smooth, validateCar, validateLine, vehicleForSeed,
-  COMPOUNDS, COMPOUND_IDS, MAX_PIT_STOPS, isCompound, recommendedEditEvery,
+  COMPOUNDS, COMPOUND_IDS, MAX_PIT_STOPS, forecast, forecastText, isCompound, recommendedEditEvery, weatherFor,
   type CarConfig, type Compound, type Entrant, type Line, type LineFile, type RaceCar, type ShareState, type Stat, type Track, type Vec2, type VehicleId,
 } from "@apex/sim";
 import { CarAudio } from "./audio.ts";
@@ -140,6 +140,13 @@ export class Game {
     const link = this.readLink();
     if (link?.playing) this.startGame(link.line ?? null, true);
     else this.showMenu();
+  }
+
+  /** What the forecaster would say for this phrase and lap count: rain at the beginning, middle or end, never the detail. */
+  private forecastFor(phrase: string, laps: number, obstacles: boolean): string {
+    if (!this.settings.realism) return "";
+    const t = generateTrack(phrase, { obstacles });
+    return forecastText(forecast(weatherFor(t.seed, laps, t.biome), laps));
   }
 
   /** Make sure whatever came from storage or a link is something the game can run. */
@@ -307,7 +314,7 @@ export class Game {
     const phrase = normalizePhrase(s.phrase);
     const seed = phraseToSeed(phrase);
     const biome = BIOMES[biomeForSeed(seed)], veh = VEHICLES[vehicleForSeed(seed)];
-    const pct = (x: number) => (x === 1 ? "" : `<span class="${x > 1 ? "good" : "bad"}">${x > 1 ? "+" : "−"}${Math.round(Math.abs(x - 1) * 100)}%</span>`);
+    const pct = (x: number, worse = false) => (x === 1 ? "" : `<span class="${(x > 1) !== worse ? "good" : "bad"}">${x > 1 ? "+" : "−"}${Math.round(Math.abs(x - 1) * 100)}%</span>`);
     const matching = this.imported.filter((f) => f.phrase === phrase);
     const bestKey = this.bestKey(phrase);
     const lock = racing ? "disabled" : "";
@@ -319,9 +326,10 @@ export class Game {
       <div class="chips">
         <span class="chip biome-${biome.id}">${esc(biome.name)}</span>
         <span class="chip">${esc(veh.plural)}</span>
-        ${biome.grip !== 1 ? `<span class="chip dim">grip ${pct(biome.grip)}</span>` : ""}${biome.brake !== 1 ? `<span class="chip dim">braking ${pct(biome.brake)}</span>` : ""}${biome.wear !== 1 ? `<span class="chip dim">tyre wear ${pct(biome.wear)}</span>` : ""}
+        ${biome.grip !== 1 ? `<span class="chip dim">grip ${pct(biome.grip)}</span>` : ""}${biome.brake !== 1 ? `<span class="chip dim">braking ${pct(biome.brake)}</span>` : ""}${biome.wear !== 1 ? `<span class="chip dim">tyre wear ${pct(biome.wear, true)}</span>` : ""}
       </div>
       <p class="dim blurb">${esc(biome.blurb)}</p>
+      ${s.realism ? `<p class="blurb forecast">☁ ${esc(this.forecastFor(s.phrase, s.laps, s.obstacles))}</p>` : ""}
       <div class="row">
         <div><label>Laps (1 to 50)</label><input id="laps" class="fancy" type="number" min="1" max="50" value="${s.laps}" ${lock}/></div>
         <div><label>Edit every (laps)</label><input id="editevery" class="fancy" type="number" min="1" max="${s.laps}" value="${s.editEvery}" ${lock}/></div>
@@ -364,7 +372,7 @@ export class Game {
       const on = (e.target as HTMLInputElement).checked;
       void this.changeSeed(() => { s.obstacles = on; });
     });
-    el.querySelector("#realism")!.addEventListener("change", (e) => { s.realism = (e.target as HTMLInputElement).checked; this.persist(); });
+    el.querySelector("#realism")!.addEventListener("change", (e) => { s.realism = (e.target as HTMLInputElement).checked; this.persist(); this.renderMenu(); });
     el.querySelector("#laps")!.addEventListener("change", (e) => {
       s.laps = Number((e.target as HTMLInputElement).value);
       this.normaliseSettings();
@@ -838,13 +846,14 @@ export class Game {
       <div class="gauge"><span>Fuel</span><b><i class="${fuel < 25 ? "low" : ""}" style="width:${Math.round(fuel)}%"></i></b><em>${Math.round(fuel)}%</em></div>
       <div class="gauge"><span>Tyres</span><b><i class="${tyre < 0.4 ? "low" : ""}" style="width:${Math.round(tyre * 100)}%"></i></b><em>${Math.round(tyre * 100)}%</em></div>
       <p class="dim"><span class="tyrechip" style="background:#${COMPOUNDS[compound].color.toString(16).padStart(6, "0")}"></span>${COMPOUNDS[compound].name} tyres · ${this.settings.pitPlan.length} stop${this.settings.pitPlan.length === 1 ? "" : "s"} queued</p>
-      ${dryAt !== null ? `<p class="bad">As planned you run dry on lap ${dryAt + 1}. Queue a stop before it, or the car retires in the pits.</p>` : ""}
+      ${dryAt !== null ? `<p class="bad">As planned you run dry on lap ${dryAt + 1}. The car would limp to the pits for an emergency refuel, which is slow and gives no fresh tyres. Queue a stop before it to avoid that.</p>` : ""}
       ${(me?.pits ?? 0) === 0 && this.settings.pitPlan.length === 0 ? `<p class="dim">Finishing without a single stop adds ${PIT_PENALTY.toFixed(1)}s.</p>` : ""}`;
     this.ui.innerHTML = "";
     this.show("top", `
       <h2>${firstLap ? "Your line" : `Up next: ${label} of ${this.settings.laps}`}</h2>
       ${check.ok ? '<p class="good">Your line is clear all the way round.</p>' : '<p class="bad">Your line leaves the road or hits something, in the red segments.</p>'}
       ${gauges}
+      ${firstLap && real ? `<p class="dim">☁ ${esc(this.forecastFor(this.settings.phrase, this.settings.laps, this.settings.obstacles))}</p>` : ""}
       ${tooMany ? '<p class="bad">Too many segments changed. Revert and try again.</p>' : ""}
       ${message ? `<p class="bad">${esc(message)}</p>` : ""}`);
     const goLabel = firstLap ? "Race!" : next + count >= this.settings.laps ? (count === 1 ? "Final lap!" : "Final stretch!") : `Run ${label}`;
@@ -970,7 +979,7 @@ export class Game {
     const race = this.race!;
     race.runLap(ME, endLap);
     const mine = race.cars.find((c) => c.entrant.id === ME)!;
-    // the last lap, or the player is out of fuel and parked in the pits: let everyone else finish
+    // the last lap: let everyone else finish
     if (endLap >= this.settings.laps - 1 || mine.out) race.runToEnd();
     this.play = { tick: fromTick, end: race.tick, speed: 1 };
     const first = race.events.findIndex((e) => e.tick >= fromTick);
@@ -1134,7 +1143,7 @@ export class Game {
       set("#hud-gauges", `<div class="gauge"><span>Fuel</span><b><i class="${fuel < per * 0.5 ? "low" : ""}" style="width:${Math.round(fuel)}%"></i></b><em>${Math.round(fuel)}%</em></div>
         <div class="gauge"><span><span class="tyrechip" style="background:#${COMPOUNDS[comp].color.toString(16).padStart(6, "0")}"></span>Tyres</span><b><i class="${tyre < 0.4 ? "low" : ""}" style="width:${Math.round(tyre * 100)}%"></i></b><em>${Math.round(tyre * 100)}%</em></div>`);
       const code = me.ptrace[mi];
-      set("#hud-status", code === 3 ? '<p class="bad">Out of fuel: parked in the pits</p>' : fuel <= 0 ? '<p class="bad">Out of fuel! Limping to the pits</p>' : code === 2 ? '<p class="good">In the pits…</p>' : code === 1 ? '<p class="dim">Pit lane: speed limit</p>' : fuel < per * 0.5 ? '<p class="bad">Fuel low</p>' : "");
+      set("#hud-status", fuel <= 0 && code !== 2 ? '<p class="bad">Out of fuel! Limping to the pits</p>' : code === 2 ? '<p class="good">In the pits…</p>' : code === 1 ? '<p class="dim">Pit lane: speed limit</p>' : fuel < per * 0.5 ? '<p class="bad">Fuel low</p>' : "");
     }
     const sb = this.bar.button("sound");
     if (sb) { const t = this.audio.isMuted() ? "Sound off" : "Sound on"; if (sb.textContent !== t) sb.textContent = t; }
@@ -1163,15 +1172,15 @@ export class Game {
       record = '<p class="good">New best time for this track and these rules!</p>';
     }
     const trial = this.settings.mode === "trial";
-    const title = mine.dnf ? "Out of fuel" : trial ? "Time trial" : mine.position === 1 ? "You won!" : `You finished P${mine.position}`;
-    const when = (r: (typeof res)[number]) => (r.dnf ? "DNF" : fmt(r.finishTime) + (r.penalty ? ` <span class="bad">+${r.penalty.toFixed(1)}</span>` : ""));
+    const title = trial ? "Time trial" : mine.position === 1 ? "You won!" : `You finished P${mine.position}`;
+    const when = (r: (typeof res)[number]) => (fmt(r.finishTime) + (r.penalty ? ` <span class="bad">+${r.penalty.toFixed(1)}</span>` : ""));
     const el = this.show("center", `
       <h2>${title}</h2>
       <p class="dim">${esc(this.track.phrase)} · ${this.settings.laps} lap(s) · ${esc(VEHICLES[this.vehicle].plural)}${this.settings.realism ? "" : " · no tyres or fuel"}${this.settings.obstacles ? "" : " · no obstacles"}</p>${record}
-      ${mine.dnf ? "<p class=\"bad\">The tank ran dry and the car was pushed into the garage. It counts as last.</p>" : ""}
+      ${mine.emergencies ? `<p class="bad">The tank ran dry ${mine.emergencies === 1 ? "once" : `${mine.emergencies} times`}: ${mine.emergencies === 1 ? "an emergency refuel" : "emergency refuels"} cost you a slow limp to the pits and a long stop.</p>` : ""}
       ${mine.penalty ? `<p class="bad">+${mine.penalty.toFixed(1)}s because you never stopped in the pits.</p>` : ""}
       <table><tr><th>#</th><th>Driver</th><th class="num">Stops</th><th class="num">Time</th><th class="num">Best lap</th></tr>
-      ${res.map((r) => `<tr class="${r.isPlayer ? "me" : ""}"><td>${r.position}</td><td>${esc(r.name)}</td><td class="num">${r.pits}</td><td class="num">${when(r)}</td><td class="num">${fmt(r.lapTimes.length ? Math.min(...r.lapTimes) : null)}</td></tr>`).join("")}</table>
+      ${res.map((r) => `<tr class="${r.isPlayer ? "me" : ""}"><td>${r.position}</td><td>${esc(r.name)}</td><td class="num">${r.pits}${r.emergencies ? ` <span class="bad" title="emergency refuel">!</span>` : ""}</td><td class="num">${when(r)}</td><td class="num">${fmt(r.lapTimes.length ? Math.min(...r.lapTimes) : null)}</td></tr>`).join("")}</table>
       <p class="dim">Your laps: ${mine.lapTimes.map(fmt).join(" · ")}</p>
       <button class="primary" id="again">Race again</button><button id="export">Save my lines</button><button id="menu">Menu</button>`);
     this.on(el, "#menu", () => this.showMenu());
