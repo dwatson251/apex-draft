@@ -8,6 +8,7 @@ declare global {
       exportLine(suggested: string, text: string): Promise<boolean>;
       importLines(): Promise<string[]>;
       version(): Promise<string>;
+      quit(): Promise<void>;
     };
   }
 }
@@ -43,6 +44,14 @@ export interface Settings {
   /** boxes and water on the road */
   obstacles: boolean;
   startTyre: Compound;
+  /** which game the setup screen was last on */
+  flow?: "trial" | "quick" | "weekend";
+  /** how many times faster fuel burns and tyres wear, 1 to 40 (realism only) */
+  wearFuel?: number;
+  wearTyre?: number;
+  /** compounds every car must run (realism only) */
+  mandatory?: Compound[];
+  tutorialDone?: boolean;
   /** pit stops queued: the end of lap `lap` (counting from 0), on this tyre */
   pitPlan: { lap: number; tyre: Compound }[];
 }

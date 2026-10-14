@@ -1,6 +1,22 @@
 # Changelog
 
 ## Unreleased
+- A new main menu: six big buttons (Solo Time Trial, Quick Race, Race Weekend, Tutorial, Settings, and Quit on the desktop
+  build only), with a translucent "bubble" look and hand-built dropdowns, steppers, switches and tyre chips. The track phrase
+  box has a copy button inside it; the Copy link button is gone (the address still follows your setup, so old links open).
+  The obstacles checkbox and the starting-tyre picker are gone from the menus (obstacles are off everywhere).
+- Solo Time Trial: no rivals, no wear, soft tyres. An out lap, one timed lap and a cool-down lap; the best timed lap is stored
+  against the track phrase.
+- Quick Race: today's race, with fuel-use and tyre-wear multipliers (1x to 40x) and tyres you must run (each one missed adds a
+  pit-stop penalty). Your grid place comes from your Time Trial time on that track; with no time you start last.
+- Race Weekend: Practice (no wear, everyone else spread round the track, ends when you say or after 10 minutes of laps; edit
+  your line between runs), Qualifier (out lap, three timed laps, cool-down; the best counts) and the Race from the qualifying grid.
+- Your drawn line carries over from mode to mode on the same track and is not cleared.
+- Tutorial: a guided run on the oval with tooltips for drawing, locking in segments, queuing a pit stop and editing in the pits.
+- Settings screen: sound, music, the controls, and a reset for the tutorial.
+- Sim: `Entrant.gridSlot`, `gridTime` and `startFrac`, `RaceRules.wearMult` and `mandatory`, `CarResult.missing`, and a pure
+  `session` module (session laps and times, the weekend state machine, grids from times).
+- Fix: the results screen's Menu button was invisible (its id clashed with the menu layer's).
 - Three more hidden circuits: `le-mans` (Circuit de la Sarthe, squashed to fit: Tertre Rouge, the Mulsanne straight and
   both chicanes, Arnage, the Porsche curves), `lago-maggiore` (Autodrome Lago Maggiore, full course) and a richer
   `daytona` (tri-oval kink, Turn 1, infield esses, chicanes, the banking as a wide arc). Each uses a bigger grid than a

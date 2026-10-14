@@ -29,21 +29,29 @@ const OUT = process.env.SHOTS || "";
   const linkFor = (o) => G((o) => { const s = window.__sim; const t = s.generateTrack(o.phrase); return "#" + s.encodeShare({ phrase: t.phrase, laps: o.laps ?? 3, mode: "race", rivals: 5, car: { name: "Standard", accel: 6, top: 6, grip: 6, brake: 6 }, obstacles: true, realism: true, playing: true, line: o.segs === undefined ? s.botLine(t, 5, 1) : { start: s.botLine(t, 5, 1).start, segs: s.botLine(t, 5, 1).segs.slice(0, o.segs) }, startTyre: "medium", pitPlan: o.plan ?? [] }); }, o);
 
   // ---------------- the title ----------------
-  await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=1"); await page.waitForSelector("#go"); await settle(2500);
+  const home = async (url) => { await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(url); await page.waitForSelector(".home"); };
+  const setup = async (id) => { await page.click(id); await page.waitForSelector("#go"); };
+  await home(BASE + "?t=1"); await settle(2500);
   ok("the title has a real track behind it, blurred, with bots going round", await G(() => window.__game.track.segments.length > 8 && document.querySelector("canvas").classList.contains("blurred") && window.__game.ambient.race.cars.length === 6));
   ok("the Menu button is hidden on the title", (await G(() => getComputedStyle(document.getElementById("menubtn")).display)) === "none");
+  ok("the home screen has the six choices (no Quit outside Electron)", JSON.stringify(await page.$$eval(".hb b", (e) => e.map((x) => x.textContent))) === JSON.stringify(["Solo Time Trial", "Quick Race", "Race Weekend", "Tutorial", "Settings"]));
+  await setup("#h-quick");
   const p0 = await G(() => window.__game.settings.phrase);
   await page.click("#rand"); await settle(1500);
   ok("Random with nothing drawn just changes the track", (await G(() => window.__game.settings.phrase)) !== p0 && (await G(() => getComputedStyle(document.getElementById("modal")).display)) === "none");
   await shot("title");
 
   // ---------------- realism covers tyres, fuel, weather and the choice of tyre ----------------
-  ok("realism is off by default", !(await page.isChecked("#realism")));
-  ok("so there is no starting tyre choice and no forecast", (await page.$(".tyrepick")) === null && (await page.$(".forecast")) === null);
+  ok("realism is off by default", !(await page.$eval("#realism", (b) => b.classList.contains("on"))));
+  ok("so there are no wear options, mandatory tyres or forecast, and no obstacles box or starting tyre", (await page.$(".cchips")) === null && (await page.$(".forecast")) === null && (await page.$("#obstacles")) === null && (await page.$(".tyrepick")) === null);
   await page.click("#realism"); await page.waitForTimeout(400);
-  ok("switching it on brings the tyre choice and forecast", (await page.$$(".tyrepick .tyrebtn")).length === 3 && (await page.$(".forecast")) !== null);
+  ok("switching it on brings fuel and tyre multipliers, mandatory tyres and the forecast", (await page.$$(".cchips .cchip")).length === 3 && (await page.$("#wearFuel")) !== null && (await page.$("#wearTyre")) !== null && (await page.$(".forecast")) !== null);
+  await page.click("#wearTyre"); await page.click('[data-dd="wearTyre"] .dd-opt[data-v="40"]'); await page.click('.cchip[data-v="soft"]'); await page.waitForTimeout(300);
+  ok("the multiplier goes up to 40x and a mandatory tyre can be picked", await G(() => window.__game.settings.wearTyre === 40 && window.__game.settings.mandatory.join() === "soft"));
   await page.click("#realism"); await page.waitForTimeout(400);
-  ok("and off again takes them away", (await page.$(".tyrepick")) === null && (await page.$(".forecast")) === null);
+  ok("and off again takes them away", (await page.$(".cchips")) === null && (await page.$(".forecast")) === null);
+  await page.click("#phrase-copy"); await page.waitForTimeout(200);
+  ok("the phrase box has a copy button inside it", await G(() => document.querySelector("#phrase-copy").parentElement.classList.contains("field")));
   {
     // a rainy seed with realism off: no rain, no wet road, no rain in the sim at all
     const rainy = await G(() => { const s = window.__sim; for (let i = 0; i < 4000; i++) { const p = s.randomPhrase(new s.Rng(i + 5)); const t = s.generateTrack(p); if (s.weatherFor(t.seed, 6, t.biome).showers.length) return p; } return null; });
@@ -55,7 +63,7 @@ const OUT = process.env.SHOTS || "";
       ok(`weather ${real ? "happens with realism on" : "does not happen with realism off"}`, real ? r.rain && r.wet > 20 : !r.rain && r.wet === 0 && r.showers === 0, JSON.stringify(r));
     }
   }
-  await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=2"); await page.waitForSelector("#go"); await settle(2500);
+  await home(BASE + "?t=2"); await settle(2500); await setup("#h-quick");
 
   // ---------------- start, draw, reload ----------------
   await page.click("#go"); await page.waitForSelector("#bar-fin"); await settle();
@@ -73,13 +81,14 @@ const OUT = process.env.SHOTS || "";
   await page.keyboard.press("Escape"); await page.waitForSelector("#resume");
   ok("Esc opens the menu over the game, which keeps its drawing", await G(() => window.__game.menuOpen && window.__game.shareLine.segs.length === 1));
   const phrase = await G(() => window.__game.settings.phrase);
-  await page.click("#rand"); await page.waitForSelector("#modal .dialog");
+  ok("the pause menu offers resume, redraw, settings and quit", !!(await page.$("#resume")) && !!(await page.$("#restart")) && !!(await page.$("#p-settings")) && !!(await page.$("#quit")) && (await page.$("#phrase")) === null);
+  await page.click("#restart"); await page.waitForSelector("#modal .dialog");
   await page.click("#no"); await page.waitForTimeout(300);
-  ok("answering no keeps the track and the drawing", (await G(() => window.__game.settings.phrase)) === phrase && (await G(() => window.__game.shareLine.segs.length)) === 1);
-  await page.click("#obstacles"); await page.waitForSelector("#modal .dialog"); await page.keyboard.press("Escape"); await page.waitForTimeout(300);
-  ok("Esc on the dialog also means no, and the obstacles box is put back", (await page.isChecked("#obstacles")) && (await G(() => window.__game.menuOpen)));
-  await page.click("#rand"); await page.waitForSelector("#modal .dialog"); await page.click("#yes"); await settle(1800);
-  ok("yes discards the drawing and goes to the title", !(await G(() => window.__game.inGame)) && (await G(() => window.__game.settings.phrase)) !== phrase);
+  ok("answering no keeps the drawing", (await G(() => window.__game.shareLine.segs.length)) === 1);
+  await page.click("#restart"); await page.waitForSelector("#modal .dialog"); await page.keyboard.press("Escape"); await page.waitForTimeout(300);
+  ok("Esc on the dialog also means no", (await G(() => window.__game.shareLine.segs.length)) === 1 && (await G(() => window.__game.menuOpen)));
+  await page.click("#quit"); await page.waitForSelector("#modal .dialog"); await page.click("#yes"); await page.waitForSelector(".home");
+  ok("quitting goes to the home screen", !(await G(() => window.__game.inGame)));
 
   // ---------------- editing points ----------------
   await open(BASE + "?draw=5"); await page.waitForSelector("#bar-fin"); await settle();
@@ -138,21 +147,59 @@ const OUT = process.env.SHOTS || "";
 
   // ---------------- hidden circuits ----------------
   for (const [phrase, name, biome] of [["donington-park", "Donington Park", "Countryside"], ["oval", "The Oval", "Countryside"], ["daytona", "Daytona", "Countryside"], ["willow-springs", "Willow Springs", "Desert"], ["le-mans", "Circuit de la Sarthe", "Countryside"], ["lago-maggiore", "Autodrome Lago Maggiore", "Countryside"]]) {
-    await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=1"); await page.waitForSelector("#phrase");
+    await home(BASE + "?t=1"); await setup("#h-quick");
     await page.fill("#phrase", phrase); await page.keyboard.press("Enter"); await page.waitForTimeout(600);
     const chips = await page.textContent(".chips");
     ok(`typing ${phrase} shows its circuit and setting`, chips.includes(name) && chips.includes(biome), chips.replace(/\s+/g, " "));
     ok(`${phrase} is the track behind the menu`, await G((n) => window.__game.track.circuit?.name === n, name));
     await settle(2500); await shot(`circuit-${phrase}`);
   }
-  await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=1"); await page.waitForSelector("#phrase");
-  ok("up to 31 rivals can be picked", (await page.$$eval("#rivals option", (o) => o.length)) === 31);
+  await home(BASE + "?t=1"); await setup("#h-quick");
+  ok("up to 31 rivals can be picked", (await page.$$eval('[data-dd="rivals"] .dd-opt', (o) => o.length)) === 31);
   ok("a random phrase shows no circuit", !(await page.textContent(".chips")).includes("km"));
   // a circuit plays like any track: a shared line on the oval loads, races and finishes
   await open(BASE + (await linkFor({ phrase: "oval", laps: 2 }))); await page.waitForSelector("#bar-go"); await settle(1800);
   ok("a shared link to the oval loads the circuit", await G(() => window.__game.track.circuit?.id === "oval"));
   await page.click("#bar-go"); await page.waitForSelector("#bar-skip"); await page.click("#bar-skip"); await page.waitForSelector("#again", { timeout: 30000 });
   ok("and the race on it reaches the results", true);
+
+  // ---------------- the modes ----------------
+  const finishPlay = async () => { await G(() => { const p = window.__game.play; if (p) p.tick = p.end; }); await page.waitForTimeout(500); };
+  const drawBot = async () => { await G(() => { const g = window.__game; g.draw = null; g.finishedLine(window.__sim.botLine(g.track, 99, 0.9)); }); await page.waitForTimeout(300); };
+  await home(BASE); await setup("#h-trial"); await page.click("#go"); await page.waitForSelector("#bar-fin"); await settle(1500);
+  ok("time trial: out lap, one timed lap, cool-down lap", await G(() => window.__game.run.kind === "trial" && window.__game.run.laps === 3 && window.__game.run.rivals === 0 && !window.__game.run.realism));
+  await drawBot(); await page.click("#bar-go"); await page.waitForSelector("#bar-skip");
+  ok("with no rivals", await G(() => window.__game.race.cars.length === 1));
+  await finishPlay();
+  ok("its time is stored against the track", await G(() => Object.keys(JSON.parse(localStorage.getItem("apex-draft-best") || "{}")).some((k) => k.startsWith("tt:"))));
+  await page.click("#again"); await page.waitForSelector("#bar-go");
+  ok("the line carries over to another go", await G(() => !!window.__game.pick && !window.__game.race));
+  await page.click("#bar-go"); await page.waitForTimeout(400); await finishPlay(); await page.click("#res-menu"); await page.waitForSelector(".home");
+  await setup("#h-quick"); await page.click("#go"); await page.waitForSelector("#bar-go");
+  ok("quick race starts from the carried line, no redrawing", await G(() => !!window.__game.pick && !window.__game.draw));
+  await page.click("#bar-go"); await page.waitForTimeout(400);
+  ok("and the grid comes from the time trial", await G(() => { const r = window.__game.race; return r.cars.length === 6 && r.cars.find((c) => c.entrant.isPlayer).entrant.gridTime < 1000; }));
+  await finishPlay(); await page.click("#res-menu"); await page.waitForSelector(".home");
+  await setup("#h-weekend"); await page.click("#go"); await page.waitForSelector("#bar-go");
+  ok("weekend starts with practice", await G(() => window.__game.run.kind === "practice" && !window.__game.run.realism));
+  await page.click("#bar-go"); await page.waitForTimeout(500);
+  ok("others are spread round the track", await G(() => window.__game.race.cars.filter((c) => c.entrant.startFrac !== undefined).length === 5));
+  await finishPlay(); await page.click("#next"); await page.waitForSelector("#bar-go");
+  ok("then the qualifier: out lap, three timed laps, cool-down", await G(() => window.__game.run.kind === "qualifying" && window.__game.run.laps === 5));
+  await page.click("#bar-go"); await page.waitForTimeout(500); await finishPlay();
+  ok("it sets the grid for the race", await G(() => Object.keys(window.__game.weekend.grid).length === 6));
+  await page.click("#next"); await page.waitForSelector("#bar-go");
+  await page.click("#bar-go"); await page.waitForTimeout(500);
+  ok("the race starts from the qualifying order, with realism", await G(() => window.__game.run.realism && window.__game.race.cars.every((c) => c.slot === window.__game.weekend.grid[c.entrant.id])));
+  await finishPlay();
+  for (let i = 0; i < 8 && (await G(() => !!window.__game.race && !!window.__game.pick)); i++) { await page.click("#bar-go"); await page.waitForTimeout(500); await finishPlay(); }
+  await page.click("#res-menu"); await page.waitForSelector(".home");
+  await page.click("#h-tutorial"); await page.waitForSelector("#bar-fin"); await settle(1200);
+  ok("the tutorial runs on the oval with a tooltip", await G(() => window.__game.track.circuit?.id === "oval" && document.getElementById("tut").style.display === "block" && /start line/.test(document.getElementById("tut").innerText)));
+  await page.click("#tut-skip"); await page.waitForSelector(".home");
+  ok("skipping puts your own settings back", await G(() => window.__game.settings.phrase !== "oval" && document.getElementById("tut").style.display === "none"));
+  await page.click("#h-settings"); await page.waitForSelector("#sound"); await page.click("#sound");
+  ok("settings holds the sound switch", await G(() => window.__game.settings.muted === true));
 
   ok("no page errors", errs.length === 0, errs.slice(0, 3).join(" | "));
   await page.close(); await browser.close();

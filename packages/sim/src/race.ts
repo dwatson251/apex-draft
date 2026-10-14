@@ -72,7 +72,18 @@ export interface RaceRules {
   weather?: boolean;
   /** slipstream behind another car (default on, in every mode) */
   draft?: boolean;
+  /** how many times faster fuel burns and tyres wear than normal (1 to MAX_WEAR_MULT; default 1) */
+  wearMult?: { fuel: number; tyre: number };
+  /** compounds every car must run at some point; each one missing from a finisher costs PIT_PENALTY */
+  mandatory?: Compound[];
 }
+
+/** The most the fuel burn or tyre wear can be turned up. */
+export const MAX_WEAR_MULT = 40;
+export const clampWear = (x: unknown): number => {
+  const n = typeof x === "number" && isFinite(x) ? Math.round(x) : 1;
+  return Math.min(MAX_WEAR_MULT, Math.max(1, n));
+};
 
 /** A pit stop planned in advance: drive in at the end of this lap and come out on this tyre. */
 export interface PitStop { lap: number; tyre?: Compound }
@@ -105,6 +116,12 @@ export interface Entrant {
   startTyre?: Compound;
   /** the fastest lap this entrant has set on this track; the grid is ordered by the quicker of that and its ideal lap */
   bestLap?: number;
+  /** a grid place picked by the caller (0 = pole); entrants without one fill the rest in qualifying order, after those that have one */
+  gridSlot?: number;
+  /** a lap time to place this entrant on the grid by instead of its ideal lap; Infinity puts it at the back */
+  gridTime?: number;
+  /** instead of the grid, start this fraction of a lap (0 to 1) behind the line already rolling, as in practice and qualifying where the field is spread round the track */
+  startFrac?: number;
   /** how a bot draws its lines, so that it can redraw them as the road changes */
   bot?: { seed: number; skill: number };
 }
@@ -186,6 +203,8 @@ export interface RaceCar {
   nextTyre: Compound | null;
   /** 0 soft, 1 medium, 2 wet, at every tick */
   ctrace: number[];
+  /** every compound it has run so far */
+  used: Compound[];
 }
 
 export interface CarResult {
@@ -198,8 +217,10 @@ export interface CarResult {
   finishTime: number | null;
   /** time over the line */
   rawTime: number | null;
-  /** added for never pitting */
+  /** added for never pitting and for any mandatory compound it did not run */
   penalty: number;
+  /** mandatory compounds this car never ran */
+  missing: Compound[];
   /** retired (nothing retires a car any more, but the field stays for results that carry it) */
   dnf: boolean;
   pits: number;
@@ -240,8 +261,21 @@ export class Race {
     this.weather = rules.weather === false ? { showers: [] } : weatherFor(track.seed, laps, track.biome);
     this.field = new WetField(track);
     const ranked = entrants
-      .map((e, i) => ({ e, i, ideal: Math.min(this.profile(e, 0).ideal, e.bestLap ?? Infinity) }))
-      .sort((a, b) => a.ideal - b.ideal || a.i - b.i);
+      .map((e, i) => ({ e, i, ideal: e.gridTime ?? Math.min(this.profile(e, 0).ideal, e.bestLap ?? Infinity) }))
+      .sort((a, b) => +(a.e.startFrac !== undefined) - +(b.e.startFrac !== undefined) || a.ideal - b.ideal || a.i - b.i);
+    // callers can fix places on the grid: those entrants take their slot and the rest fill in around them in order
+    if (ranked.some((r) => r.e.gridSlot !== undefined)) {
+      const slots: (typeof ranked[number] | undefined)[] = [];
+      const free: typeof ranked = [];
+      for (const r of ranked) {
+        let at = r.e.gridSlot === undefined ? -1 : Math.max(0, Math.round(r.e.gridSlot));
+        while (at >= 0 && slots[at]) at++;
+        if (at < 0) free.push(r); else slots[at] = r;
+      }
+      const out: typeof ranked = [];
+      for (const r of slots) if (r) out.push(r); else if (free.length) out.push(free.shift()!);
+      ranked.splice(0, ranked.length, ...out, ...free);
+    }
     ranked.forEach(({ e }, slot) => {
       const p0 = this.profile(e, 0);
       // two columns, staggered: the pole car on the line, its neighbour half a row back on the other side, and so on back
@@ -254,23 +288,25 @@ export class Race {
         const h = Math.atan2(sampleAt(p0, p0.y, s0 + 1) - sampleAt(p0, p0.y, s0 - 1), sampleAt(p0, p0.x, s0 + 1) - sampleAt(p0, p0.x, s0 - 1));
         return { s0, off, x: sampleAt(p0, p0.x, s0) - Math.sin(h) * off, y: sampleAt(p0, p0.y, s0) + Math.cos(h) * off };
       };
-      for (let i = 0; slot > 0 && i < 60; i++) {
+      const spread = e.startFrac !== undefined && slot > 0;
+      for (let i = 0; slot > 0 && !spread && i < 60; i++) {
         const q = spot(back);
         if (this.cars.every((o) => Math.hypot(q.x - o.x, q.y - o.y) > SAFE_GAP + 2)) break;
         back += 2;
       }
-      const at = spot(back);
+      const at = spread ? { s0: p0.length * (1 - Math.min(0.98, Math.max(0.02, e.startFrac!))), off: 0 } : spot(back);
       const sNew = at.s0;
       const c: RaceCar = {
         entrant: e, slot, lap: slot === 0 ? 0 : -1,
-        s: sNew, gridOff: at.off, v: 0, x: 0, y: 0, h: 0,
+        s: sNew, gridOff: at.off, v: spread ? 40 : 0, x: 0, y: 0, h: 0,
         ghost: false, stuck: 0, ghostFor: 0, powered: false, freeUntil: 0, lapStart: slot === 0 ? [0] : [], finishTime: null,
         trace: [], prog: [], vtrace: [], gtrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerLap(e.car, laps) / this.lapLen, wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
-        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, ctrace: [],
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, ctrace: [], used: [],
         hp: 0, off: 0, offV: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, mass: vehicleOf(e.car.type).mass, anchored: false,
       };
+      c.used.push(c.compound);
       if (slot === 0) this.startLap(c);
       this.place(c);
       this.cars.push(c);
@@ -581,7 +617,7 @@ export class Race {
   private finishStop(c: RaceCar): void {
     c.fuel = TANK;
     if (c.emergency) { c.emergencies++; c.emergency = false; } // fuel only: the tyres stay as they are
-    else { c.tyre = 1; if (c.nextTyre) c.compound = c.nextTyre; }
+    else { c.tyre = 1; if (c.nextTyre) c.compound = c.nextTyre; if (!c.used.includes(c.compound)) c.used.push(c.compound); }
     c.nextTyre = null;
     c.limp = false;
     c.pits++;
@@ -649,10 +685,10 @@ export class Race {
       if (c.gridOff !== 0 && moved > 0) c.gridOff = Math.abs(c.gridOff) < 0.01 ? 0 : c.gridOff * Math.exp(-moved / 30);
       if (this.rules.realism && moved > 0) {
         const p = c.prof;
-        c.fuel = Math.max(0, c.fuel - moved * c.perUnit * this.biome.fuel);
+        c.fuel = Math.max(0, c.fuel - moved * c.perUnit * this.biome.fuel * clampWear(this.rules.wearMult?.fuel));
         const st = this.stats(c);
         const load = Math.min(1.2, (p.kap[indexAt(p, c.s)]! * c.v * c.v) / st.aLat);
-        c.tyre = Math.max(0, c.tyre - (moved / this.lapLen) * TYRE_WEAR_PER_LAP * raceScale(this.laps).wearScale * c.wearMul * this.biome.wear * wearRate(c.compound, this.field.wetAt(c.x, c.y)) * (0.4 + 1.2 * load * load) / 0.63);
+        c.tyre = Math.max(0, c.tyre - (moved / this.lapLen) * TYRE_WEAR_PER_LAP * raceScale(this.laps).wearScale * c.wearMul * this.biome.wear * clampWear(this.rules.wearMult?.tyre) * wearRate(c.compound, this.field.wetAt(c.x, c.y)) * (0.4 + 1.2 * load * load) / 0.63);
       }
       this.settle(c);
       let p = c.prof;
@@ -717,7 +753,8 @@ export class Race {
 
   get over(): boolean { return this.cars.every((c) => !this.alive(c)) || this.time >= this.maxTime; }
 
-  private penaltyOf(c: RaceCar): number { return this.rules.realism && c.finishTime !== null && c.pits === 0 ? PIT_PENALTY : 0; }
+  private missingOf(c: RaceCar): Compound[] { return this.rules.realism && c.finishTime !== null ? (this.rules.mandatory ?? []).filter((m) => !c.used.includes(m)) : []; }
+  private penaltyOf(c: RaceCar): number { return this.rules.realism && c.finishTime !== null ? (c.pits === 0 ? PIT_PENALTY : 0) + this.missingOf(c).length * PIT_PENALTY : 0; }
 
   results(): CarResult[] {
     const adj = (c: RaceCar) => (c.finishTime === null ? null : c.finishTime + this.penaltyOf(c));
@@ -738,7 +775,7 @@ export class Race {
       }
       return {
         id: c.entrant.id, name: c.entrant.name, isPlayer: !!c.entrant.isPlayer, slot: c.slot, position: i + 1,
-        finishTime: adj(c), rawTime: c.finishTime, penalty: this.penaltyOf(c), dnf: c.out, pits: c.pits, emergencies: c.emergencies, lapTimes,
+        finishTime: adj(c), rawTime: c.finishTime, penalty: this.penaltyOf(c), missing: this.missingOf(c), dnf: c.out, pits: c.pits, emergencies: c.emergencies, lapTimes,
       };
     });
   }

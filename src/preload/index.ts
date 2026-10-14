@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld("apex", {
   exportLine: (suggested: string, text: string): Promise<boolean> => ipcRenderer.invoke("lines:export", suggested, text),
   importLines: (): Promise<string[]> => ipcRenderer.invoke("lines:import"),
   version: (): Promise<string> => ipcRenderer.invoke("app:version"),
+  quit: (): Promise<void> => ipcRenderer.invoke("app:quit"),
 });

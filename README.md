@@ -43,6 +43,9 @@ Installers for Windows, Linux (AppImage) and macOS are on the
   own grip and scenery) and what you are driving (go-karts, formula cars, rally cars, muscle cars, trucks or tanks).
 - **Share and resume.** The address holds the track, the settings and the segments you have drawn. Copy it to share a
   track, or reload to carry on. Laps and times are never saved: a reload always starts the race afresh.
+- **Modes.** Solo Time Trial (out lap, a timed lap, cool-down; your time is kept per track), Quick Race (rivals, tyres, fuel,
+  wear multipliers up to 40x, mandatory tyres; gridded by your time trial), Race Weekend (practice, qualifier, race from the
+  qualifying grid) and a Tutorial on the oval. Your drawn line carries over between them.
 - **Menu.** The title has the track behind it (blurred), and the Menu button or Esc opens it over a game at any time.
   Changing the seed after you have drawn something asks first.
 - **Garage.** Spend 24 points across acceleration, top speed, cornering and braking, and save setups.

@@ -79,6 +79,7 @@ ipcMain.handle("lines:import", async (e) => {
 });
 
 ipcMain.handle("app:version", () => app.getVersion());
+ipcMain.handle("app:quit", (e) => { if (trusted(e)) app.quit(); });
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
