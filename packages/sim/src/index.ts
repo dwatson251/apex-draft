@@ -13,3 +13,4 @@ export * from "./pitpath.ts";
 export * from "./vehicles.ts";
 export * from "./share.ts";
 export * from "./biomes.ts";
+export * from "./impact.ts";

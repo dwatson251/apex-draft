@@ -40,6 +40,8 @@ export class WorldView {
   private lines = new Graphics();
   private carsLayer = new Container();
   private crew = new Graphics();
+  private sparkG = new Graphics();
+  private sparks: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
   private skidTex: RenderTexture | null = null;
   private skidBrush = new Graphics();
   private arts = new Map<number, SegmentArt>();
@@ -57,7 +59,7 @@ export class WorldView {
   private clock = 0;
 
   constructor(readonly app: Application) {
-    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.highlight, this.skidSprite, this.sky.shadows, this.lines, this.carsLayer, this.crew, this.sky.air);
+    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.highlight, this.skidSprite, this.sky.shadows, this.lines, this.carsLayer, this.crew, this.sparkG, this.sky.air);
     app.stage.addChild(this.root);
     app.renderer.on("resize", () => this.applyCamera());
     this.setBounds(700, 500);
@@ -203,6 +205,13 @@ export class WorldView {
       a.pulses.forEach((p) => p.scale.set(1 + Math.sin(this.clock * 4) * 0.08));
     }
     if (this.decor?.visible) this.scenery?.update(dt, this.sky.isOn());
+    const sg = this.sparkG.clear();
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      const q = this.sparks[i]!;
+      q.life -= dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.9; q.vy *= 0.9;
+      if (q.life <= 0) { this.sparks.splice(i, 1); continue; }
+      sg.circle(q.x, q.y, 0.9).fill({ color: q.life > 0.2 ? 0xfff2a8 : 0xff9a3c, alpha: Math.min(1, q.life * 4) });
+    }
     this.sky.update(dt);
   }
 
@@ -343,6 +352,15 @@ export class WorldView {
     c.shadow.rotation = h;
     c.brake.visible = braking;
     c.root.alpha = ghost ? 0.4 : 1;
+  }
+
+  /** A shower of sparks where two cars touched. */
+  spark(x: number, y: number, strength: number): void {
+    const n = Math.min(26, 6 + Math.round(strength / 3));
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 20 + Math.random() * 50;
+      this.sparks.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.25 + Math.random() * 0.3 });
+    }
   }
 
   /** Four mechanics around a car in its box. */

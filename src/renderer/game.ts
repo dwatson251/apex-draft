@@ -930,6 +930,11 @@ export class Game {
     // the crowd as you go past the line, the wheel guns in your box, the radio when you are let go
     while (this.eventIdx < race.events.length && race.events[this.eventIdx]!.tick <= k) {
       const ev = race.events[this.eventIdx++]!;
+      if (ev.type === "bump") {
+        this.view.spark(ev.x ?? 0, ev.y ?? 0, ev.strength ?? 0);
+        if (p.speed <= 1 && (ev.id === ME || ev.other === ME)) this.audio.bump(ev.strength ?? 0);
+        continue;
+      }
       if (ev.id !== ME || p.speed > 1) continue;
       if (ev.type === "cross") this.audio.cheer();
       else if (ev.type === "pitStart") this.audio.drill(PIT_STOP_TIME);

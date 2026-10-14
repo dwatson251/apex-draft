@@ -201,6 +201,20 @@ export class CarAudio {
     window.setTimeout(() => bus.disconnect(), (seconds + 1.5) * 1000);
   }
 
+  /** Two cars touching: a dull thump and a bit of metal. Harder hits are louder and longer. */
+  bump(strength: number): void {
+    if (!this.ctx || !this.fx) return;
+    const ctx = this.ctx, t = ctx.currentTime + 0.01, k = Math.min(1, strength / 60);
+    const bus = ctx.createGain(); bus.gain.value = 0.1 + 0.3 * k; bus.connect(this.fx);
+    const o = ctx.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.16);
+    const g = ctx.createGain(); g.gain.setValueAtTime(1, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2 + 0.1 * k);
+    o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.35);
+    this.burst(bus, t, 0.12 + 0.18 * k, 1800 + 1200 * k, 1.4, 0.8, 0.002); // the crunch
+    this.burst(bus, t + 0.03, 0.2, 520, 3, 0.3, 0.004);                    // and a rattle
+    window.setTimeout(() => bus.disconnect(), 1200);
+  }
+
   /** The race director on the radio: static, then "Go! Go! Go!", then static. */
   goGoGo(): void {
     if (!this.ctx || !this.fx) return;

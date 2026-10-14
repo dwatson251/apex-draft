@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  Rng, Race, HARD_GAP, botLine, buildProfile, checkTrack, defaultCar, generateTrack, normalizePhrase, parseLineFile,
+  Rng, Race, botLine, buildProfile, checkTrack, defaultCar, generateTrack, normalizePhrase, parseLineFile,
   phraseToSeed, randomPhrase, serializeLineFile, validateCar, validateLine, type Entrant,
 } from "@apex/sim";
 
@@ -62,22 +62,28 @@ describe("racing", () => {
     expect(res.every((x) => x.finishTime !== null && x.lapTimes.length === 2)).toBe(true);
     expect(res.map((x) => x.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
-  it("never lets solid cars touch, and never needs the deadlock failsafe", () => {
-    let worst = Infinity;
+  it("lets cars touch but sorts it out: nobody deadlocks, everyone finishes, no overlap lasts", () => {
+    let longest = 0;
     for (const phrase of phrases(15)) {
       const tr = generateTrack(phrase);
       const r = new Race(tr, entrants(tr, 8), 3);
+      const together = new Map<string, number>();
       while (!r.over) {
         r.step();
         for (let a = 0; a < r.cars.length; a++) for (let b = a + 1; b < r.cars.length; b++) {
-          const A = r.cars[a]!, B = r.cars[b]!;
-          if (A.finishTime !== null || B.finishTime !== null || A.ghost || B.ghost) continue;
-          worst = Math.min(worst, Math.hypot(A.x - B.x, A.y - B.y));
+          const A = r.cars[a]!, B = r.cars[b]!, k = `${a}|${b}`;
+          const live = A.finishTime === null && B.finishTime === null && !A.out && !B.out && !A.ghost && !B.ghost;
+          if (live && Math.hypot(A.x - B.x, A.y - B.y) < (A.radius + B.radius) * 0.8) {
+            const n = (together.get(k) ?? 0) + 1;
+            together.set(k, n);
+            longest = Math.max(longest, n);
+          } else together.delete(k);
         }
       }
-      expect(r.cars.filter((c) => c.freeUntil > 0), phrase).toEqual([]);
+      expect(r.cars.filter((c) => c.freeUntil > 0).map((c) => c.entrant.id), phrase).toEqual([]);
+      expect(r.cars.every((c) => c.finishTime !== null), phrase).toBe(true);
     }
-    expect(worst).toBeGreaterThanOrEqual(HARD_GAP - 0.1);
+    expect(longest).toBeLessThan(60); // never overlapping for a whole second
   });
   it("gives the same car a different time against different rivals", () => {
     const solo = new Race(t, entrants(t, 1), 2); solo.runToEnd();

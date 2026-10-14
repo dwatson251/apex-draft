@@ -75,23 +75,14 @@ describe("pit stops", () => {
     expect(r.events.some((e) => e.id === "b0" && e.type === "dry")).toBe(true);
     expect(r.events.some((e) => e.id === "b0" && e.type === "out")).toBe(true);
   });
-  it("a full field with stops never touches and never needs the failsafe", () => {
-    let worst = Infinity;
+  it("a full field with stops sorts out its contacts: no failsafe, everyone finishes or retires", () => {
     for (const p of phrases(8, 300)) {
       const t = generateTrack(p);
       const r = new Race(t, field(t, 8, (i) => (i % 2 ? undefined : [false, true, false, false])), 4);
-      while (!r.over) {
-        r.step();
-        for (let a = 0; a < 8; a++) for (let b = a + 1; b < 8; b++) {
-          const A = r.cars[a]!, B = r.cars[b]!;
-          if (!(A.finishTime === null && !A.out && B.finishTime === null && !B.out) || A.ghost || B.ghost) continue;
-          worst = Math.min(worst, Math.hypot(A.x - B.x, A.y - B.y));
-        }
-      }
+      r.runToEnd();
       expect(r.cars.filter((c) => c.freeUntil > 0).map((c) => c.entrant.id), p).toEqual([]);
       expect(r.cars.filter((c) => !c.out && c.finishTime === null), p).toEqual([]);
     }
-    expect(worst).toBeGreaterThanOrEqual(7.9);
   });
 });
 

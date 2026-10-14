@@ -1,6 +1,7 @@
 import { carStats, type CarConfig } from "./car.ts";
 import { biomeOf, type Biome } from "./biomes.ts";
 import { vehicleOf } from "./vehicles.ts";
+import { impact } from "./impact.ts";
 import type { Line } from "./line.ts";
 import { PIT_PENALTY, PIT_STOP_TIME } from "./pit.ts";
 import { buildProfile, indexAt, sampleAt, type Profile } from "./profile.ts";
@@ -11,8 +12,14 @@ export const TICK = 1 / 60;
 export const GRID_GAP = 14;
 /** Centre-to-centre gap the cars try to keep to whatever is ahead on their path, units. */
 export const SAFE_GAP = 11;
-/** Centre-to-centre distance below which two cars are touching. The sim never lets it happen. */
+/** Rough centre-to-centre distance at which two cars touch (it really depends on the two vehicles). */
 export const HARD_GAP = 8;
+/** Pull of the spring that brings a knocked car back to its line, and its damping: about a second to settle. */
+const OFF_K = 36;
+const OFF_C = 10.8;
+const OFF_MAX = 26;
+/** Hits gentler than this make no sound. */
+const BUMP_MIN = 6;
 /** A car counts as being on my path when its centre is this close to it. */
 const LATERAL = 8;
 const PLAN_STEP = 3;
@@ -47,8 +54,17 @@ export interface RaceRules {
   realism: boolean;
 }
 
-export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out";
-export interface RaceEvent { tick: number; id: string; type: RaceEventType }
+export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump";
+export interface RaceEvent {
+  tick: number;
+  id: string;
+  type: RaceEventType;
+  /** bump: how hard, where, and who else was in it */
+  strength?: number;
+  x?: number;
+  y?: number;
+  other?: string;
+}
 
 export interface Entrant {
   id: string;
@@ -119,6 +135,14 @@ export interface RaceCar {
   /** tank units per unit of distance */
   perUnit: number;
   wearMul: number;
+  /** heading of the line under the car (h also includes the slew from a knock) */
+  hp: number;
+  /** how far the car has been knocked off its line, across it, and how fast that is changing */
+  off: number;
+  offV: number;
+  radius: number;
+  mass: number;
+  anchored: boolean;
 }
 
 export interface CarResult {
@@ -146,10 +170,8 @@ export class Race {
   private profiles = new Map<string, Profile>();
   private lapLen: number;
   private biome: Biome;
-  /** how long each pair of cars has been holding each other up, in ticks */
-  private holds = new Map<string, number>();
-  /** pairs that have held each other for too long: they pass through one another until clear */
-  private phase = new Set<string>();
+  /** the last tick two cars made a sound hitting each other, so one scrape is one bump */
+  private bumped = new Map<string, number>();
 
   /** `entrants` are placed on the grid in qualifying order: fastest ideal lap first. */
   constructor(readonly track: Track, entrants: Entrant[], readonly laps: number, readonly rules: RaceRules = { realism: true }) {
@@ -174,6 +196,7 @@ export class Race {
         trace: [], prog: [], vtrace: [], gtrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, limp: false, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerLap(e.car) / this.lapLen, wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
+        hp: 0, off: 0, offV: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, mass: vehicleOf(e.car.type).mass, anchored: false,
       };
       if (slot === 0) this.startLap(c);
       this.place(c);
@@ -240,12 +263,15 @@ export class Race {
 
   private place(c: RaceCar): void {
     const p = c.prof;
-    c.x = sampleAt(p, p.x, c.s);
-    c.y = sampleAt(p, p.y, c.s);
+    const bx = sampleAt(p, p.x, c.s), by = sampleAt(p, p.y, c.s);
     const x1 = sampleAt(p, p.x, c.s + 1), y1 = sampleAt(p, p.y, c.s + 1);
     const x0 = sampleAt(p, p.x, c.s - 1), y0 = sampleAt(p, p.y, c.s - 1);
     // at the very end of an open lap the last samples can coincide: keep the heading we had
-    if (Math.hypot(x1 - x0, y1 - y0) > 0.05) c.h = Math.atan2(y1 - y0, x1 - x0);
+    if (Math.hypot(x1 - x0, y1 - y0) > 0.05) c.hp = Math.atan2(y1 - y0, x1 - x0);
+    // a car that has been knocked sideways sits off its line and points a little along where it is going
+    c.x = bx - Math.sin(c.hp) * c.off;
+    c.y = by + Math.cos(c.hp) * c.off;
+    c.h = c.hp + Math.max(-0.6, Math.min(0.6, Math.atan2(c.offV, Math.max(c.v, 15)))) * 0.7;
     const power = p.ghost[indexAt(p, c.s)] === 1;
     // A ghost only turns solid once nobody is inside it, so the power-up never ends with two cars overlapping.
     const sitting = c.ghost && this.cars.some((o) => o !== c && this.alive(o) && Math.hypot(o.x - c.x, o.y - c.y) < SAFE_GAP + 2);
@@ -274,11 +300,6 @@ export class Race {
   /** Who has right of way: further round the race first, the better grid slot on a tie. */
   private prio(c: RaceCar): number { return c.lap * 1e5 + c.s - c.slot * 1e-3; }
 
-  private posAt(c: RaceCar, s: number): { x: number; y: number } {
-    const p = c.prof;
-    return { x: sampleAt(p, p.x, s), y: sampleAt(p, p.y, s) };
-  }
-
   /**
    * The speed this car may carry given the traffic on its path. Cars ahead and going the same way are followed at
    * a safe gap. Cars crossing or merging are given way to if they are further round the race.
@@ -289,7 +310,7 @@ export class Race {
     const reach = (c.v * c.v) / (2 * b) + SAFE_GAP + 20;
     const mine = this.prio(c);
     for (const o of racing) {
-      if (o === c || o.ghost || o.freeUntil > this.tick || this.phase.has(this.pairKey(c, o))) continue;
+      if (o === c || o.ghost || o.freeUntil > this.tick ) continue;
       const dx = o.x - c.x, dy = o.y - c.y;
       if (dx * dx + dy * dy > (reach + LATERAL) * (reach + LATERAL)) continue;
       // First point of my path, in the next `reach` units, where the other car is in the way: either it is sitting
@@ -331,31 +352,57 @@ export class Race {
     return limit;
   }
 
-  /** Last line of defence: if two cars would touch after this tick, the one with less right of way stops. */
-  private resolveContacts(racing: RaceCar[], next: Map<RaceCar, { v: number; s: number }>): void {
-    for (let iter = 0; iter < 3; iter++) {
-      let changed = false;
-      for (let i = 0; i < racing.length; i++) {
-        for (let j = i + 1; j < racing.length; j++) {
-          const A = racing[i]!, B = racing[j]!;
-          if (A.ghost || B.ghost || A.freeUntil > this.tick || B.freeUntil > this.tick || this.phase.has(this.pairKey(A, B))) continue;
-          const pa = this.posAt(A, next.get(A)!.s), pb = this.posAt(B, next.get(B)!.s);
-          if (Math.hypot(pa.x - pb.x, pa.y - pb.y) >= HARD_GAP) continue;
-          const loser = this.prio(A) < this.prio(B) ? A : B;
-          const winner = loser === A ? B : A;
-          const ln = next.get(loser)!;
-          const target = ln.v === 0 && ln.s === loser.s ? winner : loser;
-          next.set(target, { v: 0, s: target.s });
-          changed = true;
-          if (target === winner) {
-            // both held: if it goes on for two seconds, let them through each other
-            const k = this.pairKey(A, B), n = (this.holds.get(k) ?? 0) + 1;
-            this.holds.set(k, n);
-            if (n > 120) { this.phase.add(k); this.holds.delete(k); }
-          }
+  /**
+   * A car that has been knocked off its line tries to get back: a spring pulls it in. And one carrying more speed
+   * than the bend allows (because it was shoved, or tipped over its braking point) cannot hold the line: it runs wide.
+   */
+  private settle(c: RaceCar): void {
+    const p = c.prof, i = indexAt(p, c.s);
+    const lim = p.vLim[i]!, kap = p.kap[i]!;
+    // over the limit for this bend: the grip it lacks is how hard it is pulled outward
+    const excess = kap > 0.003 && c.v > lim * 1.12 + 3 ? (c.v / lim) ** 2 - 1 : 0;
+    // the line-seeking spring does little while the car is sliding, and takes over again once it has grip
+    const spring = excess > 0 ? 0.12 : 1;
+    c.off += c.offV * TICK;
+    c.offV += (-OFF_K * spring * c.off - OFF_C * c.offV) * TICK;
+    if (excess > 0) {
+      // which way is the bend turning? the car goes the other way
+      const h0 = Math.atan2(sampleAt(p, p.y, c.s) - sampleAt(p, p.y, c.s - 3), sampleAt(p, p.x, c.s) - sampleAt(p, p.x, c.s - 3));
+      const h1 = Math.atan2(sampleAt(p, p.y, c.s + 3) - sampleAt(p, p.y, c.s), sampleAt(p, p.x, c.s + 3) - sampleAt(p, p.x, c.s));
+      let dh = h1 - h0;
+      if (dh > Math.PI) dh -= 2 * Math.PI; else if (dh < -Math.PI) dh += 2 * Math.PI;
+      c.offV += -Math.sign(dh) * excess * this.stats(c).aLat * 0.8 * TICK;
+      c.v = Math.max(0, c.v - 20 * Math.min(excess, 1) * TICK); // scrubbing speed off
+      if (this.rules.realism) c.tyre = Math.max(0, c.tyre - 0.0006 * excess);
+    }
+    c.off = Math.max(-OFF_MAX, Math.min(OFF_MAX, c.off));
+    // well off the road it is on the grass, which grips little
+    if (Math.abs(c.off) > 10) c.v *= 1 - 0.6 * TICK * ((Math.abs(c.off) - 10) / 16);
+  }
+
+  /** Cars that touch push each other about (see impact.ts). */
+  private collide(racing: RaceCar[]): void {
+    const touched = new Set<RaceCar>();
+    for (let i = 0; i < racing.length; i++) {
+      for (let j = i + 1; j < racing.length; j++) {
+        const A = racing[i]!, B = racing[j]!;
+        if (A.ghost || B.ghost || A.finishTime !== null || B.finishTime !== null) continue;
+        A.anchored = A.dwell > 0; B.anchored = B.dwell > 0;
+        const force = impact(A, B);
+        if (force < 0) continue;
+        touched.add(A); touched.add(B);
+        if (force >= BUMP_MIN) {
+          const k = this.pairKey(A, B);
+          if (this.tick - (this.bumped.get(k) ?? -999) > 24) this.events.push({ tick: this.tick, id: A.entrant.id, type: "bump", strength: force, x: (A.x + B.x) / 2, y: (A.y + B.y) / 2, other: B.entrant.id });
+          this.bumped.set(k, this.tick);
+          if (this.rules.realism) { const w = 0.0004 * force; A.tyre = Math.max(0, A.tyre - w); B.tyre = Math.max(0, B.tyre - w); }
         }
       }
-      if (!changed) break;
+    }
+    for (const c of touched) {
+      c.off = Math.max(-OFF_MAX, Math.min(OFF_MAX, c.off));
+      if (c.dwell > 0) c.v = 0;
+      this.place(c);
     }
   }
 
@@ -405,7 +452,6 @@ export class Race {
       if (stopping && c.dwell === 0 && p.pitS! - s < 0.5 && v < 5) { s = p.pitS!; v = 0; arrived.push(c); }
       next.set(c, { v, s });
     }
-    this.resolveContacts(racing, next);
     for (const c of racing) {
       const n = next.get(c)!;
       const p = c.prof;
@@ -427,6 +473,7 @@ export class Race {
         const load = Math.min(1.2, (p.kap[indexAt(p, c.s)]! * c.v * c.v) / st.aLat);
         c.tyre = Math.max(0, c.tyre - (moved / this.lapLen) * TYRE_WEAR_PER_LAP * c.wearMul * this.biome.wear * (0.4 + 1.2 * load * load) / 0.63);
       }
+      this.settle(c);
       let p = c.prof;
       while (c.s >= p.length && c.finishTime === null) {
         c.s -= p.length;
@@ -440,6 +487,7 @@ export class Race {
       }
       if (c.finishTime === null) this.place(c);
     }
+    this.collide(racing);
     // out of fuel: limp to the pits and retire there
     for (const c of racing) {
       if (!this.rules.realism || c.limp || c.finishTime !== null || c.fuel > 0) continue;
@@ -457,12 +505,6 @@ export class Race {
       else { c.dwell = STOP_TICKS; this.emit(c.entrant.id, "pitStart"); }
     }
     for (const c of racing) if (c.dwell > 0 && !arrived.includes(c) && --c.dwell === 0) this.finishStop(c);
-    for (const k of [...this.phase]) {
-      const [a, b] = k.split("|").map(Number) as [number, number];
-      const A = this.cars.find((c) => c.slot === a)!, B = this.cars.find((c) => c.slot === b)!;
-      if (!this.alive(A) || !this.alive(B) || Math.hypot(A.x - B.x, A.y - B.y) > SAFE_GAP + 6) this.phase.delete(k);
-    }
-    if (this.tick % 60 === 0) this.holds.clear();
     this.record();
   }
 
