@@ -631,6 +631,21 @@ export class Race {
     while (this.alive(car) && car.lap <= lap && this.time < this.maxTime) this.step();
   }
 
+  /**
+   * Run until the given car pulls into its pit box and the stop begins, which is the only time the player may change
+   * their line. Returns true if it stopped there, false if the car finished (or was out) without another stop.
+   */
+  runToStop(carId: string): boolean {
+    const car = this.cars.find((c) => c.entrant.id === carId)!;
+    let seen = this.events.length;
+    while (this.alive(car) && this.time < this.maxTime) {
+      this.step();
+      for (let i = seen; i < this.events.length; i++) { const e = this.events[i]!; if (e.id === carId && e.type === "pitStart") return true; }
+      seen = this.events.length;
+    }
+    return false;
+  }
+
   runToEnd(): void {
     while (this.cars.some(this.alive) && this.time < this.maxTime) this.step();
   }

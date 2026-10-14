@@ -52,7 +52,9 @@
 - The race records a wet-field snapshot and the rain once a second for replay.
 
 ## Interface
-- Blocks: `Game.nextBlock` runs `editEvery` laps, then returns to the picker. The pit strategy panel (`renderPlan`) and
+- Editing only happens in the pits: `Race.runToStop` runs the race until the player's stop begins, `Game.runAndPlay`
+  plays it back and then shows the picker (3 segment limit); `Game.resumeRace` sets the new line for every later lap, has
+  the bots read the road again and carries on. Emergency refuels count as stops. The pit strategy panel (`renderPlan`) and
   `addStop` enforce the limits; the bottom bar is `bar.ts`.
 
 ## Tyres, fuel and the pits

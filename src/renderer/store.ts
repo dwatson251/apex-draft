@@ -40,10 +40,6 @@ export interface Settings {
   realism: boolean;
   /** boxes and water on the road */
   obstacles: boolean;
-  /** the player edits their line every this many laps */
-  editEvery: number;
-  /** true while it follows the recommendation (a fifth of the race) */
-  editAuto?: boolean;
   startTyre: Compound;
   /** pit stops queued: the end of lap `lap` (counting from 0), on this tyre */
   pitPlan: { lap: number; tyre: Compound }[];

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { botLine, decodeShare, defaultCar, encodeShare, generateTrack, validateLine, type ShareState } from "@apex/sim";
 
-const base = (): ShareState => ({ phrase: "Healthy Bear eats tuna", laps: 40, mode: "race", rivals: 6, car: { name: "Zoom ünï", accel: 8, top: 5, grip: 7, brake: 4 }, obstacles: false, realism: true, playing: true, editEvery: 4, startTyre: "soft", pitPlan: [{ lap: 6, tyre: "wet" }, { lap: 14, tyre: "medium" }] });
+const base = (): ShareState => ({ phrase: "Healthy Bear eats tuna", laps: 40, mode: "race", rivals: 6, car: { name: "Zoom ünï", accel: 8, top: 5, grip: 7, brake: 4 }, obstacles: false, realism: true, playing: true, startTyre: "soft", pitPlan: [{ lap: 6, tyre: "wet" }, { lap: 14, tyre: "medium" }] });
 
 describe("share links", () => {
   it("round trip the track, settings and car", () => {
@@ -28,7 +28,7 @@ describe("share links", () => {
   });
   it("carries nothing about a race", () => {
     const keys = Object.keys(decodeShare(encodeShare(base())) as object).sort();
-    expect(keys).toEqual(["car", "editEvery", "laps", "mode", "obstacles", "phrase", "pitPlan", "playing", "realism", "rivals", "startTyre"]);
+    expect(keys).toEqual(["car", "laps", "mode", "obstacles", "phrase", "pitPlan", "playing", "realism", "rivals", "startTyre"]);
   });
   it("is the same every time, and rejects junk instead of throwing", () => {
     expect(encodeShare(base())).toBe(encodeShare(base()));
@@ -36,9 +36,8 @@ describe("share links", () => {
     expect(defaultCar().name).toBe("Standard");
   });
   it("carries 50 laps, the edit stops, the start tyre and up to five queued stops", () => {
-    const back = decodeShare(encodeShare({ ...base(), laps: 50, editEvery: 10, pitPlan: [8, 16, 24, 32, 40].map((lap) => ({ lap, tyre: "medium" as const })) })) as ShareState;
+    const back = decodeShare(encodeShare({ ...base(), laps: 50, pitPlan: [8, 16, 24, 32, 40].map((lap) => ({ lap, tyre: "medium" as const })) })) as ShareState;
     expect(back.laps).toBe(50);
-    expect(back.editEvery).toBe(10);
     expect(back.pitPlan.map((p) => p.lap)).toEqual([8, 16, 24, 32, 40]);
     expect(back.startTyre).toBe("soft");
     // more than five are cut off
@@ -58,6 +57,18 @@ describe("share links", () => {
     expect(back.rivals).toBe(5);
     expect(back.startTyre).toBe("medium");
     expect(back.pitPlan).toEqual([]);
-    expect(back.editEvery).toBe(1);
+  });
+  it("still opens a version 2 link, ignoring its edit-every byte", () => {
+    const name = new TextEncoder().encode("Two"), phrase = new TextEncoder().encode("quiet-fox-hugs-kites");
+    const bytes: number[] = [2, 1 | 2 | 4 | 8, 12, 4 | (2 << 4), 3, 0x66, 0x66, name.length, ...name, phrase.length, ...phrase];
+    // laps 12, rivals 4 on wets, edit every 3, then no stops
+    bytes.splice(5, 0, 0);
+    const code = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const back = decodeShare(code) as ShareState;
+    expect(typeof back).toBe("object");
+    expect(back.laps).toBe(12);
+    expect(back.rivals).toBe(4);
+    expect(back.startTyre).toBe("wet");
+    expect(back.phrase).toBe("quiet-fox-hugs-kites");
   });
 });

@@ -1,12 +1,13 @@
 # Changelog
 
 ## 0.1.0-alpha.1
-- Races up to 50 laps, run in blocks: you edit your line every N laps (recommended: a fifth of the race, at least 1) and
-  the cars drive the laps in between by themselves. Fuel range and tyre life stretch with the race, so a few stops are
+- Races up to 50 laps. You can change your line only while your car is in the pits: the race runs until your next
+  planned stop (or an emergency refuel) and stops there, and you may redraw up to 3 segments before you go back out. With
+  no stops queued you cannot edit once the race has started. Fuel range and tyre life stretch with the race, so a few stops are
   enough for a long one.
 - Pit strategy is queued ahead: up to 5 stops, one per lap, only on laps still to come and never the last lap. Adding a
   stop is a lap and a tyre, picked from big tyre icons (soft red, medium yellow, wet blue). Plan it from the map or while
-  editing a segment; stops already behind you are locked.
+  editing a segment; stops already behind you are locked. Stops are also your only chances to edit, so they matter twice.
 - Three tyres: soft (most dry grip, wears fastest), medium (the default), wet (worse in the dry and wears fast there,
   but it is the only tyre that works on a soaked track, where it also lasts longest).
 - Weather comes from the seed: the same phrase and lap count always rain at the same moments (none on the Moon, rarely in

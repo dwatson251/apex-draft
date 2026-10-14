@@ -3,7 +3,7 @@ import {
   BIOMES, CAR_BUDGET, CELL, MAX_AMENDS, PIT_PENALTY, PIT_STOP_TIME, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
   defaultCar, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
   phraseToSeed, previewSegment, projectToGate, randomPhrase, serializeLineFile, setSegment, smooth, validateCar, validateLine, vehicleForSeed,
-  COMPOUNDS, COMPOUND_IDS, MAX_PIT_STOPS, forecast, forecastText, isCompound, recommendedEditEvery, weatherFor,
+  COMPOUNDS, COMPOUND_IDS, MAX_PIT_STOPS, forecast, forecastText, isCompound, weatherFor,
   type CarConfig, type Compound, type Entrant, type Line, type LineFile, type RaceCar, type ShareState, type Stat, type Track, type Vec2, type VehicleId,
 } from "@apex/sim";
 import { CarAudio } from "./audio.ts";
@@ -51,7 +51,7 @@ interface DrawState {
 interface Motion { v: number; acc: number; slip: number; braking: boolean }
 
 export class Game {
-  private settings: Settings = { phrase: "", laps: 3, mode: "race", rivals: 5, car: defaultCar(), realism: true, obstacles: true, editEvery: 1, editAuto: true, startTyre: "medium", pitPlan: [] };
+  private settings: Settings = { phrase: "", laps: 3, mode: "race", rivals: 5, car: defaultCar(), realism: true, obstacles: true, startTyre: "medium", pitPlan: [] };
   private cars: CarConfig[] = [];
   private best: Best = {};
   private imported: LineFile[] = [];
@@ -64,7 +64,7 @@ export class Game {
   private lapNo = 0;
   private draw: DrawState | null = null;
   private pick: { selected: Set<number>; limit: number; bad: Set<number> } | null = null;
-  private play: { tick: number; end: number; speed: number } | null = null;
+  private play: { tick: number; end: number; speed: number; atStop: boolean } | null = null;
   private currentLine!: Line;
   private pickMessage: string | null = null;
   private version = "dev";
@@ -153,8 +153,6 @@ export class Game {
   private normaliseSettings(): void {
     const s = this.settings;
     s.laps = Math.min(50, Math.max(1, Math.round(Number(s.laps)) || 3));
-    if (s.editAuto !== false) { s.editAuto = true; s.editEvery = recommendedEditEvery(s.laps); }
-    s.editEvery = Math.min(s.laps, Math.max(1, Math.round(Number(s.editEvery)) || 1));
     if (!isCompound(s.startTyre)) s.startTyre = "medium";
     s.pitPlan = (Array.isArray(s.pitPlan) ? s.pitPlan : [])
       .filter((p) => p && Number.isInteger(p.lap) && p.lap >= 0 && p.lap <= s.laps - 2 && isCompound(p.tyre))
@@ -169,7 +167,7 @@ export class Game {
     const st = decodeShare(raw);
     if (typeof st === "string") { this.note = `That link did not work: ${st}`; return null; }
     const car: CarConfig = { name: st.car.name || "Standard", accel: st.car.accel, top: st.car.top, grip: st.car.grip, brake: st.car.brake };
-    Object.assign(this.settings, { phrase: st.phrase, laps: st.laps, mode: st.mode, rivals: st.rivals, realism: st.realism, obstacles: st.obstacles, car: validateCar(car) ? defaultCar() : car, editEvery: st.editEvery, editAuto: st.editEvery === recommendedEditEvery(st.laps), startTyre: st.startTyre, pitPlan: st.pitPlan });
+    Object.assign(this.settings, { phrase: st.phrase, laps: st.laps, mode: st.mode, rivals: st.rivals, realism: st.realism, obstacles: st.obstacles, car: validateCar(car) ? defaultCar() : car, startTyre: st.startTyre, pitPlan: st.pitPlan });
     this.normaliseSettings();
     return st;
   }
@@ -181,7 +179,7 @@ export class Game {
       const code = encodeShare({
         phrase: s.phrase, laps: s.laps, mode: s.mode, rivals: s.rivals, car: s.car, obstacles: s.obstacles, realism: s.realism,
         playing: this.inGame, line: this.inGame ? this.shareLine : undefined,
-        editEvery: s.editEvery, startTyre: s.startTyre, pitPlan: s.pitPlan,
+        startTyre: s.startTyre, pitPlan: s.pitPlan,
       });
       history.replaceState(null, "", `#${code}`);
     } catch { /* an address bar is a convenience */ }
@@ -332,7 +330,6 @@ export class Game {
       ${s.realism ? `<p class="blurb forecast">☁ ${esc(this.forecastFor(s.phrase, s.laps, s.obstacles))}</p>` : ""}
       <div class="row">
         <div><label>Laps (1 to 50)</label><input id="laps" class="fancy" type="number" min="1" max="50" value="${s.laps}" ${lock}/></div>
-        <div><label>Edit every (laps)</label><input id="editevery" class="fancy" type="number" min="1" max="${s.laps}" value="${s.editEvery}" ${lock}/></div>
         <div><label>Mode</label><select id="mode" class="fancy" ${lock}><option value="trial" ${s.mode === "trial" ? "selected" : ""}>Time trial</option><option value="race" ${s.mode === "race" ? "selected" : ""}>Race rivals</option></select></div>
         <div ${s.mode === "trial" ? 'style="display:none"' : ""}><label>Rivals</label><select id="rivals" class="fancy" ${lock}>${[1, 2, 3, 4, 5, 6, 7].map((n) => `<option ${n === s.rivals ? "selected" : ""}>${n}</option>`).join("")}</select></div>
       </div>
@@ -340,7 +337,7 @@ export class Game {
         <label><input type="checkbox" id="realism" ${s.realism ? "checked" : ""} ${lock}/> Realism: tyre wear, fuel and pit stops</label>
         <label><input type="checkbox" id="obstacles" ${s.obstacles ? "checked" : ""}/> Obstacles: boxes and water</label>
       </div>
-      <p class="dim blurb">You edit your line every <b>${s.editEvery}</b> lap${s.editEvery === 1 ? "" : "s"}; the recommendation for ${s.laps} laps is ${recommendedEditEvery(s.laps)}.</p>
+      <p class="dim blurb">You can only change your line while you are in the pits, so plan your stops.</p>
       ${racing ? "" : `<label>Starting tyre</label><div class="tyrepick">${COMPOUND_IDS.map((c) => `<button class="tyrebtn ${s.startTyre === c ? "on" : ""}" data-tyre="${c}" title="${esc(COMPOUNDS[c].blurb)}">${tyreIcon(c, 54)}<span>${COMPOUNDS[c].name}</span></button>`).join("")}</div>`}
       ${racing ? '<p class="dim">Laps, mode, rivals and realism are fixed while a race is under way.</p>' : ""}
       <p class="dim">Car: <b>${esc(s.car.name)}</b> (${carCost(s.car)}/${CAR_BUDGET} points)
@@ -375,13 +372,6 @@ export class Game {
     el.querySelector("#realism")!.addEventListener("change", (e) => { s.realism = (e.target as HTMLInputElement).checked; this.persist(); this.renderMenu(); });
     el.querySelector("#laps")!.addEventListener("change", (e) => {
       s.laps = Number((e.target as HTMLInputElement).value);
-      this.normaliseSettings();
-      this.persist();
-      this.renderMenu();
-    });
-    el.querySelector("#editevery")!.addEventListener("change", (e) => {
-      s.editEvery = Number((e.target as HTMLInputElement).value);
-      s.editAuto = false;
       this.normaliseSettings();
       this.persist();
       this.renderMenu();
@@ -785,10 +775,7 @@ export class Game {
     return changedSegments(this.me.lines[this.lapNo]!, this.currentLine);
   }
 
-  /** How many laps run before the next edit stop, starting at lap index `next`. */
-  private blockLaps(next: number): number { return Math.max(1, Math.min(this.settings.editEvery, this.settings.laps - next)); }
-
-  /** The lap the next block starts on (lapNo is the last lap that was raced). */
+  /** The lap after the one in progress when the car stopped (lapNo is the lap it is finishing). */
   private nextLapIndex(): number { return this.race ? this.lapNo + 1 : 0; }
 
   /** What the tank and the plan say: the first lap, if any, on which the car would run dry. */
@@ -834,8 +821,6 @@ export class Game {
     this.view.drawCurves([{ pts: lapCurve(line, this.track.segments.length).map((x) => x.p), color: PLAYER_COLOR, width: 3 }]);
     if (this.race) this.drawCarsAt(this.race.tick);
     const next = this.nextLapIndex();
-    const count = this.blockLaps(next);
-    const label = count > 1 ? `laps ${next + 1} to ${next + count}` : `lap ${next + 1}`;
     const tooMany = !firstLap && changed.length > MAX_AMENDS;
     const real = this.settings.realism;
     const me = this.race?.cars.find((c) => c.entrant.id === ME);
@@ -850,13 +835,13 @@ export class Game {
       ${(me?.pits ?? 0) === 0 && this.settings.pitPlan.length === 0 ? `<p class="dim">Finishing without a single stop adds ${PIT_PENALTY.toFixed(1)}s.</p>` : ""}`;
     this.ui.innerHTML = "";
     this.show("top", `
-      <h2>${firstLap ? "Your line" : `Up next: ${label} of ${this.settings.laps}`}</h2>
+      <h2>${firstLap ? "Your line" : `In the pits after lap ${next} of ${this.settings.laps}`}</h2>
       ${check.ok ? '<p class="good">Your line is clear all the way round.</p>' : '<p class="bad">Your line leaves the road or hits something, in the red segments.</p>'}
       ${gauges}
       ${firstLap && real ? `<p class="dim">☁ ${esc(this.forecastFor(this.settings.phrase, this.settings.laps, this.settings.obstacles))}</p>` : ""}
       ${tooMany ? '<p class="bad">Too many segments changed. Revert and try again.</p>' : ""}
       ${message ? `<p class="bad">${esc(message)}</p>` : ""}`);
-    const goLabel = firstLap ? "Race!" : next + count >= this.settings.laps ? (count === 1 ? "Final lap!" : "Final stretch!") : `Run ${label}`;
+    const goLabel = firstLap ? "Race!" : "Back out";
     this.bar.set([
       { id: "edit", label: "Edit segments", color: "cyan", disabled: !sel.size, tip: "Redraw the segments you have selected on the map. Click segments to select them; scroll to zoom and drag to pan.", onClick: () => {
         const queue = [...sel].sort((a, b) => a - b);
@@ -866,10 +851,10 @@ export class Game {
         this.draw = { mode: "amend", line, seg: first, pts: line.segs[first]!.slice(0, -1), end: line.segs[first]!.at(-1)!, queue, drag: null, warn: "" };
         this.renderDraw();
       } },
-      ...(!firstLap && changed.length ? [{ id: "revert", label: "Revert", color: "orange" as const, tip: "Undo every change you have made to your line since the last stop.", onClick: () => { this.currentLine = this.me.lines[this.lapNo]!; this.shareLine = this.currentLine; this.syncHash(); this.pick = null; this.showPicker(null); } }] : []),
+      ...(!firstLap && changed.length ? [{ id: "revert", label: "Revert", color: "orange" as const, tip: "Undo every change you have made to your line during this stop.", onClick: () => { this.currentLine = this.me.lines[this.lapNo]!; this.shareLine = this.currentLine; this.syncHash(); this.pick = null; this.showPicker(null); } }] : []),
       ...(real ? [{ id: "pits", label: `Pit strategy${this.settings.pitPlan.length ? ` (${this.settings.pitPlan.length})` : ""}`, color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap, and none on the last lap.", onClick: () => this.togglePlan() }] : []),
-      { id: "go", label: goLabel, color: "yellow", wide: true, disabled: !(check.ok && !tooMany), tip: firstLap ? "Start the race with this line." : `Run ${label} on your line, then stop to edit again.`, onClick: () => { this.pick = null; this.closePlan(); if (firstLap) this.startRace(); else this.nextBlock(); } },
-    ], `${firstLap ? "Select segments on the map to edit them, or race." : `You may change up to <b>${MAX_AMENDS}</b> segments before ${label}: <b>${used}</b> used.`} <span class="dim">Scroll to zoom, drag to pan.</span>`);
+      { id: "go", label: goLabel, color: "yellow", wide: true, disabled: !(check.ok && !tooMany), tip: firstLap ? "Start the race with this line." : "Leave the pits and carry on with your line as it now is.", onClick: () => { this.pick = null; this.closePlan(); if (firstLap) this.startRace(); else this.resumeRace(); } },
+    ], `${firstLap ? `Select segments on the map to edit them, or race. <span class="dim">Once the race starts you can only change your line during a pit stop.</span>` : `You are in the pits: change up to <b>${MAX_AMENDS}</b> segments before you go back out (<b>${used}</b> used).`} <span class="dim">Scroll to zoom, drag to pan.</span>`);
     if (this.planOpen) this.renderPlan();
   }
 
@@ -914,12 +899,12 @@ export class Game {
   }
 
   private renderPlan(): void {
-    const s = this.settings, next = this.nextLapIndex(), count = this.blockLaps(next);
+    const s = this.settings, next = this.nextLapIndex();
     const free = this.freeStopLaps(), full = s.pitPlan.length >= MAX_PIT_STOPS;
     if (!free.includes(this.planLap)) this.planLap = free.find((l) => l >= this.planLap) ?? free[0] ?? next;
     const stopAt = new Map(s.pitPlan.map((p) => [p.lap, p.tyre]));
     const cells = Array.from({ length: s.laps }, (_, l) => {
-      const cls = [l < next ? "done" : l < next + count ? "now" : "", l === next ? "edit" : "", stopAt.has(l) ? "stop" : ""].join(" ");
+      const cls = [l < next ? "done" : l === next ? "now" : "", stopAt.has(l) ? "stop" : ""].join(" ");
       const col = stopAt.has(l) ? `style="--stop:#${COMPOUNDS[stopAt.get(l)!].color.toString(16).padStart(6, "0")}"` : "";
       return `<i class="${cls}" ${col} title="Lap ${l + 1}"></i>`;
     }).join("");
@@ -956,32 +941,32 @@ export class Game {
   // ---------- racing ----------
   private startRace(): void {
     this.rivalEntrants = this.settings.mode === "trial" ? [] : this.makeRivals();
-    const count = this.blockLaps(0);
-    this.me = { id: ME, name: "You", car: this.playerCar(), lines: Array.from({ length: count }, () => this.currentLine), isPlayer: true, pitPlan: this.settings.pitPlan, startTyre: this.settings.startTyre };
+    this.me = { id: ME, name: "You", car: this.playerCar(), lines: Array.from({ length: this.settings.laps }, () => this.currentLine), isPlayer: true, pitPlan: this.settings.pitPlan, startTyre: this.settings.startTyre };
     this.race = new Race(this.track, [this.me, ...this.rivalEntrants], this.settings.laps, { realism: this.settings.realism });
-    this.lapNo = count - 1;
+    this.lapNo = 0;
     this.view.clearSkids();
     this.skidTick = 0;
-    this.runAndPlay(0, this.lapNo);
+    this.runAndPlay(0);
   }
 
-  /** Run the next block of laps with the line as it now is, then stop to edit again. */
-  private nextBlock(): void {
-    const race = this.race!, next = this.lapNo + 1, count = this.blockLaps(next);
-    for (let l = next; l < next + count; l++) this.me.lines[l] = this.currentLine;
+  /** Back out of the pits: the line as it now is is the line for every lap from here, and the bots read the road again. */
+  private resumeRace(): void {
+    const race = this.race!, next = this.lapNo + 1;
+    for (let l = next; l < this.settings.laps; l++) this.me.lines[l] = this.currentLine;
     this.me.pitPlan = this.settings.pitPlan;
-    race.replanBots(next, count);
-    this.lapNo = next + count - 1;
-    this.runAndPlay(race.tick, this.lapNo);
+    race.replanBots(next, this.settings.laps - next);
+    this.runAndPlay(race.tick);
   }
 
-  private runAndPlay(fromTick: number, endLap: number): void {
+  /** Run the race up to the player's next pit stop (or to the end), then play it back. */
+  private runAndPlay(fromTick: number): void {
     const race = this.race!;
-    race.runLap(ME, endLap);
+    const atStop = race.runToStop(ME);
     const mine = race.cars.find((c) => c.entrant.id === ME)!;
-    // the last lap: let everyone else finish
-    if (endLap >= this.settings.laps - 1 || mine.out) race.runToEnd();
-    this.play = { tick: fromTick, end: race.tick, speed: 1 };
+    // no more stops for the player: let everyone else finish
+    if (!atStop) race.runToEnd();
+    if (atStop) this.lapNo = mine.lap;
+    this.play = { tick: fromTick, end: race.tick, speed: 1, atStop };
     const first = race.events.findIndex((e) => e.tick >= fromTick);
     this.eventIdx = first < 0 ? race.events.length : first;
     this.skidTick = fromTick;
@@ -999,7 +984,7 @@ export class Game {
     const speeds = [1, 3, 8, 20];
     this.bar.set([
       { id: "speed", label: "1×", color: "green", tip: "Change how fast the race plays: 1×, 3×, 8× or 20×.", onClick: () => { const q = this.play; if (q) { q.speed = speeds[(speeds.indexOf(q.speed) + 1) % speeds.length]!; const b = this.bar.button("speed"); if (b) b.textContent = `${q.speed}×`; } } },
-      { id: "skip", label: "Skip ahead", color: "blue", tip: "Jump to the end of this block of laps.", onClick: () => { const q = this.play; if (q) q.tick = q.end; } },
+      { id: "skip", label: "Skip ahead", color: "blue", tip: "Jump ahead to your next pit stop, or to the end of the race.", onClick: () => { const q = this.play; if (q) q.tick = q.end; } },
       { id: "sound", label: this.audio.isMuted() ? "Sound off" : "Sound on", color: "violet", tip: "Turn the engines and effects on or off (M).", onClick: () => this.toggleMute() },
     ]);
   }
@@ -1153,8 +1138,8 @@ export class Game {
       this.audio.stopAll();
       this.updateRain(0);
       this.bar.clear();
-      if (race.over || this.lapNo >= this.settings.laps - 1 || me.out) this.showResults();
-      else this.showPicker(null);
+      if (p.atStop && !race.over) this.showPicker(null);
+      else this.showResults();
     }
   }
 

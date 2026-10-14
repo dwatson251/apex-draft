@@ -26,7 +26,7 @@ const OUT = process.env.SHOTS || "";
   const click = async (w, opts) => { const s = await toScreen(w); await page.mouse.click(s.x, s.y, opts); };
   const drag = async (from, to) => { const a = await toScreen(from), b = await toScreen(to); await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 3 }); await page.mouse.move(b.x, b.y, { steps: 3 }); await page.mouse.up(); };
   const open = async (url) => { await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(url); await page.reload(); };
-  const linkFor = (o) => G((o) => { const s = window.__sim; const t = s.generateTrack(o.phrase); return "#" + s.encodeShare({ phrase: t.phrase, laps: o.laps ?? 3, mode: "race", rivals: 5, car: { name: "Standard", accel: 6, top: 6, grip: 6, brake: 6 }, obstacles: true, realism: true, playing: true, line: o.segs === undefined ? s.botLine(t, 5, 1) : { start: s.botLine(t, 5, 1).start, segs: s.botLine(t, 5, 1).segs.slice(0, o.segs) }, editEvery: o.editEvery ?? 1, startTyre: "medium", pitPlan: [] }); }, o);
+  const linkFor = (o) => G((o) => { const s = window.__sim; const t = s.generateTrack(o.phrase); return "#" + s.encodeShare({ phrase: t.phrase, laps: o.laps ?? 3, mode: "race", rivals: 5, car: { name: "Standard", accel: 6, top: 6, grip: 6, brake: 6 }, obstacles: true, realism: true, playing: true, line: o.segs === undefined ? s.botLine(t, 5, 1) : { start: s.botLine(t, 5, 1).start, segs: s.botLine(t, 5, 1).segs.slice(0, o.segs) }, startTyre: "medium", pitPlan: o.plan ?? [] }); }, o);
 
   // ---------------- the title ----------------
   await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=1"); await page.waitForSelector("#go"); await settle(2500);
@@ -89,15 +89,32 @@ const OUT = process.env.SHOTS || "";
   await page.mouse.move(500, 400); await page.mouse.down(); await page.mouse.move(380, 330, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(600);
   ok("dragging pans, and does not select a segment", Math.abs((await G(() => window.__game.view.root.position.x)) - x0) > 60 && (await G(() => window.__game.pick.selected.size)) === 0);
 
-  // ---------------- racing: camera, controls, blocks ----------------
-  await open(BASE + (await linkFor({ phrase: "brave-owl-rides-melons", laps: 4, editEvery: 2 }))); await page.waitForSelector("#bar-go"); await settle(1800);
+  // ---------------- racing: camera, controls, and editing only in the pits ----------------
+  await open(BASE + (await linkFor({ phrase: "brave-owl-rides-melons", laps: 4, plan: [{ lap: 1, tyre: "wet" }] }))); await page.waitForSelector("#bar-go"); await settle(1800);
+  ok("the menu has no edit-every setting any more", (await G(() => window.__game.settings.editEvery)) === undefined && (await page.$("#editevery")) === null);
   await page.click("#bar-go"); await page.waitForSelector("#bar-skip");
   const z0 = await G(() => window.__game.view.cam.zoom); await page.waitForTimeout(2500); const z1 = await G(() => window.__game.view.cam.zoom);
   ok("the camera eases in on the car", z1 > z0 && z1 < 2.5, `${z0.toFixed(2)} -> ${z1.toFixed(2)}`);
+  ok("the race is running to the player's stop, which comes at the end of lap 2", await G(() => window.__game.play && window.__game.play.atStop && window.__game.lapNo === 1));
   await page.click("#bar-skip"); await page.waitForSelector("#bar-go", { timeout: 25000 }); await settle(2500);
-  ok("after the first block the whole map is back, ready for edits", Math.abs((await G(() => window.__game.view.cam.zoom)) - 1) < 0.03 && (await page.textContent(".panel.top")).includes("laps 3 to 4"));
+  ok("in the pit stop the whole map is back and you can edit", Math.abs((await G(() => window.__game.view.cam.zoom)) - 1) < 0.03 && (await page.textContent(".panel.top")).includes("In the pits after lap 2"));
+  ok("the button says Back out", (await page.textContent("#bar-go")).includes("Back out"));
+  ok("the car is stopped in its box", await G(() => { const g = window.__game, me = g.race.cars.find((c) => c.entrant.id === "me"); return me.dwell > 0 && me.v === 0; }));
+  // edit three segments (the limit), then leave
+  const sel = await G(() => { const g = window.__game, line = g.currentLine; return [2, 3, 4].map((i) => ({ i, p: line.segs[i][0] })); });
+  for (const q of sel) { await click(q.p); }
+  ok("three segments can be selected", (await G(() => window.__game.pick.selected.size)) === 3);
+  await click((await G(() => window.__game.currentLine.segs[5][0])));
+  ok("a fourth is refused", (await G(() => window.__game.pick.selected.size)) === 3);
   await page.click("#bar-go"); await page.waitForSelector("#bar-skip"); await page.click("#bar-skip"); await page.waitForSelector("#again", { timeout: 30000 });
-  ok("the last block ends in the results, with the camera back out", true);
+  ok("after the only stop it runs to the results without stopping again", true);
+
+  // no stops: no chance to edit once the race has started
+  await open(BASE + (await linkFor({ phrase: "brave-owl-rides-melons", laps: 3 }))); await page.waitForSelector("#bar-go"); await settle(1800);
+  await page.click("#bar-go"); await page.waitForSelector("#bar-skip");
+  ok("with no stops queued the race runs straight to the end", await G(() => window.__game.play && !window.__game.play.atStop));
+  await page.click("#bar-skip"); await page.waitForSelector("#again", { timeout: 30000 });
+  ok("and goes to the results", true);
 
   ok("no page errors", errs.length === 0, errs.slice(0, 3).join(" | "));
   await page.close(); await browser.close();

@@ -29,8 +29,8 @@ Installers for Windows, Linux (AppImage) and macOS are on the
   hum with their speed, and squeal in corners (`M` mutes). Clouds and birds pass overhead.
 - **Power-ups.** Drive your line through a pickup for the rest of that segment: **B**oost (speed), **G**rip (cornering)
   or **H** ghost (pass through cars).
-- **Long races and strategy.** Up to 50 laps, in blocks: you edit your line every N laps. Queue up to five pit stops
-  in advance (a lap and a tyre: soft, medium or wet). The seed brings weather: rain wets the road unevenly, the lines
+- **Long races and strategy.** Up to 50 laps. You can only change your line while you are in the pits (up to 3 segments
+  per stop), so queue up to five pit stops in advance (a lap and a tyre: soft, medium or wet). The seed brings weather: rain wets the road unevenly, the lines
   cars drive dry it, and the dry line is where slicks want to be. You only get a vague forecast (rain at the beginning, middle or end of the race), never the lap or how long.
 - **Contact.** Cars can touch. A shunt from behind, a squeeze alongside and a T-bone each do what you would expect.
 - **Tyres, fuel and pit stops.** Tyres wear, so grip fades; the tank runs down. Tick "Pit at the end of this lap" in the

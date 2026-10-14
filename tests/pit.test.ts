@@ -196,3 +196,52 @@ describe("biomes", () => {
     expect(BIOMES.moon.accel).toBeGreaterThan(1);
   });
 });
+
+describe("stopping the race at the player's pit stops", () => {
+  const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
+  const make = (plan: { lap: number; tyre?: "soft" | "medium" | "wet" }[], laps = 8) => {
+    const es: Entrant[] = Array.from({ length: 3 }, (_, i) => ({ id: `b${i}`, name: `B${i}`, car: defaultCar(), lines: [botLine(t, i + 1, 0.8)], isPlayer: i === 0, pitPlan: i === 0 ? plan : undefined }));
+    return new Race(t, es, laps, { realism: true, weather: false });
+  };
+
+  it("stops exactly when the player's stop begins, once for each stop", () => {
+    const r = make([{ lap: 1 }, { lap: 4 }]);
+    const me = r.cars.find((c) => c.entrant.id === "b0")!;
+    expect(r.runToStop("b0")).toBe(true);
+    expect(me.dwell).toBeGreaterThan(0);
+    expect(me.lap).toBe(1);                 // the stop at the end of lap 2 (index 1)
+    expect(me.v).toBe(0);
+    expect(r.runToStop("b0")).toBe(true);
+    expect(me.lap).toBe(4);
+    expect(r.runToStop("b0")).toBe(false);  // no more stops: it runs to the end of the player's race
+    expect(me.finishTime).not.toBeNull();
+  });
+
+  it("returns false when there are no stops and the tank lasts", () => {
+    const r = make([], 3);
+    expect(r.runToStop("b0")).toBe(false);
+    expect(r.cars.find((c) => c.entrant.id === "b0")!.finishTime).not.toBeNull();
+  });
+
+  it("a changed line takes effect after the stop, and not before", () => {
+    const r = make([{ lap: 1 }], 6);
+    const me = r.cars.find((c) => c.entrant.id === "b0")!;
+    const e = me.entrant;
+    expect(r.runToStop("b0")).toBe(true);
+    const before = me.prof;
+    const other = botLine(t, 77, 0.3);
+    for (let l = 2; l < 6; l++) e.lines[l] = other;
+    // the lap in progress keeps the path it had
+    expect(me.prof).toBe(before);
+    r.runToEnd();
+    expect(me.finishTime).not.toBeNull();
+    expect(me.lap).toBe(6);
+  });
+
+  it("an emergency refuel is a stop too", () => {
+    const r = make([], 7);
+    const me = r.cars.find((c) => c.entrant.id === "b0")!;
+    expect(r.runToStop("b0")).toBe(true);
+    expect(me.emergency || me.emergencies > 0 || me.limp || me.pitIn).toBe(true);
+  });
+});

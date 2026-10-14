@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { LOOKS } from "./look.ts";
 import {
-  PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, PIT_LIMIT_A, PIT_SPEED, ROAD_HALF, Rng, centreAt, cross, dot, laneCentre, pitPoint, sub,
+  PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, ROAD_HALF, Rng, centreAt, cross, dot, laneCentre, pitPoint, sub,
   type Segment, type Track, type Vec2,
 } from "@apex/sim";
 
@@ -288,26 +288,6 @@ function pitArt(track: Track, head: boolean): Container {
     }
   }
   c.addChild(marks);
-
-  // the speed-limit roundel where the lane starts, and the word PIT on the tarmac
-  const sign = -PIT_LIMIT_A + 3;
-  if (sign >= a0 && sign <= a1) {
-    const p = P(sign, PIT_LAT);
-    const g = new Container();
-    g.addChild(new Graphics().circle(0, 0, 4.2).fill({ color: 0xf1f1ee, alpha: 0.92 }).stroke({ width: 1, color: 0xd8393a }));
-    const t = new Text({ text: String(PIT_SPEED), style: { fontSize: 5.4, fill: 0x14161c, fontWeight: "700" } });
-    t.anchor.set(0.5);
-    g.addChild(t);
-    g.position.set(p.x, p.y); g.rotation = angle;
-    c.addChild(g);
-  }
-  const word = head ? 22 : -40;
-  if (word >= a0 && word <= a1) {
-    const p = P(word, PIT_LAT);
-    const t = new Text({ text: "PIT", style: { fontSize: 7, fill: 0xf1f1ee, fontWeight: "700", letterSpacing: 1.5 } });
-    t.anchor.set(0.5); t.alpha = 0.55; t.rotation = Math.cos(angle + Math.PI / 2) < -1e-6 ? angle - Math.PI / 2 : angle + Math.PI / 2; t.position.set(p.x, p.y);
-    c.addChild(t);
-  }
 
   // the pit building: a row of bays with team-coloured doors, a roof ridge, lights; tyre stacks at each end
   const gar = new Graphics();
