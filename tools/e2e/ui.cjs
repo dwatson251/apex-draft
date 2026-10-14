@@ -137,7 +137,7 @@ const OUT = process.env.SHOTS || "";
   ok("and goes to the results", true);
 
   // ---------------- hidden circuits ----------------
-  for (const [phrase, name, biome] of [["donington-park", "Donington Park", "Countryside"], ["oval", "The Oval", "Countryside"], ["daytona", "Daytona", "Countryside"], ["willow-springs", "Willow Springs", "Desert"]]) {
+  for (const [phrase, name, biome] of [["donington-park", "Donington Park", "Countryside"], ["oval", "The Oval", "Countryside"], ["daytona", "Daytona", "Countryside"], ["willow-springs", "Willow Springs", "Desert"], ["le-mans", "Circuit de la Sarthe", "Countryside"], ["lago-maggiore", "Autodrome Lago Maggiore", "Countryside"]]) {
     await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=1"); await page.waitForSelector("#phrase");
     await page.fill("#phrase", phrase); await page.keyboard.press("Enter"); await page.waitForTimeout(600);
     const chips = await page.textContent(".chips");
@@ -146,6 +146,7 @@ const OUT = process.env.SHOTS || "";
     await settle(2500); await shot(`circuit-${phrase}`);
   }
   await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(BASE + "?t=1"); await page.waitForSelector("#phrase");
+  ok("up to 31 rivals can be picked", (await page.$$eval("#rivals option", (o) => o.length)) === 31);
   ok("a random phrase shows no circuit", !(await page.textContent(".chips")).includes("km"));
   // a circuit plays like any track: a shared line on the oval loads, races and finishes
   await open(BASE + (await linkFor({ phrase: "oval", laps: 2 }))); await page.waitForSelector("#bar-go"); await settle(1800);

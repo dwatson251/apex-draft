@@ -10,11 +10,13 @@ import { WetField } from "./trackwet.ts";
 import type { Line } from "./line.ts";
 import { PIT_PENALTY, PIT_STOP_TIME } from "./pit.ts";
 import { buildProfile, indexAt, sampleAt, type Profile } from "./profile.ts";
-import { trackLength, type Track } from "./track.ts";
+import { nearbySegments, trackLength, type Track } from "./track.ts";
 
 export const TICK = 1 / 60;
-/** Distance between grid slots on the start line, units. */
-export const GRID_GAP = 14;
+/** Distance between rows of the starting grid, units; the second car of a row sits half a row back. */
+export const GRID_GAP = 16;
+/** How far either side of the middle of the road the two columns of the grid sit. */
+export const GRID_SIDE = 8;
 /** Centre-to-centre gap the cars try to keep to whatever is ahead on their path, units. */
 export const SAFE_GAP = 11;
 /** Rough centre-to-centre distance at which two cars touch (it really depends on the two vehicles). */
@@ -101,6 +103,8 @@ export interface Entrant {
   pitPlan?: PitStop[];
   /** tyre on the grid; medium if left out */
   startTyre?: Compound;
+  /** the fastest lap this entrant has set on this track; the grid is ordered by the quicker of that and its ideal lap */
+  bestLap?: number;
   /** how a bot draws its lines, so that it can redraw them as the road changes */
   bot?: { seed: number; skill: number };
 }
@@ -108,6 +112,8 @@ export interface Entrant {
 export interface RaceCar {
   entrant: Entrant;
   slot: number;
+  /** sideways distance from the line this car's grid slot puts it at; it melts away as the car drives off */
+  gridOff: number;
   /** -1 on the run-up to the line, then 0-based lap index; equals the lap count when finished */
   lap: number;
   /** arclength along the current lap's path */
@@ -234,20 +240,30 @@ export class Race {
     this.weather = rules.weather === false ? { showers: [] } : weatherFor(track.seed, laps, track.biome);
     this.field = new WetField(track);
     const ranked = entrants
-      .map((e, i) => ({ e, i, ideal: this.profile(e, 0).ideal }))
+      .map((e, i) => ({ e, i, ideal: Math.min(this.profile(e, 0).ideal, e.bestLap ?? Infinity) }))
       .sort((a, b) => a.ideal - b.ideal || a.i - b.i);
     ranked.forEach(({ e }, slot) => {
       const p0 = this.profile(e, 0);
-      // lines differ, so two grid slots can land on top of each other: slide this car back until it is clear
-      let back = GRID_GAP * slot;
-      const clear = (b: number) => this.cars.every((o) => {
-        const sNew = slot === 0 ? 0 : p0.length - b;
-        return Math.hypot(sampleAt(p0, p0.x, sNew) - o.x, sampleAt(p0, p0.y, sNew) - o.y) > SAFE_GAP + 2;
-      });
-      for (let i = 0; slot > 0 && i < 60 && !clear(back); i++) back += 3;
+      // two columns, staggered: the pole car on the line, its neighbour half a row back on the other side, and so on back
+      let back = GRID_GAP * (slot >> 1) + (slot & 1) * (GRID_GAP / 2);
+      const side: 1 | -1 = slot & 1 ? -1 : 1;
+      // on a bend the columns bunch up: slide back until this car is clear of everybody already on the grid
+      const spot = (b: number) => {
+        const s0 = slot === 0 ? 0 : p0.length - b;
+        const off = this.gridOffset(p0, s0, side);
+        const h = Math.atan2(sampleAt(p0, p0.y, s0 + 1) - sampleAt(p0, p0.y, s0 - 1), sampleAt(p0, p0.x, s0 + 1) - sampleAt(p0, p0.x, s0 - 1));
+        return { s0, off, x: sampleAt(p0, p0.x, s0) - Math.sin(h) * off, y: sampleAt(p0, p0.y, s0) + Math.cos(h) * off };
+      };
+      for (let i = 0; slot > 0 && i < 60; i++) {
+        const q = spot(back);
+        if (this.cars.every((o) => Math.hypot(q.x - o.x, q.y - o.y) > SAFE_GAP + 2)) break;
+        back += 2;
+      }
+      const at = spot(back);
+      const sNew = at.s0;
       const c: RaceCar = {
         entrant: e, slot, lap: slot === 0 ? 0 : -1,
-        s: slot === 0 ? 0 : p0.length - back, v: 0, x: 0, y: 0, h: 0,
+        s: sNew, gridOff: at.off, v: 0, x: 0, y: 0, h: 0,
         ghost: false, stuck: 0, ghostFor: 0, powered: false, freeUntil: 0, lapStart: slot === 0 ? [0] : [], finishTime: null,
         trace: [], prog: [], vtrace: [], gtrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
@@ -356,6 +372,25 @@ export class Race {
     c.prof = this.build(c.entrant, lap, c.pitIn, c.pitOut, real ? 1 - TYRE_GRIP_LOSS * (1 - c.tyre) : 1, real ? 1 - FUEL_MASS_ACCEL * (c.fuel / TANK) : 1, real ? c.compound : undefined);
   }
 
+  /** Sideways shift from a car's own line that puts it in its grid column: `side` is 1 for one column, -1 for the other. */
+  private gridOffset(p: Profile, sAt: number, side: 1 | -1): number {
+    const lx = sampleAt(p, p.x, sAt), ly = sampleAt(p, p.y, sAt);
+    const h = Math.atan2(sampleAt(p, p.y, sAt + 1) - sampleAt(p, p.y, sAt - 1), sampleAt(p, p.x, sAt + 1) - sampleAt(p, p.x, sAt - 1));
+    let best = Infinity, cx = lx, cy = ly, tx = Math.cos(h), ty = Math.sin(h);
+    for (const seg of nearbySegments(this.track, { x: lx, y: ly })) {
+      for (let i = 0; i < seg.center.length; i++) {
+        const q = seg.center[i]!, d = (q.x - lx) ** 2 + (q.y - ly) ** 2;
+        if (d >= best) continue;
+        const a = seg.center[Math.max(0, i - 1)]!, b = seg.center[Math.min(seg.center.length - 1, i + 1)]!;
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        best = d; cx = q.x; cy = q.y; tx = (b.x - a.x) / len; ty = (b.y - a.y) / len;
+      }
+    }
+    // a point GRID_SIDE to one side of the middle of the road, and how far that is from the line, across the way the car faces
+    const px = cx - ty * side * GRID_SIDE, py = cy + tx * side * GRID_SIDE;
+    return (px - lx) * -Math.sin(h) + (py - ly) * Math.cos(h);
+  }
+
   private place(c: RaceCar): void {
     const p = c.prof;
     const bx = sampleAt(p, p.x, c.s), by = sampleAt(p, p.y, c.s);
@@ -364,8 +399,9 @@ export class Race {
     // at the very end of an open lap the last samples can coincide: keep the heading we had
     if (Math.hypot(x1 - x0, y1 - y0) > 0.05) c.hp = Math.atan2(y1 - y0, x1 - x0);
     // a car that has been knocked sideways sits off its line and points a little along where it is going
-    c.x = bx - Math.sin(c.hp) * c.off;
-    c.y = by + Math.cos(c.hp) * c.off;
+    const lat = c.off + c.gridOff;
+    c.x = bx - Math.sin(c.hp) * lat;
+    c.y = by + Math.cos(c.hp) * lat;
     c.h = c.hp + Math.max(-0.6, Math.min(0.6, Math.atan2(c.offV, Math.max(c.v, 15)))) * 0.7;
     const power = p.ghost[indexAt(p, c.s)] === 1;
     // A ghost only turns solid once nobody is inside it, so the power-up never ends with two cars overlapping.
@@ -610,6 +646,7 @@ export class Race {
       const moved = n.s - c.s;
       c.v = n.v;
       c.s = n.s;
+      if (c.gridOff !== 0 && moved > 0) c.gridOff = Math.abs(c.gridOff) < 0.01 ? 0 : c.gridOff * Math.exp(-moved / 30);
       if (this.rules.realism && moved > 0) {
         const p = c.prof;
         c.fuel = Math.max(0, c.fuel - moved * c.perUnit * this.biome.fuel);

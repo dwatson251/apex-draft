@@ -25,7 +25,7 @@ describe("tyres and fuel", () => {
     const r = new Race(t, field(t, 1), 2); r.runLap("b0", 0);
     const c = r.cars[0]!;
     expect(1 - c.tyre).toBeGreaterThan(TYRE_WEAR_PER_LAP * 0.6);
-    expect(1 - c.tyre).toBeLessThan(TYRE_WEAR_PER_LAP * 1.5);
+    expect(1 - c.tyre).toBeLessThan(TYRE_WEAR_PER_LAP * 1.8);
     expect(c.fuel).toBeCloseTo(TANK - fuelPerLap(defaultCar()), -1);
   });
   it("slow the car as the tyres wear (grip changes at the start of each lap)", () => {

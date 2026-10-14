@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- Three more hidden circuits: `le-mans` (Circuit de la Sarthe, squashed to fit: Tertre Rouge, the Mulsanne straight and
+  both chicanes, Arnage, the Porsche curves), `lago-maggiore` (Autodrome Lago Maggiore, full course) and a richer
+  `daytona` (tri-oval kink, Turn 1, infield esses, chicanes, the banking as a wide arc). Each uses a bigger grid than a
+  random track. Their shapes are approximations from limited descriptions, not maps.
+- A new piece, `esses` (a flowing double S), joins kink, chicane, sweeper and uturn in the random pool.
+- Grids up to 32 cars (you and 31 rivals), in two staggered columns, ordered by fastest lap: each car's best possible lap, and
+  for you the quicker of that and the fastest lap you have set on this track. The standings list scrolls and keeps your row
+  in view. Share links now carry up to 31 rivals (older links still open).
+- Power-ups are switched off for now (`POWERUPS_ENABLED` in the sim): no pickups appear and nothing else about a track changes.
 - Hidden circuits: type `donington-park`, `daytona`, `willow-springs` or `oval` as the track phrase and you get that
   circuit, drawn on the grid as a simplified copy (the right corners in the right order and direction, not a survey).
   Each fixes its own setting (Willow Springs is in the desert); weather and the machines still come from the phrase.

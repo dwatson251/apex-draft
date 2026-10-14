@@ -106,7 +106,7 @@ function lab(n: number, spots: { s: number; v: number; off?: number; offV?: numb
   const any = r as any;
   r.cars.forEach((c, i) => {
     const sp = spots[i]!;
-    c.lap = 0; c.s = sp.s; c.v = sp.v; c.off = sp.off ?? 0; c.offV = sp.offV ?? 0; c.freeUntil = 1e9;
+    c.lap = 0; c.s = sp.s; c.v = sp.v; c.gridOff = 0; c.off = sp.off ?? 0; c.offV = sp.offV ?? 0; c.freeUntil = 1e9;
     c.prof = any.profile(c.entrant, 0);
     any.place(c);
   });
@@ -148,9 +148,9 @@ describe("in a race", () => {
   it("a car carried into a bend faster than it allows runs wide, then slows and rejoins", () => {
     const { r, t, run } = lab(1, [{ s: 0, v: 0 }]);
     const c = r.cars[0]!, p = c.prof;
-    // the tightest part of the lap
+    // the tightest ordinary bend of the lap (not a pinch, which a car can brake for in time)
     let at = 0;
-    for (let i = 0; i < p.n; i++) if (p.kap[i]! > p.kap[at]!) at = i;
+    for (let i = 0; i < p.n; i++) if (p.kap[i]! < 0.1 && p.kap[i]! > p.kap[at]!) at = i;
     // already braking on the limit, 20 units before it, then shoved forward by a shunt from behind
     c.s = Math.max(0, at * p.ds - 20);
     c.v = p.vLim[Math.round(c.s / p.ds)]! + 18;

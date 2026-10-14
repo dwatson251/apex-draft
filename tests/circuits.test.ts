@@ -29,6 +29,9 @@ describe("hidden circuits", () => {
     expect(generateTrack("daytona").circuit?.name).toBe("Daytona");
     expect(generateTrack("Willow_Springs!").circuit?.id).toBe("willow-springs");
     expect(generateTrack("big willow").circuit?.id).toBe("willow-springs");
+    expect(generateTrack("Circuit de la Sarthe").circuit?.id).toBe("le-mans");
+    expect(generateTrack("Autodrome Lago Maggiore").circuit?.id).toBe("lago-maggiore");
+    expect(generateTrack("Daytona International Speedway").circuit?.id).toBe("daytona");
   });
 
   it("are never found by a random phrase", () => {
@@ -39,6 +42,12 @@ describe("hidden circuits", () => {
   for (const c of CIRCUITS) {
     describe(c.name, () => {
       const t = generateTrack(c.id);
+      it("starts a full grid of 32 and gets them all home", () => {
+        const es = Array.from({ length: 32 }, (_, i) => ({ id: `c${i}`, name: `c${i}`, car: defaultCar(), lines: [botLine(t, 5 + i, 0.4 + (i % 10) / 18)], isPlayer: i === 0 }));
+        const r = new Race(t, es, 2, { realism: false });
+        r.runToEnd();
+        expect(r.results().every((x) => x.finishTime !== null && !x.dnf)).toBe(true);
+      });
       it("is a valid closed loop with a straight start line, a fixed setting and room between roads", () => {
         expect(checkTrack(t)).toEqual([]);
         expect(t.segments.length).toBe(c.cells.length);
@@ -59,7 +68,7 @@ describe("hidden circuits", () => {
       it("gives the same track every time and a sane lap", () => {
         expect(trackLength(generateTrack(c.id))).toBe(trackLength(t));
         expect(trackLength(t)).toBeGreaterThan(1200);
-        expect(trackLength(t)).toBeLessThan(3200);
+        expect(trackLength(t)).toBeLessThan(6000);
       });
       it("runs an 8-car race to the flag with every car finishing", () => {
         const es = Array.from({ length: 8 }, (_, i) => ({ id: `c${i}`, name: `c${i}`, car: defaultCar(), lines: [botLine(t, 2 + (i % 4), 1)], isPlayer: false }));
@@ -92,7 +101,7 @@ describe("the new pieces in random tracks", () => {
       expect(t.segments[0]!.kind).toBe("straight");
       expect(t.segments.at(-1)!.kind).toBe("straight");
     }
-    for (const k of ["kink", "chicane", "sweeper", "uturn"]) expect(seen.has(k), k).toBe(true);
+    for (const k of ["kink", "chicane", "esses", "sweeper", "uturn"]) expect(seen.has(k), k).toBe(true);
   });
   it("leave the layout of the cells exactly as it was", () => {
     for (const p of phrases.slice(0, 80)) {

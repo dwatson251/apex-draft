@@ -9,7 +9,7 @@ function lab(spots: { s: number; v: number }[], rules: { realism: boolean; draft
   const r = new Race(t, es, 3, rules);
   const any = r as any;
   r.cars.forEach((c, i) => {
-    c.lap = 0; c.s = spots[i]!.s; c.v = spots[i]!.v; c.freeUntil = 1e9;
+    c.lap = 0; c.s = spots[i]!.s; c.v = spots[i]!.v; c.gridOff = 0; c.freeUntil = 1e9;
     c.prof = any.profile(c.entrant, 0);
     any.place(c);
   });

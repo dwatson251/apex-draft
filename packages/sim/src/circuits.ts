@@ -6,7 +6,7 @@ import type { BiomeId } from "./biomes.ts";
  * straight. A `window` lays a wide arc (`uturn` or `sweeper`) over three cells starting there. The shapes are simplified
  * to fit: the right sort of corner in the right order and direction, not a survey. Nothing here is copied from a map.
  */
-export type CircuitKind = "straight" | "bendy" | "kink" | "chicane" | "corner" | "sharp";
+export type CircuitKind = "straight" | "bendy" | "kink" | "chicane" | "esses" | "corner" | "sharp";
 
 export interface Circuit {
   id: string;
@@ -73,12 +73,33 @@ const SPECS: Spec[] = [
     aliases: ["donington", "donington-gp"],
   },
   {
-    id: "daytona", name: "Daytona", lengthKm: 5.7, blurb: "A tri-oval, a twisty infield and the high banking home.",
-    cols: 7, rows: 5, biome: "grass", from: [3, 4],
-    // 1 tri-oval kink, 3 turn 1, 4-5 esses, 7 horseshoe, 9 chicane, 10-12 infield hairpin, 14 bus stop, 15-17 banking
-    route: "EEENNNNWWWSSWWWSSEEE", kinds: { 1: "kink", 3: "sharp", 4: "bendy", 5: "chicane", 7: "sharp", 9: "chicane", 10: "sharp", 12: "sharp", 14: "chicane" },
-    windows: [{ at: 15, piece: "uturn" }],
-    aliases: ["daytona-road-course", "daytona-international-speedway"],
+    id: "daytona", name: "Daytona", lengthKm: 5.7, blurb: "Tri-oval kink, Turn 1, the infield esses and chicanes, then the high banking home.",
+    cols: 10, rows: 6, biome: "grass", from: [4, 5],
+    // 2 tri-oval kink, 5 turn 1, 6 esses, 8 chicane, 9 the kink, 10-12 the horseshoe, 17 Le Mans chicane, 20 bus stop,
+    // 22-24 the banking (a uturn)
+    route: "EEEEENNNNNWWSSSWWWWWWWSSEEEE", kinds: { 2: "kink", 5: "sharp", 6: "esses", 8: "chicane", 9: "kink", 10: "sharp", 12: "sharp", 13: "chicane", 17: "chicane", 20: "esses" },
+    windows: [{ at: 22, piece: "uturn" }],
+    aliases: ["daytona-road-course", "daytona-international-speedway", "daytona-speedway"],
+  },
+  {
+    id: "le-mans", name: "Circuit de la Sarthe", lengthKm: 13.6, blurb: "Tertre Rouge, the Mulsanne straight and its chicanes, Arnage, the Porsche curves. Squashed to fit.",
+    cols: 14, rows: 4, biome: "grass", from: [6, 3],
+    // 3-4 Dunlop, 5-7 Tertre Rouge (a sweeper), 9 and 12 the Mulsanne chicanes, 16 Mulsanne corner, 17 Indianapolis,
+    // 18 Arnage, 19-22 the Porsche curves, 23-24 the Ford chicanes
+    route: "WWWNNNEEEEEEEEEESSWWWWWSWW",
+    kinds: { 4: "chicane", 9: "chicane", 12: "chicane", 17: "esses", 18: "sharp", 19: "esses", 20: "esses", 21: "kink" },
+    windows: [{ at: 5, piece: "sweeper" }],
+    aliases: ["circuit-de-la-sarthe", "sarthe", "le-mans-24-hours", "24-hours-of-le-mans"],
+  },
+  {
+    id: "lago-maggiore", name: "Autodrome Lago Maggiore", lengthKm: 5.8, blurb: "Full course: a hard left at Turn 1, S-bends, a long back straight, the banked hairpin and the banked final turn.",
+    cols: 10, rows: 6, biome: "grass", from: [6, 5],
+    // 3 turn 1, 4-5 turns 2 to 4, 7 turn 5, 11-12 the S-bends, 13-16 the long straight, 17-19 the banked hairpin (a uturn),
+    // 20-22 the esses, 24-26 the banked final turn (a sweeper)
+    route: "EEENNWWNNNWWWWWWWSSEEESSSEEE",
+    kinds: { 3: "sharp", 4: "chicane", 6: "esses", 7: "sharp", 8: "kink", 11: "esses", 12: "esses", 15: "kink", 20: "chicane", 21: "esses", 22: "sharp" },
+    windows: [{ at: 17, piece: "uturn" }, { at: 24, piece: "sweeper" }],
+    aliases: ["autodrome-lago-maggiore", "lago-maggiore-full", "maggiore"],
   },
   {
     id: "willow-springs", name: "Willow Springs", lengthKm: 4, blurb: "Big Willow: huge sweepers in the high desert.",

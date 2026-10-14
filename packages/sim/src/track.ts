@@ -6,13 +6,19 @@ import { makePit, type Pit } from "./pit.ts";
 import { gateAt, straightCentre, sweeperWindow, uturnWindow, type GateGeom, type StraightShape } from "./pieces.ts";
 import { add, dist, distToSegment, lerp, mul, norm, perp, sub, v2, type Vec2 } from "./vec.ts";
 
+/**
+ * Power-ups are switched off for now: tracks still draw the same random numbers, so nothing else about them changes, but no
+ * pickup is laid. Flip this to bring them back.
+ */
+export const POWERUPS_ENABLED = false;
+
 /** A grid cell is CELL units wide; the road is 2 * ROAD_HALF wide; the car is a disc of CAR_R. */
 export const CELL = 100;
 export const ROAD_HALF = 22;
 export const CAR_R = 3;
 const SAMPLES = 24;
 
-export type SegmentKind = "straight" | "bendy" | "kink" | "chicane" | "corner" | "sharp" | "sweeper" | "uturn";
+export type SegmentKind = "straight" | "bendy" | "kink" | "chicane" | "esses" | "corner" | "sharp" | "sweeper" | "uturn";
 export type PowerupKind = "boost" | "grip" | "ghost";
 
 export interface Gate {
@@ -121,7 +127,7 @@ function placeFeatures(seg: Segment, rng: Rng, pitStraight: boolean): void {
     const c = centreAt(seg, t);
     const pos = add(c.p, mul(c.n, rng.range(-0.4, 0.4) * ROAD_HALF));
     // keep the pickup off any obstacle
-    if (seg.obstacles.every((o) => dist(pos, o) > o.r + 12)) {
+    if (POWERUPS_ENABLED && seg.obstacles.every((o) => dist(pos, o) > o.r + 12)) {
       seg.powerup = { kind: rng.pick(["boost", "grip", "ghost"] as const), x: pos.x, y: pos.y, r: 6 };
     }
   }
@@ -143,7 +149,7 @@ function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [nu
   else kind = rng.chance(0.4) ? "sharp" : "corner";
   const bendSign: 1 | -1 = rng.chance(0.5) ? 1 : -1;
   if (force) {
-    if (straight !== (force === "straight" || force === "bendy" || force === "kink" || force === "chicane")) throw new Error(`a ${force} cell at ${cx},${cy} does not fit the way the road runs`);
+    if (straight !== (force === "straight" || force === "bendy" || force === "kink" || force === "chicane" || force === "esses")) throw new Error(`a ${force} cell at ${cx},${cy} does not fit the way the road runs`);
     kind = force;
   }
 
@@ -234,8 +240,8 @@ function enrich(segs: Segment[], cyc: [number, number][], seed: number): void {
   for (const s of segs) {
     if (s.kind !== "bendy" || s.index === 0 || s.index === n - 1) continue;
     const r = rng.next();
-    if (r < 0.34) continue;
-    const kind: StraightShape = r < 0.67 ? "kink" : "chicane";
+    if (r < 0.25) continue;
+    const kind: StraightShape = r < 0.5 ? "kink" : r < 0.75 ? "chicane" : "esses";
     const p0 = s.entry.mid, p2 = s.exit.mid;
     s.center = straightCentre(kind, p0, p2, rng.chance(0.5) ? 1 : -1);
     s.normals = normalsOf(s.center);

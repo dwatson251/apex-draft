@@ -2,7 +2,7 @@
 
 A racing game where you never touch the wheel. You **draw the racing line**, one segment of the track at a time,
 without seeing what comes next. Then your car has to drive it, braking for corners and holding the grip it has,
-alongside up to seven rivals who each drove their own line.
+alongside up to 31 rivals who each drove their own line.
 
 > Alpha. Builds are unsigned, so Windows and macOS will warn you the first time you open one.
 
@@ -27,8 +27,8 @@ Installers for Windows, Linux (AppImage) and macOS are on the
   start or end node changes its neighbour too, and that counts toward the 3.
 - **Watch.** The camera eases in on your car and follows it, then pulls back out when you finish. Cars leave skid marks,
   hum with their speed, and squeal in corners (`M` mutes). Clouds and birds pass overhead.
-- **Power-ups.** Drive your line through a pickup for the rest of that segment: **B**oost (speed), **G**rip (cornering)
-  or **H** ghost (pass through cars).
+- **Power-ups.** Switched off for now. The code is still there (boost, grip and ghost pickups); `POWERUPS_ENABLED` in the
+  sim brings them back.
 - **Long races and strategy.** Up to 50 laps. You can only change your line while you are in the pits (up to 3 segments
   per stop), so queue up to five pit stops in advance (a lap and a tyre: soft, medium or wet). The seed brings weather: rain wets the road unevenly, the lines
   cars drive dry it, and the dry line is where slicks want to be. You only get a vague forecast (rain at the beginning, middle or end of the race), never the lap or how long.
@@ -46,7 +46,7 @@ Installers for Windows, Linux (AppImage) and macOS are on the
 - **Menu.** The title has the track behind it (blurred), and the Menu button or Esc opens it over a game at any time.
   Changing the seed after you have drawn something asks first.
 - **Garage.** Spend 24 points across acceleration, top speed, cornering and braking, and save setups.
-- **Rivals.** Bots race you. You can also save your lines to a file and import other players' lines for the same phrase
+- **Rivals.** Up to 31 bots race you, starting in two staggered columns in order of fastest lap (yours counts too). You can also save your lines to a file and import other players' lines for the same phrase
   as rivals (`Import rival lines…`). There is no online upload yet.
 
 ## Develop

@@ -8,11 +8,12 @@ import type { Vec2 } from "./vec.ts";
  * Everything needed to come back to the same track and the same drawing, and nothing about a race: no lap, no time,
  * no standings. Reloading a link always starts the race afresh.
  *
- * Binary layout (version 3), then base64url. Version 1 and 2 links still open.
- *   u8 version (3)
+ * Binary layout (version 4), then base64url. Versions 1 to 3 links still open.
+ *   u8 version (4)
  *   u8 flags: 1 obstacles, 2 realism, 4 race mode (else time trial), 8 in a game (else menu), 16 has points
  *   u8 laps (1 to 50)
- *   u8 rivals (low nibble) | start tyre (high nibble: 0 soft, 1 medium, 2 wet)
+ *   u8 rivals (1 to 31), u8 start tyre (0 soft, 1 medium, 2 wet)
+ *   (versions 1 to 3 had rivals in the low nibble of one byte and the tyre in the high nibble: at most 7 rivals)
  *   u8 stops queued, then per stop: u8 lap, u8 tyre
  *   (version 2 also had a byte, after the tyre byte, for edit-every-N-laps: no longer a thing, and ignored.
  *    version 1 had a single byte of laps (low nibble) and rivals (high nibble) and none of the lines above)
@@ -39,7 +40,9 @@ export interface ShareState {
   line?: Line;
 }
 
-export const SHARE_VERSION = 3;
+export const SHARE_VERSION = 4;
+/** A grid is at most 32 cars: you and 31 rivals. */
+export const MAX_RIVALS = 31;
 const Q = 10;
 
 class Writer {
@@ -77,7 +80,8 @@ export function encodeShare(st: ShareState): string {
   const hasLine = !!st.line && st.line.start !== undefined;
   w.u8((st.obstacles ? 1 : 0) | (st.realism ? 2 : 0) | (st.mode === "race" ? 4 : 0) | (st.playing ? 8 : 0) | (hasLine ? 16 : 0));
   w.u8(Math.min(50, Math.max(1, st.laps)));
-  w.u8((Math.min(7, Math.max(1, st.rivals)) & 15) | (Math.max(0, COMPOUND_IDS.indexOf(st.startTyre)) << 4));
+  w.u8(Math.min(MAX_RIVALS, Math.max(1, st.rivals)));
+  w.u8(Math.max(0, COMPOUND_IDS.indexOf(st.startTyre)));
   const plan = st.pitPlan.slice(0, 5);
   w.u8(plan.length);
   for (const p of plan) { w.u8(Math.min(255, Math.max(0, p.lap))); w.u8(Math.max(0, COMPOUND_IDS.indexOf(p.tyre))); }
@@ -106,16 +110,15 @@ export function decodeShare(code: string): ShareState | string {
   try {
     const r = new Reader(unb64(code.replace(/^#/, "")));
     const version = r.u8();
-    if (version < 1 || version > 3) return "this link was made by a different version";
+    if (version < 1 || version > 4) return "this link was made by a different version";
     const flags = r.u8();
     let laps: number, rivals: number, startTyre: Compound = "medium";
     const pitPlan: { lap: number; tyre: Compound }[] = [];
     if (version === 1) { const ln = r.u8(); laps = ln & 15; rivals = ln >> 4; }
     else {
       laps = r.u8();
-      const rt = r.u8();
-      rivals = rt & 15;
-      startTyre = COMPOUND_IDS[rt >> 4] ?? "medium";
+      if (version >= 4) { rivals = r.u8(); startTyre = COMPOUND_IDS[r.u8()] ?? "medium"; }
+      else { const rt = r.u8(); rivals = rt & 15; startTyre = COMPOUND_IDS[rt >> 4] ?? "medium"; }
       if (version === 2) r.u8(); // edit-every-N-laps, which no longer exists
       for (let n = r.u8(), i = 0; i < n && i < 5; i++) { const lap = r.u8(), tyre = COMPOUND_IDS[r.u8()] ?? "medium"; pitPlan.push({ lap, tyre }); }
     }
@@ -127,7 +130,7 @@ export function decodeShare(code: string): ShareState | string {
     const phrase = normalizePhrase(r.str());
     if (!phrase) return "the link has no track phrase";
     const st: ShareState = {
-      phrase, laps: Math.min(50, Math.max(1, laps)), mode: flags & 4 ? "race" : "trial", rivals: Math.min(7, Math.max(1, rivals)),
+      phrase, laps: Math.min(50, Math.max(1, laps)), mode: flags & 4 ? "race" : "trial", rivals: Math.min(MAX_RIVALS, Math.max(1, rivals)),
       car, obstacles: !!(flags & 1), realism: !!(flags & 2), playing: !!(flags & 8),
       startTyre, pitPlan,
     };

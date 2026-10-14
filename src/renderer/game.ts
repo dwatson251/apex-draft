@@ -1,7 +1,7 @@
 import type { Application } from "pixi.js";
 import {
   BIOMES, CAR_BUDGET, CELL, MAX_AMENDS, PIT_PENALTY, PIT_STOP_TIME, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
-  circuitFor, defaultCar, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
+  circuitFor, MAX_RIVALS, defaultCar, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
   phraseToSeed, previewSegment, projectToGate, randomPhrase, serializeLineFile, setSegment, smooth, validateCar, validateLine, vehicleForSeed,
   COMPOUNDS, COMPOUND_IDS, MAX_PIT_STOPS, forecast, forecastText, isCompound, weatherFor,
   type CarConfig, type Compound, type Entrant, type Line, type LineFile, type RaceCar, type ShareState, type Stat, type Track, type Vec2, type VehicleId,
@@ -14,7 +14,7 @@ import type { Handle, HandleKind, Skid, WorldView } from "./world.ts";
 const ME = "me";
 const PLAYER_COLOR = 0xffcf3f;
 const RIVAL_COLORS = [0xff5d6c, 0x4fd28a, 0x5aa9ff, 0xb48cff, 0xff9f43, 0x3fe0d0, 0xf06bd2];
-const RIVAL_NAMES = ["Nova", "Kestrel", "Dash", "Pebble", "Orbit", "Rook", "Ember", "Sable", "Juno", "Flint", "Mako", "Wren"];
+const RIVAL_NAMES = ["Nova", "Kestrel", "Dash", "Pebble", "Orbit", "Rook", "Ember", "Sable", "Juno", "Flint", "Mako", "Wren", "Zephyr", "Quill", "Tango", "Bolt", "Cinder", "Maple", "Onyx", "Pixel", "Ripley", "Sprocket", "Tundra", "Vesper", "Willow", "Yarrow", "Atlas", "Biscuit", "Comet", "Drift", "Echo", "Fennel"];
 const STAT_LABEL: Record<Stat, string> = { accel: "Acceleration", top: "Top speed", grip: "Cornering", brake: "Braking" };
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -335,7 +335,7 @@ export class Game {
       <div class="row">
         <div><label>Laps (1 to 50)</label><input id="laps" class="fancy" type="number" min="1" max="50" value="${s.laps}" ${lock}/></div>
         <div><label>Mode</label><select id="mode" class="fancy" ${lock}><option value="trial" ${s.mode === "trial" ? "selected" : ""}>Time trial</option><option value="race" ${s.mode === "race" ? "selected" : ""}>Race rivals</option></select></div>
-        <div ${s.mode === "trial" ? 'style="display:none"' : ""}><label>Rivals</label><select id="rivals" class="fancy" ${lock}>${[1, 2, 3, 4, 5, 6, 7].map((n) => `<option ${n === s.rivals ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+        <div ${s.mode === "trial" ? 'style="display:none"' : ""}><label>Rivals</label><select id="rivals" class="fancy" ${lock}>${Array.from({ length: MAX_RIVALS }, (_, i) => i + 1).map((n) => `<option ${n === s.rivals ? "selected" : ""}>${n}</option>`).join("")}</select></div>
       </div>
       <div class="checks">
         <label><input type="checkbox" id="realism" ${s.realism ? "checked" : ""} ${lock}/> Realism: tyre wear, fuel, pit stops, tyre choice and weather</label>
@@ -424,6 +424,12 @@ export class Game {
   private bestKey(phrase: string): string {
     const s = this.settings;
     return `${phrase}:${s.laps}:${s.realism ? "r" : "x"}${s.obstacles ? "o" : "c"}`;
+  }
+
+  /** The fastest lap you have set on this track (any number of laps), which can put you further up the grid. */
+  private lapKey(phrase: string): string {
+    const s = this.settings;
+    return `${phrase}:lap:${s.realism ? "r" : "x"}${s.obstacles ? "o" : "c"}`;
   }
 
   private async importLines(): Promise<void> {
@@ -945,7 +951,7 @@ export class Game {
   // ---------- racing ----------
   private startRace(): void {
     this.rivalEntrants = this.settings.mode === "trial" ? [] : this.makeRivals();
-    this.me = { id: ME, name: "You", car: this.playerCar(), lines: Array.from({ length: this.settings.laps }, () => this.currentLine), isPlayer: true, pitPlan: this.settings.pitPlan, startTyre: this.settings.startTyre };
+    this.me = { id: ME, name: "You", car: this.playerCar(), lines: Array.from({ length: this.settings.laps }, () => this.currentLine), isPlayer: true, pitPlan: this.settings.pitPlan, startTyre: this.settings.startTyre, bestLap: this.best[this.lapKey(this.track.phrase)] };
     this.race = new Race(this.track, [this.me, ...this.rivalEntrants], this.settings.laps, { realism: this.settings.realism, weather: this.settings.realism });
     this.lapNo = 0;
     this.view.clearSkids();
@@ -1126,6 +1132,12 @@ export class Game {
     set("#hud-head", `Lap ${lap} / ${this.settings.laps} <span class="dim">${fmt(now)}</span>`);
     set("#hud-weather", this.settings.realism ? (rain > 0.05 ? `<p class="dim">🌧 Raining${rain > 0.7 ? " hard" : ""}</p>` : "") : "");
     set("#hud-table", standing.map(({ c }, i) => `<tr class="${c.entrant.id === ME ? "me" : ""}"><td>${i + 1}</td><td><span style="color:${hex(this.colorOf(c.entrant.id))}">■</span> ${esc(c.entrant.name)}</td></tr>`).join(""));
+    // with a big grid the list scrolls: keep your own row in view
+    const mine = el.querySelector<HTMLElement>("#hud-table tr.me");
+    if (mine && el.scrollHeight > el.clientHeight) {
+      if (mine.offsetTop < el.scrollTop + 40) el.scrollTop = Math.max(0, mine.offsetTop - 40);
+      else if (mine.offsetTop + mine.offsetHeight > el.scrollTop + el.clientHeight - 8) el.scrollTop = mine.offsetTop + mine.offsetHeight - el.clientHeight + 8;
+    }
     if (this.settings.realism) {
       const fuel = me.ftrace[mi] ?? 100, tyre = me.ttrace[mi] ?? 1, per = fuelPerLap(this.playerCar(), this.settings.laps);
       const comp = (["soft", "medium", "wet"] as const)[me.ctrace[mi] ?? 1]!;
@@ -1160,6 +1172,9 @@ export class Game {
       void save("best", this.best);
       record = '<p class="good">New best time for this track and these rules!</p>';
     }
+    const fastest = mine.lapTimes.length ? Math.min(...mine.lapTimes) : null;
+    const lapKey = this.lapKey(this.track.phrase);
+    if (fastest !== null && (this.best[lapKey] === undefined || fastest < this.best[lapKey]!)) { this.best[lapKey] = fastest; void save("best", this.best); }
     const trial = this.settings.mode === "trial";
     const title = trial ? "Time trial" : mine.position === 1 ? "You won!" : `You finished P${mine.position}`;
     const when = (r: (typeof res)[number]) => (fmt(r.finishTime) + (r.penalty ? ` <span class="bad">+${r.penalty.toFixed(1)}</span>` : ""));

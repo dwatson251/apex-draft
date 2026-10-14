@@ -92,6 +92,13 @@ if it brings the road closer to other road than two cars need (`2 * ROAD_HALF + 
 `normalizePhrase`. They reuse the same builder, fix the setting, and the pit lane goes on the infield side. The shapes are
 hand-fitted by eye to the real layouts; no map data is shipped.
 
+## The grid
+Up to 32 cars start in two staggered columns (`GRID_GAP` between rows, `GRID_SIDE` either side of the middle of the road): the pole
+car on the line and each next car half a row back on the other side. Each car keeps its own racing line; the sideways shift
+into its column is `gridOff`, which melts away over the first 100 or so units, and a car slides back until it is clear of
+the ones already placed (columns bunch up on a bend). The order is the fastest lap: `min(ideal lap of the line, bestLap)`, where
+`bestLap` is the player's fastest lap on this track under the same rules, stored by the game.
+
 ## Vehicles and places
 - `vehicles.ts` and `biomes.ts` are tables of multipliers picked from the track's seed (`vehicleForSeed`, `biomeForSeed`).
   Vehicles scale the car's stats, fuel use and wear; biomes scale grip, braking, acceleration, wear and fuel for
