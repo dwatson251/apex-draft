@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="Apex Draft">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2a2c"/>
+      <stop offset="1" stop-color="#0f1a1c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="320" rx="36" fill="url(#bg)"/>
+  <!-- a track loop with the racing line cutting the corners -->
+  <g transform="translate(70 50)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M30 110 C30 40 70 20 130 20 L190 20 C240 20 250 70 215 100 C185 125 200 170 150 190 L60 200 C20 200 30 150 30 110 Z" stroke="#3b4350" stroke-width="44"/>
+    <path d="M30 110 C30 40 70 20 130 20 L190 20 C240 20 250 70 215 100 C185 125 200 170 150 190 L60 200 C20 200 30 150 30 110 Z" stroke="#4b5563" stroke-width="3" stroke-dasharray="10 12"/>
+    <path d="M44 150 C38 70 70 36 130 36 L185 36 C228 36 232 66 210 86 C176 114 180 160 140 176 L72 186" stroke="#ffd84a" stroke-width="7"/>
+  </g>
+  <circle cx="280" cy="136" r="11" fill="#ffd84a" stroke="#0f1a1c" stroke-width="4"/>
+  <text x="385" y="180" font-family="'Arial Black','Segoe UI Black','Helvetica Neue',Arial,sans-serif" font-weight="900" font-size="100" letter-spacing="3"><tspan fill="#e8edf6">APEX </tspan><tspan fill="#ffd84a">DRAFT</tspan></text>
+  <text x="389" y="236" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="34" fill="#9aa7b8" letter-spacing="1.5">Draw the racing line. The car has to drive it.</text>
+</svg>

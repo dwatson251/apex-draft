@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- Cars that take the flag keep driving round their line at half speed (as ghosts, so they never block anyone still racing)
+  instead of stopping on the line. The race ends five seconds after the last car finishes.
+- The mouse wheel zooms while you watch the race: in on the car up to 6x, out to nearly the whole track (0.8x). It is kept
+  from one stretch of racing to the next.
+
 ## 0.1.0-alpha.2
 - Time trial, practice and qualifying: the results (and Edit line) come up the moment your last timed lap is done, in a side
   panel. The cool-down lap carries on in the background and is dropped if you edit or go again.

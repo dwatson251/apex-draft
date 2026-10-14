@@ -1,76 +1,168 @@
-# Apex Draft
+<p align="center">
+  <img src="docs/images/logo.png" alt="Apex Draft" width="720">
+</p>
 
-A racing game where you never touch the wheel. You **draw the racing line**, one segment of the track at a time,
-without seeing what comes next. Then your car has to drive it, braking for corners and holding the grip it has,
-alongside up to 31 rivals who each drove their own line.
+<p align="center">
+  <b>A racing game where you never touch the wheel.</b><br>
+  You draw the racing line. Your car has to drive it.
+</p>
 
-> Alpha. Builds are unsigned, so Windows and macOS will warn you the first time you open one.
+<p align="center">
+  <a href="https://github.com/dwatson251/apex-draft/releases">Download</a> ·
+  <a href="#how-it-plays">How it plays</a> ·
+  <a href="#race-modes">Race modes</a> ·
+  <a href="#tyres-fuel-and-weather">Tyres</a> ·
+  <a href="#seeded-tracks">Seeded tracks</a> ·
+  <a href="DEVELOPER.md">Developing</a>
+</p>
+
+<p align="center">
+  <img src="docs/images/race.gif" alt="A race in progress: seven cars in the snow, each on its own line" width="800">
+</p>
+
+---
+
+Apex Draft turns racing into a puzzle about lines. The track is revealed one piece at a time, and you only see the piece
+you are drawing on. Place points, bend the line round the corner and move on to the next piece without knowing what
+comes after it. When the lap is done the race starts, and you watch your car drive exactly what you drew, against up to
+31 rivals who each drew their own.
+
+The car does what a car does. It brakes for tight bends, runs out of grip if you ask too much of it, and tops out at its
+top speed. A good line is short, smooth and keeps the speed up. A bad one can be pretty and slow.
+
+> **Alpha.** Builds are unsigned, so Windows and macOS will warn you the first time you open one. Things will change.
 
 ## Download
 
 Installers for Windows, Linux (AppImage) and macOS are on the
-[Releases page](https://github.com/dwatson251/apex-draft/releases).
+[Releases page](https://github.com/dwatson251/apex-draft/releases). There is nothing else to install.
 
 ## How it plays
 
-- **Seeds.** A track comes from a memorable phrase such as `healthy-bear-eats-tuna`. Same phrase, same track, so
-  sharing the phrase shares the track.
-- **Draw a lap.** Each segment is shown on its own. Click to place points; your line leaves the segment where the yellow
-  dot is, and the next segment starts from there. There is no limit on points. Boxes and water block a straight run, so
-  steer round them.
-- **Race.** The car follows your line with real limits: it brakes for tight bends (grip), accelerates (power) and tops
-  out (top speed). Rivals on the same road slow down rather than collide, so the same line can give a different time
-  against a different field.
-- **Edit.** Every point can be dragged, including where a segment starts (square) and ends (diamond), which slide along
-  the road edge. Right-click deletes a point, Shift+click inserts one between two others.
-- **Amend.** After each lap, pick up to 3 segments on the map and edit them. Then the next lap runs. Moving a shared
-  start or end node changes its neighbour too, and that counts toward the 3.
-- **Watch.** The camera eases in on your car and follows it, then pulls back out when you finish. Cars leave skid marks,
-  hum with their speed, and squeal in corners (`M` mutes). Clouds and birds pass overhead.
-- **Power-ups.** Switched off for now. The code is still there (boost, grip and ghost pickups); `POWERUPS_ENABLED` in the
-  sim brings them back.
-- **Long races and strategy.** Up to 50 laps. You can only change your line while you are in the pits (up to 3 segments
-  per stop), so queue up to five pit stops in advance (a lap and a tyre: soft, medium or wet). The seed brings weather: rain wets the road unevenly, the lines
-  cars drive dry it, and the dry line is where slicks want to be. You only get a vague forecast (rain at the beginning, middle or end of the race), never the lap or how long.
-- **Drafting.** Follow close behind a car, in its lane, and you get a slipstream: a little more top speed and acceleration,
-  more the closer you are and the faster you are going. It works in every mode.
-- **Contact.** Cars can touch. A shunt from behind, a squeeze alongside and a T-bone each do what you would expect.
-- **Tyres, fuel and pit stops.** Tyres wear, so grip fades; the tank runs down. Tick "Pit at the end of this lap" in the
-  picker and your car drives itself into the pit lane beside the start straight, stops in its box and comes out on fresh
-  tyres with a full tank. Never stopping adds a penalty. Run dry and the car limps to the pits for an emergency refuel (slow, no new tyres), then carries on. Switch it all off with Realism (tyre wear, fuel, pit stops, tyre choice and weather all go together). Realism is off by default for now.
-- **Secrets.** A few real circuits are hidden behind their names. Try typing some famous ones as the phrase.
-- **Places and machines.** The phrase also picks where you are (countryside, desert, snow, city, the Moon: each with its
-  own grip and scenery) and what you are driving (go-karts, formula cars, rally cars, muscle cars, trucks or tanks).
-- **Share and resume.** The address holds the track, the settings and the segments you have drawn. Copy it to share a
-  track, or reload to carry on. Laps and times are never saved: a reload always starts the race afresh.
-- **Modes.** Solo Time Trial (out lap, a timed lap, cool-down; your time is kept per track), Quick Race (rivals, tyres, fuel,
-  wear multipliers up to 40x, mandatory tyres; gridded by your time trial), Race Weekend (practice, qualifier, race from the
-  qualifying grid) and a Tutorial on the oval. Your drawn line carries over between them.
-- **Menu.** The title has the track behind it (blurred), and the Menu button or Esc opens it over a game at any time.
-  Changing the seed after you have drawn something asks first.
-- **Garage.** Spend 24 points across acceleration, top speed, cornering and braking, and save setups.
-- **Rivals.** Up to 31 bots race you, starting in two staggered columns in order of fastest lap (yours counts too). You can also save your lines to a file and import other players' lines for the same phrase
-  as rivals (`Import rival lines…`). There is no online upload yet.
+<p align="center">
+  <img src="docs/images/draw-a-lap.gif" alt="Drawing the first two segments of a lap by clicking points on the road" width="800">
+</p>
 
-## Develop
+1. **Pick a track.** Type a phrase, or press Random. The phrase *is* the track (see [Seeded tracks](#seeded-tracks)).
+2. **Draw a lap.** Each piece of road is shown on its own. Click to place points and the line is drawn through them.
+   It has to stay on the road, and it turns red when it does not. Press **Finish segment** and the next piece opens,
+   starting from the yellow dot where your line left the last one. There is no limit on the number of points.
+3. **Tidy up.** Every point can be dragged. The square at the start and the diamond at the end of a segment slide along
+   the edge of the road. Right-click deletes a point, and Shift+click adds one between two others.
+4. **Race.** The camera eases in on your car and follows it. Cars leave skid marks, hum with their speed and squeal in
+   the corners (`M` mutes). The mouse wheel zooms while you watch.
+5. **Amend.** After each lap you can pick up to **three segments** on the map and redraw them, then the next lap runs.
+   Moving the point where two segments meet changes both, and both count.
 
-```sh
-npm install
-npm run dev        # Electron with hot reload
-npm run dev:web    # just the renderer in a browser (saves go to localStorage); add ?demo to jump into a race
-npm test           # vitest
-npm run typecheck
-npm run dist       # installers for this OS into release/
-```
+<p align="center">
+  <img src="docs/images/edit-point.png" alt="Editing one segment of a line on the map" width="49%">
+  <img src="docs/images/race-overview.png" alt="Zoomed out over a race, with every car on its own line" width="49%">
+</p>
 
-Node 22+. See [docs/DESIGN.md](docs/DESIGN.md) for how the pieces fit.
+### Racing other cars
 
-## Release
+- **Rivals.** Up to 31 bots can race you. They start in two staggered columns, quickest lap first (yours counts too),
+  and each has its own line. Rivals on the same road slow down rather than crash into each other, so the same line can
+  give a different result against a different field.
+- **Drafting.** Sit close behind a car, in its lane, and you get a slipstream: more top speed and acceleration, the
+  closer you are and the faster you are going. It works in every mode.
+- **Contact.** Cars can touch. A shunt from behind, a squeeze alongside and a T-bone each do what you would expect, and
+  heavier vehicles push lighter ones around. A car carrying too much speed into a bend runs wide.
+- **Other people's lines.** Save your lines to a file and send it to a friend. They import it (**Import lines**) and race
+  against you on the same phrase. There is no online upload yet.
 
-Add a `## X.Y.Z-alpha.N` section to `CHANGELOG.md`, commit, then `git tag -a vX.Y.Z-alpha.N -m "..." && git push origin main vX.Y.Z-alpha.N`.
-The Release workflow builds all three platforms and publishes a GitHub release (a pre-release when the tag contains
-`alpha`, `beta` or `rc`), with the changelog section as the notes.
+### Your car
+
+The **Garage** gives you 24 points to spend across acceleration, top speed, cornering and braking, and you can save
+setups. The phrase decides what everybody drives: go-karts, formula cars, rally cars, muscle cars, trucks or tanks. A
+kart corners like it is on rails and goes nowhere on the straight. A truck is the opposite.
+
+## Race modes
+
+Pick one from the main menu. Your drawn line carries over from one mode to the next on the same track, so you can
+practise somewhere quiet and take the line into a race.
+
+<p align="center">
+  <img src="docs/images/title.png" alt="The main menu over the blurred track" width="49%">
+  <img src="docs/images/race-setup.png" alt="The Quick Race setup screen with Realism turned on" width="49%">
+</p>
+
+| Mode | What you get |
+| --- | --- |
+| **Solo Time Trial** | You, the track and the clock. An out lap, one timed lap and a cool-down lap. No rivals, no wear, soft tyres. Your best time is kept for that track, and it decides your grid place in Quick Race. |
+| **Quick Race** | A single race of up to 50 laps against up to 31 rivals. Turn **Realism** on for tyres, fuel, pit stops and weather. Scale wear and fuel use up to 40x to make a short race feel like an endurance one, and make some tyres mandatory. You start from the place your Time Trial time earns, or last if you have none. |
+| **Race Weekend** | **Practice** has no wear, with the others spread round the track. It ends when you say or after 10 minutes, and you can edit your line between runs. **Qualifier** is an out lap, three timed laps and a cool-down, and your best lap counts. Then the **Race** starts from the grid you qualified for. |
+| **Tutorial** | A guided run on the oval: drawing, locking in segments, queuing a pit stop and editing in the pits. |
+
+**Long races and strategy.** You can only change your line while you are in the pits, and then only up to three segments
+per stop. So in a long race you plan ahead: queue up to five stops in advance, each with a lap to come in on and a tyre
+to fit. The race plays out in real time and your stops happen when you said they would.
+
+**Power-ups** (boost, grip and ghost pickups) are in the code but switched off for now.
+
+## Tyres, fuel and weather
+
+<p align="center">
+  <img src="docs/images/tyres-fuel.png" alt="The fuel and tyre gauges in the race panel" width="800">
+</p>
+
+Turn on **Realism** and the car stops being a perfect machine.
+
+**Three compounds**
+
+| Tyre | In the dry | Wear | Notes |
+| --- | --- | --- | --- |
+| 🔴 **Soft** | The most grip (+6%) | Fastest: about 5 laps | Falls to almost nothing once the road is soaked |
+| 🟡 **Medium** | Standard grip | About 10 laps | The sensible default. Poor once it rains |
+| 🔵 **Wet** | 16% less grip | Gone in half the time on a dry road | For rain: grips best on a wet track and lasts about 10 laps there |
+
+These are at 1x wear. On longer races tyre life and fuel stretch, so that five stops cover fifty laps.
+
+**Grip fades as the rubber wears.** You see it lap by lap: slower in the corners, and less margin for error. Cornering
+hard wears tyres faster than easy driving does.
+
+**Fuel** burns with distance, and a full tank costs a little acceleration. Run dry and the car limps to the pits for an
+emergency refuel: slow, with no new tyres, and then it carries on. Nothing is ever retired.
+
+**Pit stops.** Tick *Pit at the end of this lap* or queue stops in the strategy panel, and the car drives itself into the
+pit lane beside the start straight, stops in its bay and rejoins on fresh tyres and a full tank. Cars leave the lane
+first in, first out. Never stopping adds a time penalty, and so does missing a mandatory tyre.
+
+**The track dries along the line that cars drive.** Rain wets the road unevenly. Every car that drives over a patch dries
+it, so the racing line dries first, and that dry strip is where slicks want to be. Heavy traffic also polishes the line in
+the wet (less grip) and rubbers it in when it is dry (more grip). Reading the road is half the game.
+
+**Weather comes from the seed, and the forecast is vague.** You are told only whether a shower starts near the beginning,
+the middle or the end of the race. Never the lap, the strength or how long it lasts.
+
+<p align="center">
+  <img src="docs/images/pit-strategy.png" alt="Planning a pit stop: the drawn line, fuel and tyre gauges and a rain forecast" width="800">
+</p>
+
+## Seeded tracks
+
+A track comes from a memorable phrase such as `healthy-bear-eats-tuna`. **The same phrase always gives the same track**,
+so sharing the phrase shares the track, the place and the cars. Any text works as a phrase.
+
+What the phrase decides:
+
+- **The layout.** A loop of 14 to 22 pieces on a small grid. It never has a dead end or a crossing, and it always comes
+  back to the start. Pieces are straights, gentle bends, kinks, chicanes, esses, corners, sharp corners, sweepers and
+  hairpin U-turns. The start and finish always sit on plain straights, so there is room for the pit lane.
+- **The place.** Countryside, desert, snow and ice, a city, or the Moon. Each changes grip, braking, acceleration, tyre
+  wear and fuel use for everyone, and each has its own scenery: trains, planes, wind turbines, boats, villages.
+- **What you drive.** One class of vehicle for the whole field.
+- **The weather**, in a race with Realism on.
+- **Secrets.** Some real circuits are hidden behind their names. Try typing a famous one as the phrase.
+
+The address of the game holds the track, your settings and the segments you have drawn. Copy it to share a track, or
+reload to carry on drawing. **Laps and times are never saved in it**, so a reload always starts the race afresh.
 
 ## Licence
 
-MIT.
+MIT. See [LICENSE](LICENSE).
+
+## For developers
+
+Building from source, how the simulation and the renderer fit together, testing and releases are in
+[DEVELOPER.md](DEVELOPER.md). Release notes are in [CHANGELOG.md](CHANGELOG.md).

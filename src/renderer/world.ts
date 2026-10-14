@@ -24,6 +24,9 @@ const SKID_RES = 3;
 const BACKGROUND = 70;
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 5;
+/** How far the wheel can pull the following camera out (nearly the whole track) and in (close on the car). */
+const MIN_FOLLOW_ZOOM = 0.8;
+const MAX_FOLLOW_ZOOM = 6;
 type CamMode = "overview" | "focus" | "follow";
 
 type CarView = CarShape;
@@ -59,6 +62,8 @@ export class WorldView {
   private focusRect: { x: number; y: number; w: number; h: number } | null = null;
   private panelPx = 160;
   private followPt: Vec2 | null = null;
+  /** where the following camera is heading: the player's wheel changes it, and it is kept from one stretch of racing to the next */
+  private followZoom = FOLLOW_ZOOM;
   private clock = 0;
 
   constructor(readonly app: Application) {
@@ -134,6 +139,7 @@ export class WorldView {
 
   /** Straight back to the default overview. */
   resetCamera(): void {
+    this.followZoom = FOLLOW_ZOOM;
     this.mode = "overview";
     this.followPt = null;
     this.focusRect = null;
@@ -145,7 +151,7 @@ export class WorldView {
 
   /** Skip the easing (screenshots, tests). */
   snapCamera(): void {
-    if (this.followPt) this.cam = { zoom: FOLLOW_ZOOM, x: this.followPt.x, y: this.followPt.y };
+    if (this.followPt) this.cam = { zoom: this.followZoom, x: this.followPt.x, y: this.followPt.y };
     else if (this.focusRect) { const t = this.focusTarget(); this.cam = { ...t }; }
     this.panelPx = this.panelFor(this.mode);
     this.applyCamera();
@@ -157,8 +163,9 @@ export class WorldView {
     return { zoom: s / this.baseScale(), x: r.x + r.w / 2, y: r.y + r.h / 2 };
   }
 
-  /** Overview only: wheel zoom, keeping the point under the cursor where it is. */
+  /** Wheel zoom. In the overview the point under the cursor stays put; while following the car the camera just closes in or pulls back. */
   zoomBy(factor: number, clientX: number, clientY: number): void {
+    if (this.mode === "follow") { this.followZoom = Math.min(MAX_FOLLOW_ZOOM, Math.max(MIN_FOLLOW_ZOOM, this.followZoom * factor)); return; }
     if (this.mode !== "overview") return;
     const u = this.user, base = this.baseScale(), rect = this.app.canvas.getBoundingClientRect();
     const ox = clientX - rect.left - (this.app.screen.width - this.panelPx) / 2, oy = clientY - rect.top - this.app.screen.height / 2;
@@ -190,9 +197,10 @@ export class WorldView {
       c.zoom += (to.zoom - c.zoom) * k; c.x += (to.x - c.x) * k; c.y += (to.y - c.y) * k;
     };
     if (this.mode === "follow" && this.followPt) {
-      c.zoom += (FOLLOW_ZOOM - c.zoom) * (1 - Math.exp(-dt * 0.55));
+      // slowly in on the car at first, but quickly once the player has taken the wheel to it
+      c.zoom += (this.followZoom - c.zoom) * (1 - Math.exp(-dt * (Math.abs(this.followZoom - FOLLOW_ZOOM) > 1e-6 ? 5 : 0.55)));
       // glide from the middle of the map to the car as the zoom comes in
-      const prog = Math.min(1, Math.max(0, (c.zoom - 1) / (FOLLOW_ZOOM - 1)));
+      const prog = Math.min(1, Math.max(0, (c.zoom - 1) / (Math.max(this.followZoom, 1.3) - 1)));
       const wx = cx + (this.followPt.x - cx) * prog, wy = cy + (this.followPt.y - cy) * prog;
       const k = 1 - Math.exp(-dt * 7);
       c.x += (wx - c.x) * k; c.y += (wy - c.y) * k;

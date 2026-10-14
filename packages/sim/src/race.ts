@@ -61,6 +61,10 @@ const STOP_TICKS = Math.round(PIT_STOP_TIME * 60);
 const EMERGENCY_TICKS = Math.round(PIT_STOP_TIME * 60 * 1.5);
 /** Cars leave the pit lane one at a time, first in first out, at least this long apart. */
 const RELEASE_TICKS = 54;
+/** After the flag a car carries on round its line at this fraction of the speed the road allows. */
+const COAST_FRACTION = 0.5;
+/** The race is over this long after the last car has taken the flag, so that car coasts too. */
+const COAST_SECONDS = 5;
 /** A car picks its bay this far (along its lap) before the box, so it can brake for it. */
 const BAY_PICK = 120;
 
@@ -742,6 +746,7 @@ export class Race {
       if (c.finishTime === null) this.place(c);
     }
     this.collide(racing);
+    for (const c of this.cars) if (c.finishTime !== null && !c.out) this.coast(c);
     // out of fuel: limp to the pits for an emergency refuel, then carry on
     for (const c of racing) {
       if (!this.rules.realism || c.limp || c.finishTime !== null || c.fuel > 0) continue;
@@ -787,10 +792,27 @@ export class Race {
   }
 
   runToEnd(): void {
-    while (this.cars.some(this.alive) && this.time < this.maxTime) this.step();
+    while (!this.over) this.step();
   }
 
-  get over(): boolean { return this.cars.every((c) => !this.alive(c)) || this.time >= this.maxTime; }
+  /** Over once every car has finished (or retired) and the last of them has had a few seconds to coast on. */
+  get over(): boolean {
+    if (this.time >= this.maxTime) return true;
+    if (this.cars.some(this.alive)) return false;
+    const last = Math.max(-Infinity, ...this.cars.map((c) => c.finishTime ?? -Infinity));
+    return this.time >= last + COAST_SECONDS;
+  }
+
+  /** A car that has taken the flag keeps going at half speed, on its line, and out of everyone's way: it is a ghost to them. */
+  private coast(c: RaceCar): void {
+    const p = c.prof, st = this.stats(c);
+    const target = COAST_FRACTION * sampleAt(p, p.vLim, c.s);
+    c.v = c.v > target ? Math.max(target, c.v - st.brake * 0.3 * TICK) : Math.min(target, c.v + st.accel * TICK);
+    c.s += c.v * TICK;
+    if (c.s >= p.length) { if (p.open) { c.s = p.length; c.v = 0; } else c.s -= p.length; }
+    this.place(c);
+    c.ghost = true;
+  }
 
   private missingOf(c: RaceCar): Compound[] { return this.rules.realism && c.finishTime !== null ? (this.rules.mandatory ?? []).filter((m) => !c.used.includes(m)) : []; }
   private penaltyOf(c: RaceCar): number { return this.rules.realism && c.finishTime !== null ? (c.pits === 0 ? PIT_PENALTY : 0) + this.missingOf(c).length * PIT_PENALTY : 0; }

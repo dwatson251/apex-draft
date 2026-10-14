@@ -155,7 +155,7 @@ export class Game {
     c.addEventListener("pointercancel", (e) => this.onPointerUp(e));
     c.addEventListener("contextmenu", (e) => e.preventDefault());
     c.addEventListener("wheel", (e) => {
-      if (this.view.cameraMode !== "overview") return;
+      if (this.view.cameraMode !== "overview" && this.view.cameraMode !== "follow") return;
       e.preventDefault();
       this.view.zoomBy(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
     }, { passive: false });
