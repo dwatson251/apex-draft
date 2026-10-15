@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.4
 - Android: an installable debug APK (`apex-draft-<version>-debug.apk`) is attached to each release, built with Capacitor. It
   runs in landscape, full screen, and sharing a line opens the Android share sheet.
 - Touch controls: tap to place a point; hold a point to delete it; a **Tap: add / insert / delete** button replaces
