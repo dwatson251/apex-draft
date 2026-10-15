@@ -3,7 +3,8 @@ import { isVehicleId } from "./vehicles.ts";
 import type { Line } from "./line.ts";
 import { normalizePhrase } from "./seed.ts";
 
-export const LINE_FILE_VERSION = 1;
+/** Version 2 added `path` (the segment each list of waypoints belongs to, for a lap that takes a shortcut); version 1 files still open. */
+export const LINE_FILE_VERSION = 2;
 
 /** A shareable set of lap lines for one track, keyed by its seed phrase. */
 export interface LineFile {
@@ -19,7 +20,7 @@ export function serializeLineFile(f: Omit<LineFile, "v">): string {
   const pt = (p: { x: number; y: number }) => [round(p.x), round(p.y)];
   return JSON.stringify({
     v: LINE_FILE_VERSION, phrase: normalizePhrase(f.phrase), name: f.name, car: f.car,
-    lines: f.lines.map((l) => ({ start: pt(l.start), segs: l.segs.map((s) => s.map(pt)) })),
+    lines: f.lines.map((l) => ({ start: pt(l.start), segs: l.segs.map((s) => s.map(pt)), ...(l.path ? { path: l.path } : {}) })),
   });
 }
 
@@ -28,7 +29,7 @@ const isPt = (a: unknown): a is [number, number] => Array.isArray(a) && a.length
 export function parseLineFile(text: string): LineFile | string {
   let raw: any;
   try { raw = JSON.parse(text); } catch { return "not valid JSON"; }
-  if (!raw || raw.v !== LINE_FILE_VERSION) return "unsupported line file version";
+  if (!raw || (raw.v !== 1 && raw.v !== LINE_FILE_VERSION)) return "unsupported line file version";
   if (typeof raw.phrase !== "string" || !raw.phrase) return "missing track phrase";
   if (typeof raw.name !== "string") return "missing name";
   const car = raw.car as CarConfig;
@@ -44,7 +45,12 @@ export function parseLineFile(text: string): LineFile | string {
       if (!Array.isArray(s) || s.length < 1 || s.length > 2000 || !s.every(isPt)) return "bad line segment";
       segs.push(s.map(([x, y]: [number, number]) => ({ x, y })));
     }
-    lines.push({ start: { x: l.start[0], y: l.start[1] }, segs });
+    let path: number[] | undefined;
+    if (l.path !== undefined) {
+      if (!Array.isArray(l.path) || l.path.length !== segs.length || !l.path.every((id: unknown) => Number.isInteger(id) && (id as number) >= 0 && (id as number) <= 1000)) return "bad line route";
+      path = l.path;
+    }
+    lines.push({ start: { x: l.start[0], y: l.start[1] }, segs, ...(path ? { path } : {}) });
   }
   return { v: raw.v, phrase: normalizePhrase(raw.phrase), name: raw.name.slice(0, 40), car: { name: String(car.name).slice(0, 40), accel: car.accel, top: car.top, grip: car.grip, brake: car.brake, ...(isVehicleId(car.type) ? { type: car.type } : {}) }, lines };
 }

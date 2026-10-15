@@ -34,7 +34,7 @@ const OUT = process.env.SHOTS || "";
   await home(BASE + "?t=1"); await settle(2500);
   ok("the title has a real track behind it, blurred, with bots going round", await G(() => window.__game.track.segments.length > 8 && document.querySelector("canvas").classList.contains("blurred") && window.__game.ambient.race.cars.length === 6));
   ok("the Menu button is hidden on the title", (await G(() => getComputedStyle(document.getElementById("menubtn")).display)) === "none");
-  ok("the home screen has the six choices (no Quit outside Electron)", JSON.stringify(await page.$$eval(".hb b", (e) => e.map((x) => x.textContent))) === JSON.stringify(["Solo Time Trial", "Quick Race", "Race Weekend", "Tutorial", "Settings"]));
+  ok("the home screen has the six choices (no Quit outside Electron)", JSON.stringify(await page.$$eval(".hb b", (e) => e.map((x) => x.textContent))) === JSON.stringify(["Solo Time Trial", "Quick Race", "Race Weekend", "Tutorial", "Garage", "Settings"]));
   await setup("#h-quick");
   const p0 = await G(() => window.__game.settings.phrase);
   await page.click("#rand"); await settle(1500);
@@ -43,13 +43,13 @@ const OUT = process.env.SHOTS || "";
 
   // ---------------- realism covers tyres, fuel, weather and the choice of tyre ----------------
   ok("realism is off by default", !(await page.$eval("#realism", (b) => b.classList.contains("on"))));
-  ok("so there are no wear options, mandatory tyres or forecast, and no obstacles box or starting tyre", (await page.$(".cchips")) === null && (await page.$(".forecast")) === null && (await page.$("#obstacles")) === null && (await page.$(".tyrepick")) === null);
+  ok("so there are no wear options, mandatory tyres or forecast, and no obstacles box or starting tyre", (await page.$(".cchips")) === null && (await page.$(".chip-wx")) === null && (await page.$("#obstacles")) === null && (await page.$(".tyrepick")) === null);
   await page.click("#realism"); await page.waitForTimeout(400);
-  ok("switching it on brings fuel and tyre multipliers, mandatory tyres and the forecast", (await page.$$(".cchips .cchip")).length === 3 && (await page.$("#wearFuel")) !== null && (await page.$("#wearTyre")) !== null && (await page.$(".forecast")) !== null);
+  ok("switching it on brings fuel and tyre multipliers, mandatory tyres and the forecast", (await page.$$(".cchips .cchip")).length === 3 && (await page.$("#wearFuel")) !== null && (await page.$("#wearTyre")) !== null && (await page.$(".chip-wx")) !== null);
   await page.click("#wearTyre"); await page.click('[data-dd="wearTyre"] .dd-opt[data-v="40"]'); await page.click('.cchip[data-v="soft"]'); await page.waitForTimeout(300);
   ok("the multiplier goes up to 40x and a mandatory tyre can be picked", await G(() => window.__game.settings.wearTyre === 40 && window.__game.settings.mandatory.join() === "soft"));
   await page.click("#realism"); await page.waitForTimeout(400);
-  ok("and off again takes them away", (await page.$(".cchips")) === null && (await page.$(".forecast")) === null);
+  ok("and off again takes them away", (await page.$(".cchips")) === null && (await page.$(".chip-wx")) === null);
   await page.click("#phrase-copy"); await page.waitForTimeout(200);
   ok("the phrase box has a copy button inside it", await G(() => document.querySelector("#phrase-copy").parentElement.classList.contains("field")));
   {
@@ -126,7 +126,7 @@ const OUT = process.env.SHOTS || "";
   ok("the camera eases in on the car", z1 > z0 && z1 < 2.5, `${z0.toFixed(2)} -> ${z1.toFixed(2)}`);
   ok("the race is running to the player's stop, which comes at the end of lap 2", await G(() => window.__game.play && window.__game.play.atStop && window.__game.lapNo === 1));
   await page.click("#bar-skip"); await page.waitForSelector("#bar-go", { timeout: 25000 }); await settle(2500);
-  ok("in the pit stop the whole map is back and you can edit", Math.abs((await G(() => window.__game.view.cam.zoom)) - 1) < 0.03 && (await page.textContent(".panel.top")).includes("In the pits after lap 2"));
+  ok("in the pit stop the whole map is back and you can edit", Math.abs((await G(() => window.__game.view.cam.zoom)) - 1) < 0.03 && (await page.textContent("#hint")).includes("You are in the pits"));
   ok("the button says Back out", (await page.textContent("#bar-go")).includes("Back out"));
   ok("the car is stopped in its box", await G(() => { const g = window.__game, me = g.race.cars.find((c) => c.entrant.id === "me"); return me.dwell > 0 && me.v === 0; }));
   // edit three segments (the limit), then leave

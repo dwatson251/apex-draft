@@ -35,13 +35,13 @@ describe("share links", () => {
     for (const junk of ["", "!!!", "AAAA", "AQ", encodeShare(base()).slice(0, 12)]) expect(typeof decodeShare(junk)).toBe("string");
     expect(defaultCar().name).toBe("Standard");
   });
-  it("carries 50 laps, the edit stops, the start tyre and up to five queued stops", () => {
+  it("carries 50 laps, the edit stops, the start tyre and a stop plan for the whole race", () => {
     const back = decodeShare(encodeShare({ ...base(), laps: 50, pitPlan: [8, 16, 24, 32, 40].map((lap) => ({ lap, tyre: "medium" as const })) })) as ShareState;
     expect(back.laps).toBe(50);
     expect(back.pitPlan.map((p) => p.lap)).toEqual([8, 16, 24, 32, 40]);
     expect(back.startTyre).toBe("soft");
-    // more than five are cut off
-    expect((decodeShare(encodeShare({ ...base(), pitPlan: Array.from({ length: 9 }, (_, i) => ({ lap: i + 1, tyre: "soft" as const })) })) as ShareState).pitPlan).toHaveLength(5);
+    // only five can be queued at a time, but a long race has more stops over its length: all of them travel in the link
+    expect((decodeShare(encodeShare({ ...base(), laps: 50, pitPlan: Array.from({ length: 9 }, (_, i) => ({ lap: i + 1, tyre: "soft" as const })) })) as ShareState).pitPlan).toHaveLength(9);
   });
   it("still opens a version 1 link", () => {
     const bytes: number[] = [1, 1 | 2 | 4 | 8, 3 | (5 << 4), 0x66 | (0x66 << 8) & 0xff, 0];

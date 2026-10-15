@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Engine lab (dev only)</title>
+<style>
+  body { font: 15px system-ui, sans-serif; background: #12151c; color: #e6e9ef; margin: 24px; max-width: 560px; }
+  label { display: block; margin: 14px 0 4px; }
+  input[type=range] { width: 100%; }
+  button, select { font: inherit; padding: 6px 12px; margin: 4px 4px 4px 0; }
+  p { color: #98a2b3; }
+</style>
+</head>
+<body>
+<h1>Engine lab</h1>
+<p>Dev only: served by <code>npm run dev:web</code> at <code>/lab.html</code>, never part of a build. Click Start once to let the browser play sound.</p>
+<button id="start">Start</button> <button id="stop">Stop</button> <button id="sweep">Sweep 0 → top → 0</button>
+<label>Vehicle <select id="veh"></select></label>
+<label>Speed <span id="sv"></span> · gear <b id="gv">-</b><input id="speed" type="range" min="0" max="120" value="40" /></label>
+<label>Throttle (accel) <span id="av"></span><input id="accel" type="range" min="-120" max="120" value="0" /></label>
+<label>Tyre slip <span id="lv"></span><input id="slip" type="range" min="0" max="100" value="0" /></label>
+<script type="module" src="./lab.ts"></script>
+</body>
+</html>

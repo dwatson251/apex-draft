@@ -1,4 +1,4 @@
-import { CAR_R, ROAD_HALF, isDrivable, type Gate, type Track } from "./track.ts";
+import { CAR_R, ROAD_HALF, exitsAfter, isDrivable, nextOf, type Gate, type Track } from "./track.ts";
 import { add, clamp, dist, dot, mul, sub, type Vec2 } from "./vec.ts";
 
 /**
@@ -9,13 +9,26 @@ import { add, clamp, dist, dot, mul, sub, type Vec2 } from "./vec.ts";
 export interface Line {
   start: Vec2;
   segs: Vec2[][];
+  /**
+   * The id of the segment each list of waypoints belongs to, in driving order. Left out when the line goes round the ring
+   * (0, 1, 2, ...); present once it takes a shortcut, so `segs[k]` is the road `path[k]`.
+   */
+  path?: number[];
 }
 
-const GATE_LIMIT = ROAD_HALF - CAR_R - 0.5;
+/** The id of the segment that `line.segs[k]` is drawn in. */
+export const idAt = (line: { path?: number[] }, k: number): number => line.path?.[k] ?? k;
+
+/** Build a line, keeping `path` only when it differs from going round the ring. */
+export function makeLine(start: Vec2, segs: Vec2[][], path: number[] | undefined): Line {
+  return path && path.some((id, k) => id !== k) ? { start, segs, path } : { start, segs };
+}
+
 
 /** Snap a point onto a gate, inside the drivable width. */
 export function projectToGate(g: Gate, p: Vec2): Vec2 {
-  const l = clamp(dot(sub(p, g.mid), g.n), -GATE_LIMIT, GATE_LIMIT);
+  const limit = (g.half ?? ROAD_HALF) - CAR_R - 0.5;
+  const l = clamp(dot(sub(p, g.mid), g.n), -limit, limit);
   return add(g.mid, mul(g.n, l));
 }
 
@@ -29,24 +42,31 @@ export function joinBefore(line: Line, i: number): Vec2 {
 }
 
 export function isComplete(track: Track, line: Line): boolean {
-  return line.segs.length === track.segments.length && line.segs.every((s) => s.length > 0);
+  const n = line.segs.length;
+  if (!line.segs.every((s) => s.length > 0)) return false;
+  if (!line.path) return n === track.segments.length;
+  const p = line.path;
+  if (p.length !== n || p[0] !== 0) return false;
+  for (let k = 1; k < n; k++) if (!exitsAfter(track, p[k - 1]!).includes(p[k]!)) return false;
+  return nextOf(track, p[n - 1]!) === 0;
 }
 
 /** Draw segment i (the next one to draw): `pts` are clicks; the last is snapped to the exit gate. */
-export function drawSegment(track: Track, line: Line, i: number, pts: Vec2[]): Line {
-  const last = i === track.segments.length - 1;
+export function drawSegment(track: Track, line: Line, i: number, pts: Vec2[], id: number = idAt(line, i)): Line {
+  const last = nextOf(track, id) === 0;
   const inner = pts.slice(0, -1);
-  const end = last ? line.start : projectToGate(track.segments[i]!.exit, pts.at(-1)!);
+  const end = last ? line.start : projectToGate(track.allSegments[id]!.exit, pts.at(-1)!);
   const segs = line.segs.slice(0, i);
   segs.push([...inner, end]);
-  return { start: line.start, segs };
+  return makeLine(line.start, segs, [...Array.from({ length: i }, (_, k) => idAt(line, k)), id]);
 }
 
 /** Replace segment i. `truncate` drops every segment after it (drawing a lap in order); otherwise they stay. */
-export function setSegment(line: Line, i: number, inner: Vec2[], end: Vec2, truncate: boolean): Line {
+export function setSegment(line: Line, i: number, inner: Vec2[], end: Vec2, truncate: boolean, id: number = idAt(line, i)): Line {
   const segs = truncate ? line.segs.slice(0, i) : line.segs.slice();
   segs[i] = [...inner, end];
-  return { start: line.start, segs };
+  const path = Array.from({ length: segs.length }, (_, k) => (k === i ? id : idAt(line, k)));
+  return makeLine(line.start, segs, path);
 }
 
 /**
@@ -54,22 +74,21 @@ export function setSegment(line: Line, i: number, inner: Vec2[], end: Vec2, trun
  * segment before it, so both stay joined; moving the start line also moves the end of the last segment.
  */
 export function moveJoin(track: Track, line: Line, k: number, p: Vec2): Line {
-  const n = track.segments.length;
-  const q = projectToGate(track.segments[k]!.entry, p);
+  const q = projectToGate(track.allSegments[idAt(line, k)]!.entry, p);
   const segs = line.segs.slice();
   const retarget = (i: number) => { const s = segs[i]; if (s && s.length) segs[i] = [...s.slice(0, -1), q]; };
   if (k === 0) {
-    if (segs.length === n) retarget(n - 1);
-    return { start: q, segs };
+    if (isComplete(track, line)) retarget(segs.length - 1);
+    return makeLine(q, segs, line.path);
   }
   retarget(k - 1);
-  return { start: line.start, segs };
+  return makeLine(line.start, segs, line.path);
 }
 
 /** Redraw the middle of an already drawn segment. Both joins stay where they are. */
 export function amendSegment(line: Line, i: number, inner: Vec2[]): Line {
   const segs = line.segs.map((s, k) => (k === i ? [...inner, s.at(-1)!] : s));
-  return { start: line.start, segs };
+  return makeLine(line.start, segs, line.path);
 }
 
 /** How many segments differ between two complete lines of the same track. */
@@ -91,7 +110,7 @@ interface Wp { p: Vec2; seg: number }
 /** The waypoints of a complete line as a closed loop. The duplicate end (== start) is dropped. */
 function loopWaypoints(line: Line): Wp[] {
   const wps: Wp[] = [{ p: line.start, seg: 0 }];
-  line.segs.forEach((s, i) => s.forEach((p) => wps.push({ p, seg: i })));
+  line.segs.forEach((s, i) => s.forEach((p) => wps.push({ p, seg: idAt(line, i) })));
   wps.pop();
   return wps;
 }
@@ -143,7 +162,8 @@ export function smooth(points: Vec2[], closed: boolean, segOf: (spanEnd: number)
 /** Dense closed curve of a complete lap, each sample tagged with its segment. */
 export function lapCurve(line: Line, segmentCount: number): DensePoint[] {
   const wps = loopWaypoints(line);
-  return smooth(wps.map((w) => w.p), true, (end) => (end < wps.length ? wps[end]!.seg : segmentCount - 1));
+  const lastId = line.path?.at(-1) ?? segmentCount - 1;
+  return smooth(wps.map((w) => w.p), true, (end) => (end < wps.length ? wps[end]!.seg : lastId));
 }
 
 export interface LineCheck {

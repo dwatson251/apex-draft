@@ -32,8 +32,30 @@ export function sessionBest(lapTimes: number[], kind: Exclude<SessionKind, "race
   return timed.length ? Math.min(...timed) : null;
 }
 
-/** Where the Time Trial time for a track lives in the `best` store. */
-export const trialKey = (phrase: string): string => `tt:${normalizePhrase(phrase)}`;
+/**
+ * Where the Time Trial time for a track lives in the `best` store: one for each machine, as a time in one is no use in another.
+ * Without a machine it is the key older versions used, which `migrateBest` moves.
+ */
+export const trialKey = (phrase: string, vehicle?: string): string => `tt:${normalizePhrase(phrase)}${vehicle ? `:${vehicle}` : ""}`;
+
+/**
+ * Times set before the machine was a choice were all set in the track's own (`defaultFor`): give them that machine's key. If a time
+ * is already stored for the machine the quicker of the two is kept, and everything that is not a Time Trial key is left alone.
+ */
+export function migrateBest(best: Record<string, number>, defaultFor: (phrase: string) => string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(best)) {
+    const m = /^tt:([^:]+)$/.exec(k);
+    if (!m) out[k] = v;
+  }
+  for (const [k, v] of Object.entries(best)) {
+    const m = /^tt:([^:]+)$/.exec(k);
+    if (!m) continue;
+    const key = trialKey(m[1]!, defaultFor(m[1]!));
+    out[key] = key in out ? Math.min(out[key]!, v) : v;
+  }
+  return out;
+}
 
 export interface TimedCar { id: string; time: number | null }
 

@@ -7,21 +7,23 @@ export const SAMPLES = 24;
 export interface GateGeom { mid: Vec2; dir: Vec2; n: Vec2 }
 export const gateAt = (mid: Vec2, dir: Vec2): GateGeom => ({ mid, dir, n: perp(dir) });
 
-export type StraightShape = "straight" | "bendy" | "kink" | "chicane" | "esses";
+export type StraightShape = "straight" | "bendy" | "kink" | "chicaneA" | "chicaneB" | "esses";
 
 /**
  * Sideways offset from the straight line between two gates, as a function of how far along (0 to 1). Every shape has zero
  * offset and zero slope at both ends, so it joins its neighbours square-on.
  *  - bendy: one S, a lobe each way (amplitude 20)
  *  - kink: a gentle one-way bow (amplitude 14)
- *  - chicane: a quick S in the middle of the cell with straight run-in and run-out (amplitude 18)
+ *  - chicaneA, chicaneB: a chicane is two cells, one after the other: the road swings out to one side and back across the
+ *    first (A), then out to the other side and back across the second (B), amplitude 18. Neither half is a chicane on its own.
  *  - esses: a flowing double S, a longer, faster wiggle than a chicane (amplitude 12)
  */
 export function straightOffset(shape: StraightShape, t: number, sign: 1 | -1): number {
   switch (shape) {
     case "bendy": return sign * 20 * Math.sin(2 * Math.PI * t) * Math.sin(Math.PI * t);
     case "kink": return sign * 14 * Math.sin(Math.PI * t) ** 2;
-    case "chicane": return sign * 18 * Math.sin(2 * Math.PI * t) * Math.sin(Math.PI * t) ** 2;
+    case "chicaneA": return sign * 18 * Math.sin(Math.PI * t) ** 2;
+    case "chicaneB": return -sign * 18 * Math.sin(Math.PI * t) ** 2;
     case "esses": return sign * 12 * Math.sin(3 * Math.PI * t) * Math.sin(Math.PI * t);
     default: return 0;
   }

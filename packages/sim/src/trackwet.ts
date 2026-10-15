@@ -1,4 +1,4 @@
-import { nearbySegments, ROAD_HALF, type Track } from "./track.ts";
+import { halfIdx, nearbySegments, type Track } from "./track.ts";
 import { tyreGrip, type Compound } from "./tyres.ts";
 
 /** Each segment is cut into this many bins along it and across it. */
@@ -26,7 +26,7 @@ export class WetField {
   readonly cells: number;
 
   constructor(private track: Track) {
-    this.cells = track.segments.length * PER;
+    this.cells = track.allSegments.length * PER;
     this.wet = new Float32Array(this.cells);
     this.use = new Float32Array(this.cells);
   }
@@ -42,12 +42,13 @@ export class WetField {
       }
     }
     if (si < 0) return -1;
-    const seg = this.track.segments[si]!;
+    const seg = this.track.allSegments[si]!;
     const n = seg.normals[best]!, c = seg.center[best]!;
     const lat = (x - c.x) * n.x + (y - c.y) * n.y;
-    if (Math.abs(lat) > ROAD_HALF + 2) return -1;
+    const half = halfIdx(seg, best);
+    if (Math.abs(lat) > half + 2) return -1;
     const lo = Math.min(WET_LONG - 1, Math.floor((best * WET_LONG) / seg.center.length));
-    const la = Math.min(WET_LAT - 1, Math.max(0, Math.floor(((lat + ROAD_HALF) / (2 * ROAD_HALF)) * WET_LAT)));
+    const la = Math.min(WET_LAT - 1, Math.max(0, Math.floor(((lat + half) / (2 * half)) * WET_LAT)));
     return si * PER + lo * WET_LAT + la;
   }
 

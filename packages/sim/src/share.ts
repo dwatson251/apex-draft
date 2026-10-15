@@ -8,9 +8,9 @@ import type { Vec2 } from "./vec.ts";
  * Everything needed to come back to the same track and the same drawing, and nothing about a race: no lap, no time,
  * no standings. Reloading a link always starts the race afresh.
  *
- * Binary layout (version 4), then base64url. Versions 1 to 3 links still open.
- *   u8 version (4)
- *   u8 flags: 1 obstacles, 2 realism, 4 race mode (else time trial), 8 in a game (else menu), 16 has points
+ * Binary layout (version 5), then base64url. Versions 1 to 4 links still open (5 added the route through shortcuts).
+ *   u8 version (5)
+ *   u8 flags: 1 obstacles, 2 realism, 4 race mode (else time trial), 8 in a game (else menu), 16 has points, 32 has a route (the line takes a shortcut)
  *   u8 laps (1 to 50)
  *   u8 rivals (1 to 31), u8 start tyre (0 soft, 1 medium, 2 wet)
  *   (versions 1 to 3 had rivals in the low nibble of one byte and the tyre in the high nibble: at most 7 rivals)
@@ -20,7 +20,8 @@ import type { Vec2 } from "./vec.ts";
  *   u16 car levels: accel, top, grip, brake, 4 bits each
  *   u8 length + utf-8: car name
  *   u8 length + utf-8: track phrase
- *   if has points: varint count of segments drawn, u16 start x, u16 start y (tenths of a unit), then per segment
+ *   if has points: varint count of segments drawn, then (if has a route) that many varints: the id of the segment each was drawn in,
+ *     u16 start x, u16 start y (tenths of a unit), then per segment
  *     varint point count, and each point as zigzag varint deltas (tenths of a unit) from the point before it
  */
 export interface ShareState {
@@ -40,7 +41,7 @@ export interface ShareState {
   line?: Line;
 }
 
-export const SHARE_VERSION = 4;
+export const SHARE_VERSION = 5;
 /** A grid is at most 32 cars: you and 31 rivals. */
 export const MAX_RIVALS = 31;
 const Q = 10;
@@ -78,11 +79,11 @@ export function encodeShare(st: ShareState): string {
   const w = new Writer();
   w.u8(SHARE_VERSION);
   const hasLine = !!st.line && st.line.start !== undefined;
-  w.u8((st.obstacles ? 1 : 0) | (st.realism ? 2 : 0) | (st.mode === "race" ? 4 : 0) | (st.playing ? 8 : 0) | (hasLine ? 16 : 0));
+  w.u8((st.obstacles ? 1 : 0) | (st.realism ? 2 : 0) | (st.mode === "race" ? 4 : 0) | (st.playing ? 8 : 0) | (hasLine ? 16 : 0) | (hasLine && st.line!.path ? 32 : 0));
   w.u8(Math.min(50, Math.max(1, st.laps)));
   w.u8(Math.min(MAX_RIVALS, Math.max(1, st.rivals)));
   w.u8(Math.max(0, COMPOUND_IDS.indexOf(st.startTyre)));
-  const plan = st.pitPlan.slice(0, 5);
+  const plan = st.pitPlan.slice(0, 50);
   w.u8(plan.length);
   for (const p of plan) { w.u8(Math.min(255, Math.max(0, p.lap))); w.u8(Math.max(0, COMPOUND_IDS.indexOf(p.tyre))); }
   w.u16(STATS.reduce((acc, s, i) => acc | ((st.car[s] & 15) << (4 * i)), 0));
@@ -91,6 +92,7 @@ export function encodeShare(st: ShareState): string {
   if (hasLine) {
     const line = st.line!;
     w.varint(line.segs.length);
+    if (line.path) for (let k = 0; k < line.segs.length; k++) w.varint(line.path[k] ?? k);
     let px = Math.round(line.start.x * Q), py = Math.round(line.start.y * Q);
     w.u16(px); w.u16(py);
     for (const seg of line.segs) {
@@ -110,7 +112,7 @@ export function decodeShare(code: string): ShareState | string {
   try {
     const r = new Reader(unb64(code.replace(/^#/, "")));
     const version = r.u8();
-    if (version < 1 || version > 4) return "this link was made by a different version";
+    if (version < 1 || version > 5) return "this link was made by a different version";
     const flags = r.u8();
     let laps: number, rivals: number, startTyre: Compound = "medium";
     const pitPlan: { lap: number; tyre: Compound }[] = [];
@@ -120,7 +122,7 @@ export function decodeShare(code: string): ShareState | string {
       if (version >= 4) { rivals = r.u8(); startTyre = COMPOUND_IDS[r.u8()] ?? "medium"; }
       else { const rt = r.u8(); rivals = rt & 15; startTyre = COMPOUND_IDS[rt >> 4] ?? "medium"; }
       if (version === 2) r.u8(); // edit-every-N-laps, which no longer exists
-      for (let n = r.u8(), i = 0; i < n && i < 5; i++) { const lap = r.u8(), tyre = COMPOUND_IDS[r.u8()] ?? "medium"; pitPlan.push({ lap, tyre }); }
+      for (let n = r.u8(), i = 0; i < n && i < 50; i++) { const lap = r.u8(), tyre = COMPOUND_IDS[r.u8()] ?? "medium"; pitPlan.push({ lap, tyre }); }
     }
     const levels = r.u16();
     const car: CarConfig = { name: "", accel: 0, top: 0, grip: 0, brake: 0 };
@@ -137,6 +139,11 @@ export function decodeShare(code: string): ShareState | string {
     if (flags & 16) {
       const count = r.varint();
       if (count > 64) return "too many segments";
+      let path: number[] | undefined;
+      if (flags & 32) {
+        path = [];
+        for (let i = 0; i < count; i++) { const id = r.varint(); if (id > 1000) return "a segment id is out of range"; path.push(id); }
+      }
       let px = r.u16(), py = r.u16();
       const start: Vec2 = { x: px / Q, y: py / Q };
       const segs: Vec2[][] = [];
@@ -147,7 +154,7 @@ export function decodeShare(code: string): ShareState | string {
         for (let k = 0; k < n; k++) { px += r.zigzag(); py += r.zigzag(); seg.push({ x: px / Q, y: py / Q }); }
         segs.push(seg);
       }
-      st.line = { start, segs };
+      st.line = path && path.some((id, k) => id !== k) ? { start, segs, path } : { start, segs };
     }
     return st;
   } catch (e) {

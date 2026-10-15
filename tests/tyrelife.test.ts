@@ -20,9 +20,9 @@ describe("tyre life at 1x wear", () => {
     expect(soft).toBeGreaterThan(4); expect(soft).toBeLessThan(6);
     expect(medium).toBeGreaterThan(8.5); expect(medium).toBeLessThan(11.5);
   });
-  it("is about 10 laps for wets on a wet track, and much less on a dry one", () => {
+  it("is about 15 laps for wets on a wet track, and much less on a dry one", () => {
     const wet = life("wet", true), dry = life("wet", false);
-    expect(wet).toBeGreaterThan(8.5); expect(wet).toBeLessThan(12);
+    expect(wet).toBeGreaterThan(13.5); expect(wet).toBeLessThan(16.5);
     expect(dry).toBeLessThan(wet * 0.6);
   });
 });

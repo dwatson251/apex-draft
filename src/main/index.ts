@@ -34,7 +34,7 @@ function createWindow(): void {
   win = new BrowserWindow({
     width: 1280, height: 800, minWidth: 900, minHeight: 600, backgroundColor: "#12151c", title: "Apex Draft",
     autoHideMenuBar: true,
-    webPreferences: { preload: join(__dirname, "../preload/index.js"), contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: { preload: join(__dirname, "../preload/index.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, autoplayPolicy: "no-user-gesture-required" },
   });
   win.setMenuBarVisibility(false);
   win.webContents.setWindowOpenHandler(({ url }) => {

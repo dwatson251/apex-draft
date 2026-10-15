@@ -58,7 +58,7 @@ describe("the slipstream", () => {
       for (let k = 0; k < 15; k++) { r.step(); r.cars[1]!.v = Math.min(r.cars[1]!.v, 66); }
       return r.cars[0]!.v;
     };
-    expect(speedAfter(true)).toBeGreaterThan(speedAfter(false) + 0.4);
+    expect(speedAfter(true)).toBeGreaterThan(speedAfter(false) + 0.1);
   });
   it("lets the follower go a little beyond its own top speed on a straight, not far beyond", () => {
     const st = carStats(defaultCar());

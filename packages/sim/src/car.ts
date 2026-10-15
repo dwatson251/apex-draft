@@ -1,4 +1,14 @@
+import { G } from "./scale.ts";
 import { vehicleOf, type VehicleId } from "./vehicles.ts";
+
+/**
+ * The stat formulas below were written when 1 g was 87.77 units/s²; accelerations are scaled to the real g of the current scale.
+ * PACE then lifts accel, grip and braking together by what lap times need: with the spec-sheet figures a bot on a clean line laps
+ * about 17% slower than the real pole laps of the real circuits (see docs/DESIGN.md, "Lap-time calibration"), because real cars
+ * carry more speed than their static figures (aero, banking, kerbs, a better line). It is one factor for every vehicle.
+ */
+export const PACE = 1.35;
+const ACC = (G / 87.77) * PACE;
 
 export type Stat = "accel" | "top" | "grip" | "brake";
 export const STATS: readonly Stat[] = ["accel", "top", "grip", "brake"];
@@ -44,5 +54,5 @@ export interface CarStats {
 
 export function carStats(c: CarConfig): CarStats {
   const v = vehicleOf(c.type);
-  return { accel: (30 + 6 * c.accel) * v.accel, vTop: (70 + 8 * c.top) * v.top, aLat: (40 + 10 * c.grip) * v.grip, brake: (60 + 10 * c.brake) * v.brake };
+  return { accel: (30 + 6 * c.accel) * v.accel * ACC, vTop: (70 + 8 * c.top) * v.top, aLat: (40 + 10 * c.grip) * v.grip * ACC, brake: (60 + 10 * c.brake) * v.brake * ACC };
 }

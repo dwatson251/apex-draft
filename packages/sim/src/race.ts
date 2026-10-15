@@ -1,6 +1,6 @@
 import { carStats, type CarConfig } from "./car.ts";
-import { biomeOf, type Biome } from "./biomes.ts";
-import { vehicleOf } from "./vehicles.ts";
+import { biomeOf, terrainMul, type Biome } from "./biomes.ts";
+import { vehicleOf, type Vehicle } from "./vehicles.ts";
 import { impact } from "./impact.ts";
 import { botLine } from "./bots.ts";
 import { Rng } from "./rng.ts";
@@ -10,7 +10,7 @@ import { WetField } from "./trackwet.ts";
 import type { Line } from "./line.ts";
 import { PIT_BAYS, PIT_BAY_GAP, PIT_PENALTY, PIT_STOP_TIME } from "./pit.ts";
 import { buildProfile, indexAt, sampleAt, type Profile } from "./profile.ts";
-import { nearbySegments, trackLength, type Track } from "./track.ts";
+import { nearbySegments, trackLength, ROAD_HALF, type Track } from "./track.ts";
 
 export const TICK = 1 / 60;
 /** Distance between rows of the starting grid, units; the second car of a row sits half a row back. */
@@ -24,6 +24,35 @@ export const HARD_GAP = 8;
 /** Pull of the spring that brings a knocked car back to its line, and its damping: about a second to settle. */
 const OFF_K = 36;
 const OFF_C = 10.8;
+
+/**
+ * Boats on water. Nothing grips, so a boat is allowed to carry more speed into a corner than a car could (DRIFT_ALLOW, scaled by
+ * how readily the hull slides), and what it cannot grip it slides: the hull swings into a slip angle `beta` toward the turn
+ * (cars do the same on a smaller scale, up to their own peak slip angle)
+ * while the boat is carried wide, with only a weak pull back to the line. The angle rises in a fraction of a second and dies away
+ * slowly, and the sideways slide scrubs speed off, so a big drift costs time.
+ */
+const DRIFT_ALLOW = 0.35;
+/** On land the tyres still grip: the slide carries a car outward less than a hull, and scrubs less speed. */
+const LAND_SLIDE = 0.4;
+const BETA_RISE = 5;
+const WATER_K = 8;
+const WATER_C = 4;
+const SLIDE_GAIN = 2.5;
+const SLIDE_DRAG = 0.9;
+/**
+ * Tyres that are worn, or the wrong ones for the road (slicks in the wet, wets on a dry road), have less grip, and a tyre working
+ * nearer its limit runs at a bigger slip angle: each 10% of grip lost widens the angle a vehicle reaches by this much, up to a cap.
+ * The bigger slide carries the car further out and scrubs more speed, on top of the lower cornering speed the path already has.
+ */
+const SLIP_PER_LOST_GRIP = 1.2;
+const SLIP_WIDEN_MAX = 2;
+
+/** Extra pull from a standing start for machines that launch hard, fading out by 30% of top speed. */
+const launchMul = (c: { v: number; entrant: { car: CarConfig } }, vTop: number): number => {
+  const l = vehicleOf(c.entrant.car.type).launch;
+  return l > 0 ? 1 + l * Math.max(0, 1 - c.v / (0.3 * vTop)) : 1;
+};
 const OFF_MAX = 26;
 /** Hits gentler than this make no sound. */
 const BUMP_MIN = 6;
@@ -38,16 +67,16 @@ const GHOST_LINGER = 1200;
 /** How close two cars are predicted to be before the one with less right of way backs off. */
 const PREDICT_GAP = 10;
 /** A car that has been stuck this long ignores other cars for a while, so a rare jam cannot freeze the race. */
-const DEADLOCK_TICKS = 1200;
+const DEADLOCK_TICKS = 600;
 /** Long races stretch the tank and the tyres, so that a handful of stops is enough for fifty laps. */
 export function raceScale(laps: number): { fuelLaps: number; wearScale: number } {
-  return { fuelLaps: Math.max(3.4, laps / 3.5), wearScale: 7 / Math.max(7, laps / 3.5) };
+  return { fuelLaps: Math.max(11, laps / 3.5), wearScale: 7 / Math.max(7, laps / 3.5) };
 }
 
 /** Full tank. */
 export const TANK = 100;
 /** Laps a full tank lasts for a car with the standard stats. */
-export const FUEL_LAPS = 3.4;
+export const FUEL_LAPS = 11;
 /** Tyre health lost per lap at the standard grip, 0 to 1. */
 export const TYRE_WEAR_PER_LAP = 0.076;
 /** Cornering grip lost when the tyres are completely worn. */
@@ -95,6 +124,7 @@ export const clampWear = (x: unknown): number => {
 
 /** A pit stop planned in advance: drive in at the end of this lap and come out on this tyre. */
 export interface PitStop { lap: number; tyre?: Compound }
+/** The most stops that can be queued at once (stops already made do not count). */
 export const MAX_PIT_STOPS = 5;
 
 export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump" | "spin" | "rain";
@@ -118,7 +148,7 @@ export interface Entrant {
   isPlayer?: boolean;
   /** pit[lap] = drive into the pits at the end of that lap (older form of `pitPlan`). Bots decide for themselves. */
   pit?: boolean[];
-  /** the stops the player has queued, at most MAX_PIT_STOPS */
+  /** the stops the player has queued: at most MAX_PIT_STOPS still to come at any time (a long race can have more over its length) */
   pitPlan?: PitStop[];
   /** tyre on the grid; medium if left out */
   startTyre?: Compound;
@@ -209,6 +239,10 @@ export interface RaceCar {
   /** how far the car has been knocked off its line, across it, and how fast that is changing */
   off: number;
   offV: number;
+  /** slip angle, radians, toward the turn: the hull points further round than the path it is on (a car's is small: its tyres' slip angle; a boat's is a drift) */
+  beta: number;
+  /** beta at every tick */
+  btrace: number[];
   radius: number;
   mass: number;
   anchored: boolean;
@@ -320,7 +354,7 @@ export class Race {
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerLap(e.car, laps) / this.lapLen, wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
         compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, ctrace: [], used: [],
-        hp: 0, off: 0, offV: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, mass: vehicleOf(e.car.type).mass, anchored: false,
+        hp: 0, off: 0, offV: 0, beta: 0, btrace: [], radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, mass: vehicleOf(e.car.type).mass, anchored: false,
       };
       c.used.push(c.compound);
       if (slot === 0) this.startLap(c);
@@ -341,7 +375,9 @@ export class Race {
 
   private build(e: Entrant, lap: number, pitIn: boolean, pitOut: boolean, grip: number, accel: number, tyre?: Compound): Profile {
     // the surface scales what the car can do
-    grip *= this.biome.grip; accel *= this.biome.accel;
+    const veh = vehicleOf(e.car.type);
+    grip *= terrainMul(this.biome.grip, veh.terrain); accel *= terrainMul(this.biome.accel, veh.terrain);
+    if (veh.domain === "water") grip *= 1 + DRIFT_ALLOW * veh.slip;
     // the state of the road changes, so a path built for one moment is only good for a little while
     const gen = Math.floor(this.tick / 600);
     if (gen !== this.profGen) { this.profiles.clear(); this.profGen = gen; }
@@ -351,7 +387,7 @@ export class Race {
     let p = this.profiles.get(k);
     if (!p) {
       const field = this.field;
-      p = buildProfile(this.track, e.lines[idx]!, e.car, { pitIn, pitOut, grip, accel, brake: this.biome.brake, gripAt: tyre ? (x, y) => field.gripAt(tyre, x, y) : undefined });
+      p = buildProfile(this.track, e.lines[idx]!, e.car, { pitIn, pitOut, grip, accel, brake: terrainMul(this.biome.brake, veh.terrain), gripAt: tyre ? (x, y) => field.gripAt(tyre, x, y) : undefined });
       this.profiles.set(k, p);
     }
     return p;
@@ -454,7 +490,7 @@ export class Race {
     const lat = c.off + c.gridOff;
     c.x = bx - Math.sin(c.hp) * lat;
     c.y = by + Math.cos(c.hp) * lat;
-    c.h = c.hp + Math.max(-0.6, Math.min(0.6, Math.atan2(c.offV, Math.max(c.v, 15)))) * 0.7;
+    c.h = c.hp + Math.max(-0.6, Math.min(0.6, Math.atan2(c.offV, Math.max(c.v, 15)))) * 0.7 + c.beta;
     const power = p.ghost[indexAt(p, c.s)] === 1;
     // A ghost only turns solid once nobody is inside it, so the power-up never ends with two cars overlapping.
     const sitting = c.ghost && this.cars.some((o) => o !== c && this.alive(o) && Math.hypot(o.x - c.x, o.y - c.y) < SAFE_GAP + 2);
@@ -466,23 +502,29 @@ export class Race {
   private record(): void {
     for (const c of this.cars) c.trace.push(Math.round(c.x * 100) / 100, Math.round(c.y * 100) / 100, Math.round(c.h * 1000) / 1000);
     for (const c of this.cars) {
-      c.prog.push(c.lap * 1e5 + c.s);
+      c.prog.push(this.progress(c));
       c.vtrace.push(Math.round(c.v * 10) / 10);
       c.gtrace.push(c.ghost ? 1 : 0);
       c.ftrace.push(Math.round(c.fuel * 10) / 10);
       c.ttrace.push(Math.round(c.tyre * 1000) / 1000);
       c.ctrace.push(c.compound === "soft" ? 0 : c.compound === "medium" ? 1 : 2);
+      c.btrace.push(Math.round(c.beta * 1000) / 1000);
       c.ptrace.push(c.out ? 3 : c.dwell > 0 ? 2 : c.prof.lane[indexAt(c.prof, c.s)] ? 1 : 0);
     }
   }
 
   /** Progress used for ordering: whole laps first, then distance in the lap. */
   progress(c: RaceCar): number {
-    return c.lap * 1e5 + c.s;
+    return c.lap * 1e5 + this.pos(c);
+  }
+
+  /** Distance round the lap for ranking: along its own line, or, where the track has shortcuts, round the ring whichever way it went. */
+  private pos(c: RaceCar): number {
+    return c.prof.canon ? sampleAt(c.prof, c.prof.canon, c.s) : c.s;
   }
 
   /** Who has right of way: further round the race first, the better grid slot on a tie. */
-  private prio(c: RaceCar): number { return c.lap * 1e5 + c.s - c.slot * 1e-3; }
+  private prio(c: RaceCar): number { return c.lap * 1e5 + this.pos(c) - c.slot * 1e-3; }
 
   /**
    * The speed this car may carry given the traffic on its path. Cars ahead and going the same way are followed at
@@ -569,9 +611,11 @@ export class Race {
     // over the limit for this bend: the grip it lacks is how hard it is pulled outward
     const excess = kap > 0.003 && c.v > lim * 1.12 + 3 ? (c.v / lim) ** 2 - 1 : 0;
     // the line-seeking spring does little while the car is sliding, and takes over again once it has grip
+    const veh = vehicleOf(c.entrant.car.type), water = veh.domain === "water";
     const spring = excess > 0 ? 0.12 : 1;
     c.off += c.offV * TICK;
-    c.offV += (-OFF_K * spring * c.off - OFF_C * c.offV) * TICK;
+    c.offV += (-(water ? WATER_K : OFF_K) * spring * c.off - (water ? WATER_C : OFF_C) * c.offV) * TICK;
+    this.drift(c, veh, i);
     if (excess > 0) {
       // which way is the bend turning? the car goes the other way
       const h0 = Math.atan2(sampleAt(p, p.y, c.s) - sampleAt(p, p.y, c.s - 3), sampleAt(p, p.x, c.s) - sampleAt(p, p.x, c.s - 3));
@@ -582,8 +626,9 @@ export class Race {
       c.v = Math.max(0, c.v - 20 * Math.min(excess, 1) * TICK); // scrubbing speed off
       if (this.rules.realism) c.tyre = Math.max(0, c.tyre - 0.0006 * excess);
     }
+    // (there are no tyres on the water to let go)
     // on slicks in the wet the grip can simply go: a low chance, in a bend, of letting go altogether
-    if (this.rules.realism && this.rules.weather !== false && kap > 0.008 && c.v > 25) {
+    if (!water && this.rules.realism && this.rules.weather !== false && kap > 0.008 && c.v > 25) {
       const g = tyreGrip(c.compound, this.field.wetAt(c.x, c.y), this.field.useAt(c.x, c.y));
       const rate = spinRate(g);
       if (rate > 0 && this.rng.next() < rate * TICK) {
@@ -593,9 +638,46 @@ export class Race {
         this.events.push({ tick: this.tick, id: c.entrant.id, type: "spin", x: c.x, y: c.y });
       }
     }
-    c.off = Math.max(-OFF_MAX, Math.min(OFF_MAX, c.off));
+    // the road is as wide as it is here: a wide piece gives room to run wide, a bottleneck none
+    const room = p.half[i]! / ROAD_HALF, offMax = OFF_MAX * room, grass = Math.max(3, 10 + (p.half[i]! - ROAD_HALF));
+    c.off = Math.max(-offMax, Math.min(offMax, c.off));
     // well off the road it is on the grass, which grips little
-    if (Math.abs(c.off) > 10) c.v *= 1 - 0.6 * TICK * ((Math.abs(c.off) - 10) / 16);
+    if (Math.abs(c.off) > grass) c.v *= 1 - 0.6 * TICK * ((Math.abs(c.off) - grass) / Math.max(4, offMax - grass));
+  }
+
+  /** The grip the tyres have right now against fresh mediums on a dry road, 0 to 1: they wear, and slicks on a wet road or wets on a dry one grip less. 1 when tyres are not in play. */
+  gripLevel(c: RaceCar): number {
+    if (!this.rules.realism) return 1;
+    const wear = 1 - TYRE_GRIP_LOSS * (1 - c.tyre);
+    const cell = this.field.cellAt(c.x, c.y);
+    const road = cell < 0 ? tyreGrip(c.compound, 0, 0) : tyreGrip(c.compound, this.field.wet[cell]!, this.field.use[cell]!);
+    return Math.min(1, wear * road);
+  }
+
+  /**
+   * A vehicle's slip angle (a hull's drift, or the angle a car's tyres work at). How hard the corner asks of it, as a multiple of what the hull could hold, sets the angle it swings to;
+   * it follows quickly going in and recovers slowly coming out. The slide carries it outward and costs speed.
+   */
+  private drift(c: RaceCar, veh: Vehicle, i: number): void {
+    const slip = veh.slip, water = veh.domain === "water";
+    const p = c.prof, n = p.n;
+    let dh = p.h[(i + 2) % n]! - p.h[(i + n - 2) % n]!;
+    if (dh > Math.PI) dh -= 2 * Math.PI; else if (dh < -Math.PI) dh += 2 * Math.PI;
+    const dir = Math.sign(dh);
+    // how hard the bend asks, against the grip the tyres have now (worn, or wrong for the road, the path is slower but the tyres are nearer their limit)
+    const grip = this.gripLevel(c);
+    const demand = (p.kap[i]! * c.v * c.v) / Math.max(this.stats(c).aLat * grip, 1);
+    // from nothing at 60% of the grip to the vehicle's own peak slip angle at all of it, and a wider angle on poor tyres
+    const widen = Math.min(SLIP_WIDEN_MAX, 1 + SLIP_PER_LOST_GRIP * (1 - grip));
+    const want = dir * ((veh.slipDeg * Math.PI) / 180) * widen * Math.min(1, Math.max(0, (demand - 0.6) / 0.4));
+    const recover = 2 + 2.5 * (1 - slip);
+    const rate = Math.abs(want) > Math.abs(c.beta) && Math.sign(want) === Math.sign(c.beta || want) ? BETA_RISE : recover;
+    c.beta += (want - c.beta) * Math.min(1, rate * TICK);
+    if (Math.abs(c.beta) < 1e-4) c.beta = 0;
+    // sliding outward (away from the turn), and the water dragging the speed off
+    const k = water ? 1 : LAND_SLIDE;
+    c.offV += -Math.sign(c.beta) * k * SLIDE_GAIN * c.v * Math.sin(Math.abs(c.beta)) * TICK;
+    c.v = Math.max(0, c.v - k * SLIDE_DRAG * Math.sin(c.beta) ** 2 * c.v * TICK);
   }
 
   /** Cars that touch push each other about (see impact.ts). */
@@ -618,7 +700,8 @@ export class Race {
       }
     }
     for (const c of touched) {
-      c.off = Math.max(-OFF_MAX, Math.min(OFF_MAX, c.off));
+      const offMax = OFF_MAX * c.prof.half[indexAt(c.prof, c.s)]! / ROAD_HALF;
+      c.off = Math.max(-offMax, Math.min(offMax, c.off));
       if (c.dwell > 0) c.v = 0;
       this.place(c);
     }
@@ -646,7 +729,8 @@ export class Race {
   /** The car's stats on this surface. */
   private stats(c: RaceCar) {
     const st = carStats(c.entrant.car);
-    st.brake *= this.biome.brake; st.accel *= this.biome.accel; st.aLat *= this.biome.grip;
+    const t = vehicleOf(c.entrant.car.type).terrain;
+    st.brake *= terrainMul(this.biome.brake, t); st.accel *= terrainMul(this.biome.accel, t); st.aLat *= terrainMul(this.biome.grip, t);
     return st;
   }
 
@@ -704,7 +788,7 @@ export class Race {
           if ((o.x - c.x) * hx + (o.y - c.y) * hy > 0) target = Math.min(target, Math.max(0, o.v - 14));
         }
       }
-      let v = c.v > target ? Math.max(target, c.v - st.brake * TICK) : Math.min(target, c.v + st.accel * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * TICK);
+      let v = c.v > target ? Math.max(target, c.v - st.brake * TICK) : Math.min(target, c.v + st.accel * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * launchMul(c, st.vTop) * TICK);
       let s = c.s + v * TICK;
       if (stopping && !c.boxed && c.bay !== undefined && stopS - s < 0.5 && v < 5) { s = stopS; v = 0; arrived.push(c); }
       next.set(c, { v, s });
@@ -729,7 +813,7 @@ export class Race {
         c.fuel = Math.max(0, c.fuel - moved * c.perUnit * this.biome.fuel * clampWear(this.rules.wearMult?.fuel));
         const st = this.stats(c);
         const load = Math.min(1.2, (p.kap[indexAt(p, c.s)]! * c.v * c.v) / st.aLat);
-        c.tyre = Math.max(0, c.tyre - (moved / this.lapLen) * TYRE_WEAR_PER_LAP * raceScale(this.laps).wearScale * c.wearMul * this.biome.wear * clampWear(this.rules.wearMult?.tyre) * wearRate(c.compound, this.field.wetAt(c.x, c.y)) * (0.4 + 1.2 * load * load) / 0.63);
+        c.tyre = Math.max(0, c.tyre - (moved / this.lapLen) * TYRE_WEAR_PER_LAP * raceScale(this.laps).wearScale * c.wearMul * this.biome.wear * clampWear(this.rules.wearMult?.tyre) * wearRate(c.compound, this.field.wetAt(c.x, c.y)) * (0.4 + 1.2 * load * load) / 0.6);
       }
       this.settle(c);
       let p = c.prof;
@@ -846,7 +930,7 @@ export class Race {
     let h = 0x811c9dc5;
     const mix = (n: number) => { h ^= Math.round(n * 100) | 0; h = Math.imul(h, 0x01000193) >>> 0; };
     mix(this.tick);
-    for (const c of this.cars) { mix(c.s); mix(c.v); mix(c.lap); mix(c.finishTime ?? -1); mix(c.fuel); mix(c.tyre * 100); }
+    for (const c of this.cars) { mix(c.s); mix(c.v); mix(c.lap); mix(c.finishTime ?? -1); mix(c.fuel); mix(c.tyre * 100); mix(c.beta); }
     return h.toString(16);
   }
 }

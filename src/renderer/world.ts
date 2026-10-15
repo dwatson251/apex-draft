@@ -1,18 +1,18 @@
 import { Application, Container, Graphics, RenderTexture, Sprite } from "pixi.js";
-import { CELL, ROAD_HALF, WET_LAT, WET_LONG, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
-import { buildCar, type CarShape } from "./cars.ts";
+import { CELL, halfIdx, WET_LAT, WET_LONG, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
+import { buildCar, variantOf, type CarShape } from "./cars.ts";
 import { buildScenery, MARGIN_CELLS, type PlaneState, type Scenery } from "./scenery.ts";
 import { Sky } from "./sky.ts";
 import { buildSegmentArt, type SegmentArt } from "./trackart.ts";
 
 export interface TrackStyle {
-  /** segments with index <= this are drawn; null = all (and the countryside too) */
-  visibleUpTo: number | null;
+  /** the segments drawn in full (the rest are faded); null = all (and the countryside too) */
+  visible: Set<number> | null;
   selected?: Set<number>;
   bad?: Set<number>;
 }
 
-export type HandleKind = "join" | "pt" | "end";
+export type HandleKind = "join" | "pt" | "end" | "alt";
 export interface Handle { p: Vec2; kind: HandleKind; active?: boolean }
 
 export interface Skid { x0: number; y0: number; x1: number; y1: number; alpha: number }
@@ -20,8 +20,14 @@ export interface Skid { x0: number; y0: number; x1: number; y1: number; alpha: n
 /** How far the camera zooms in on the player, as a multiple of the fit-to-window zoom. */
 const FOLLOW_ZOOM = 2.4;
 const SKID_RES = 3;
+/** The most pixels the skid-mark texture may have. */
+const SKID_PIXELS = 16e6;
 /** Countryside shown around the course in the overview, units. */
 const BACKGROUND = 70;
+/** How far, as a share of the segment on screen, the view may be dragged away from it while drawing (about half a segment). */
+const FOCUS_PAN_REACH = 0.5;
+/** How visible the segments you have not reached yet are while drawing a lap. */
+const FUTURE_ALPHA = 0.28;
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 5;
 /** How far the wheel can pull the following camera out (nearly the whole track) and in (close on the car). */
@@ -60,6 +66,8 @@ export class WorldView {
   private user = { zoom: 1, x: 350, y: 250 };
   private mode: CamMode = "overview";
   private focusRect: { x: number; y: number; w: number; h: number } | null = null;
+  /** how far the player has dragged the focused view away from its segment, before the soft limit (world units) */
+  private focusPan = { x: 0, y: 0 };
   private panelPx = 160;
   private followPt: Vec2 | null = null;
   /** where the following camera is heading: the player's wheel changes it, and it is kept from one stretch of racing to the next */
@@ -75,6 +83,12 @@ export class WorldView {
 
   /** World units to screen pixels at the moment. */
   get scale(): number { return this.root.scale.x; }
+
+  /** The part of the world on screen right now: its edges in world units, and the pixels a world unit takes. Follows the camera as it eases. */
+  visibleWorld(): { x0: number; y0: number; x1: number; y1: number; scale: number } {
+    const k = this.root.scale.x || 1, W = this.app.screen.width, H = this.app.screen.height;
+    return { x0: -this.root.x / k, y0: -this.root.y / k, x1: (W - this.root.x) / k, y1: (H - this.root.y) / k, scale: k };
+  }
 
   setBounds(w: number, h: number): void {
     this.size = { w, h };
@@ -121,11 +135,14 @@ export class WorldView {
     this.mode = "overview";
     this.followPt = null;
     this.focusRect = null;
+    this.focusPan = { x: 0, y: 0 };
     this.user = { zoom: 1, x: this.size.w / 2, y: this.size.h / 2 };
   }
 
   /** Fill the screen with this rectangle (the segment being edited). Calling it again glides to the new one. */
   setFocus(r: { x: number; y: number; w: number; h: number }): void {
+    const f = this.focusRect;
+    if (!f || f.x !== r.x || f.y !== r.y || f.w !== r.w || f.h !== r.h) this.focusPan = { x: 0, y: 0 };
     this.mode = "focus";
     this.followPt = null;
     this.focusRect = r;
@@ -160,7 +177,10 @@ export class WorldView {
   private focusTarget(): { zoom: number; x: number; y: number } {
     const r = this.focusRect!, W = this.app.screen.width, H = this.app.screen.height, pad = 40;
     const s = Math.min((W - this.panelFor("focus") - 2 * pad) / r.w, (H - 2 * pad) / r.h);
-    return { zoom: s / this.baseScale(), x: r.x + r.w / 2, y: r.y + r.h / 2 };
+    // the view may be dragged about half a segment away from the one being drawn, with the pull getting stiffer toward the limit
+    const reach = Math.max(r.w, r.h) * FOCUS_PAN_REACH;
+    const soft = (raw: number) => reach * Math.tanh(raw / reach);
+    return { zoom: s / this.baseScale(), x: r.x + r.w / 2 + soft(this.focusPan.x), y: r.y + r.h / 2 + soft(this.focusPan.y) };
   }
 
   /** Wheel zoom. In the overview the point under the cursor stays put; while following the car the camera just closes in or pulls back. */
@@ -177,6 +197,15 @@ export class WorldView {
 
   /** Overview only: drag to pan, by pixels on screen. */
   panBy(dxPx: number, dyPx: number): void {
+    if (this.mode === "focus") {
+      // not the free pan of the overview: a short drag either way, held by a soft limit (see focusTarget)
+      const r = this.focusRect, k = this.scale;
+      if (!r || k <= 0) return;
+      const cap = Math.max(r.w, r.h) * FOCUS_PAN_REACH * 1.8;
+      this.focusPan.x = Math.min(cap, Math.max(-cap, this.focusPan.x - dxPx / k));
+      this.focusPan.y = Math.min(cap, Math.max(-cap, this.focusPan.y - dyPx / k));
+      return;
+    }
     if (this.mode !== "overview") return;
     const u = this.user, k = this.baseScale() * u.zoom;
     u.x -= dxPx / k; u.y -= dyPx / k;
@@ -266,26 +295,28 @@ export class WorldView {
     ground.attach(this.sky);
     this.sky.configure(ground.look);
     this.drawGrid(track.cols, track.rows, ground.look.ground[0] > 0x808080);
-    for (const s of track.segments) {
+    for (const s of track.allSegments) {
       const art = buildSegmentArt(track, s);
       this.arts.set(s.index, art);
       this.segLayer.addChild(art.root);
     }
     // one polygon for each bin of the wet field, worked out once
     const samples = track.segments[0]!.center.length;
-    for (const seg of track.segments) {
+    for (const seg of track.allSegments) {
       for (let lo = 0; lo < WET_LONG; lo++) {
         for (let la = 0; la < WET_LAT; la++) {
           const i0 = Math.floor((lo * samples) / WET_LONG), i1 = Math.min(samples - 1, Math.floor(((lo + 1) * samples) / WET_LONG));
-          const l0 = -ROAD_HALF + (la * 2 * ROAD_HALF) / WET_LAT, l1 = l0 + (2 * ROAD_HALF) / WET_LAT;
+          const lat0 = (i: number) => -halfIdx(seg, i) + (la * 2 * halfIdx(seg, i)) / WET_LAT, lat1 = (i: number) => lat0(i) + (2 * halfIdx(seg, i)) / WET_LAT;
           const pts: number[] = [];
-          for (let i = i0; i <= i1; i++) pts.push(seg.center[i]!.x + seg.normals[i]!.x * l0, seg.center[i]!.y + seg.normals[i]!.y * l0);
-          for (let i = i1; i >= i0; i--) pts.push(seg.center[i]!.x + seg.normals[i]!.x * l1, seg.center[i]!.y + seg.normals[i]!.y * l1);
+          for (let i = i0; i <= i1; i++) pts.push(seg.center[i]!.x + seg.normals[i]!.x * lat0(i), seg.center[i]!.y + seg.normals[i]!.y * lat0(i));
+          for (let i = i1; i >= i0; i--) pts.push(seg.center[i]!.x + seg.normals[i]!.x * lat1(i), seg.center[i]!.y + seg.normals[i]!.y * lat1(i));
           this.wetCells.push(pts);
         }
       }
     }
-    this.skidTex = RenderTexture.create({ width: b.w, height: b.h, resolution: SKID_RES });
+    // a big circuit gets a coarser skid-mark texture, so it stays within what a graphics card will make (and a sane amount of memory)
+    const res = Math.min(SKID_RES, 8000 / Math.max(b.w, b.h), Math.sqrt(SKID_PIXELS / (b.w * b.h)));
+    this.skidTex = RenderTexture.create({ width: b.w, height: b.h, resolution: res });
     this.skidSprite.texture = this.skidTex;
     this.skidSprite.visible = true;
   }
@@ -307,16 +338,17 @@ export class WorldView {
 
   drawTrack(track: Track, style: TrackStyle): void {
     this.setTrack(track);
-    for (const [i, art] of this.arts) art.root.visible = i <= (style.visibleUpTo ?? Infinity);
+    // segments still to be drawn are shown faintly rather than hidden
+    for (const [i, art] of this.arts) { art.root.visible = true; art.root.alpha = !style.visible || style.visible.has(i) ? 1 : FUTURE_ALPHA; }
     // the hills and trees would give away which cells are road, so they wait until the whole track is known
-    if (this.decor) this.decor.visible = style.visibleUpTo === null;
+    if (this.decor) this.decor.visible = style.visible === null;
     const h = this.highlight.clear();
-    for (const s of track.segments) {
+    for (const s of track.allSegments) {
       const bad = style.bad?.has(s.index), sel = style.selected?.has(s.index);
-      if ((!bad && !sel) || s.index > (style.visibleUpTo ?? Infinity)) continue;
+      if ((!bad && !sel) || (style.visible && !style.visible.has(s.index))) continue;
       const pts: number[] = [];
-      for (let i = 0; i < s.center.length; i++) pts.push(s.center[i]!.x + s.normals[i]!.x * ROAD_HALF, s.center[i]!.y + s.normals[i]!.y * ROAD_HALF);
-      for (let i = s.center.length - 1; i >= 0; i--) pts.push(s.center[i]!.x - s.normals[i]!.x * ROAD_HALF, s.center[i]!.y - s.normals[i]!.y * ROAD_HALF);
+      for (let i = 0; i < s.center.length; i++) pts.push(s.center[i]!.x + s.normals[i]!.x * halfIdx(s, i), s.center[i]!.y + s.normals[i]!.y * halfIdx(s, i));
+      for (let i = s.center.length - 1; i >= 0; i--) pts.push(s.center[i]!.x - s.normals[i]!.x * halfIdx(s, i), s.center[i]!.y - s.normals[i]!.y * halfIdx(s, i));
       h.poly(pts).fill({ color: bad ? 0xff3b4e : 0xffcf3f, alpha: bad ? 0.38 : 0.28 }).stroke({ width: 1.6, color: bad ? 0xff5d6c : 0xffcf3f });
     }
   }
@@ -339,6 +371,8 @@ export class WorldView {
       const { x, y } = h.p, hot = h.active ? 0xffcf3f : 0xffffff;
       if (h.kind === "join") g.rect(x - 3.6, y - 3.6, 7.2, 7.2).fill(hot).stroke({ width: 1, color: 0x14161c });
       else if (h.kind === "end") g.poly([x, y - 4.8, x + 4.8, y, x, y + 4.8, x - 4.8, y]).fill(0xffcf3f).stroke({ width: 1, color: 0x14161c });
+      // the other way on at a fork: a hollow diamond, to drag the end to or tap
+      else if (h.kind === "alt") g.poly([x, y - 6.2, x + 6.2, y, x, y + 6.2, x - 6.2, y]).fill({ color: 0xffcf3f, alpha: h.active ? 0.9 : 0.28 }).stroke({ width: 1.6, color: 0xffcf3f, alpha: 0.95 });
       else g.circle(x, y, 3.2).fill(hot).stroke({ width: 1, color: 0x14161c });
     }
   }
@@ -390,10 +424,10 @@ export class WorldView {
   }
 
   // ---------- cars ----------
-  setCar(id: string, type: VehicleId | undefined, x: number, y: number, h: number, color: number, ghost: boolean, isPlayer: boolean, braking: boolean, hidden = false): void {
+  setCar(id: string, type: VehicleId | undefined, x: number, y: number, h: number, color: number, ghost: boolean, isPlayer: boolean, braking: boolean, hidden = false, boat?: { v: number; beta: number }): void {
     let c = this.cars.get(id);
     if (!c) {
-      c = buildCar(type ?? "rally", color, isPlayer);
+      c = buildCar(type ?? "rally", color, isPlayer, variantOf(id));
       this.carsLayer.addChild(c.root);
       this.cars.set(id, c);
     }
@@ -404,6 +438,13 @@ export class WorldView {
     c.shadow.rotation = h;
     c.brake.visible = braking;
     c.root.alpha = ghost ? 0.4 : 1;
+    if (c.wake) {
+      // foam trails behind the path the hull is travelling on, not the way it points
+      const sp = boat ? Math.min(1, boat.v / 110) : 0;
+      c.wake.rotation = h - (boat?.beta ?? 0);
+      c.wake.scale.set(0.2 + 1.1 * sp + Math.abs(boat?.beta ?? 0), 1);
+      c.wake.alpha = 0.15 + 0.5 * sp;
+    }
   }
 
   /** A shower of sparks where two cars touched. */

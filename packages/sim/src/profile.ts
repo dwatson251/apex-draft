@@ -2,7 +2,7 @@ import { carStats, type CarConfig } from "./car.ts";
 import { lapCurve, type Line } from "./line.ts";
 import { PIT_SPEED } from "./pit.ts";
 import { applyPit } from "./pitpath.ts";
-import type { Track } from "./track.ts";
+import { ROAD_HALF, ringCum, type Track } from "./track.ts";
 import { dist } from "./vec.ts";
 
 /** Spacing of the resampled path, in units. */
@@ -22,6 +22,10 @@ export interface Profile {
   /** heading in radians */
   h: Float64Array;
   seg: Int32Array;
+  /** half the width of the road at each sample */
+  half: Float64Array;
+  /** only where the track has shortcuts: how far round the ring the car is at each sample, whichever way it went (for ranking) */
+  canon?: Float64Array;
   /** speed limit after braking for what is ahead */
   vLim: Float64Array;
   accelMul: Float64Array;
@@ -56,6 +60,10 @@ export interface ProfileOpts {
   /** grip of the tyres at each point of the road (wet and dry patches); defaults to 1 everywhere */
   gripAt?: (x: number, y: number) => number;
 }
+
+/** Road narrower than this (half width) slows the cars: the speed limit is PINCH_SPEED per unit of half-width. */
+const PINCH_FREE = 18;
+const PINCH_SPEED = 5.2;
 
 export function buildProfile(track: Track, line: Line, car: CarConfig, opts: ProfileOpts = {}): Profile {
   const st = carStats(car);
@@ -93,6 +101,43 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     const a = (i + n - 1) % n;
     const b = (i + 1) % n;
     h[i] = Math.atan2(y[b]! - y[a]!, x[b]! - x[a]!);
+  }
+
+  // how wide the road is under each sample (only fun tracks change it)
+  const half = new Float64Array(n).fill(ROAD_HALF);
+  if (track.segments.some((s) => s.half)) {
+    for (let i = 0; i < n; i++) {
+      const sg = track.segments[seg[i]!];
+      if (!sg?.half) continue;
+      let bd = Infinity;
+      for (let q = 0; q < sg.center.length; q++) {
+        const d = (sg.center[q]!.x - x[i]!) ** 2 + (sg.center[q]!.y - y[i]!) ** 2;
+        if (d < bd) { bd = d; half[i] = sg.half[q]!; }
+      }
+    }
+  }
+
+  // with shortcuts, laps are different lengths: rank cars by where they are on the ring, a shortcut counting as the stretch it replaces
+  let canon: Float64Array | undefined;
+  if (track.branches.length) {
+    canon = new Float64Array(n);
+    const ring = ringCum(track), nr = track.segments.length;
+    const first = new Map<number, number>(), lastAt = new Map<number, number>();
+    for (let i = 0; i < n; i++) { const q = seg[i]!; if (!first.has(q)) first.set(q, i * ds); lastAt.set(q, i * ds); }
+    const inBranch = new Map<number, { s0: number; s1: number; c0: number; c1: number }>();
+    for (const b of track.branches) {
+      let s0 = Infinity, s1 = -Infinity;
+      for (const id of b.segs) { if (first.has(id)) { s0 = Math.min(s0, first.get(id)!); s1 = Math.max(s1, lastAt.get(id)!); } }
+      if (s1 < s0) continue;
+      const span = { s0, s1, c0: ring[b.fork]!, c1: ring[b.rejoin + 1]! };
+      for (const id of b.segs) inBranch.set(id, span);
+    }
+    for (let i = 0; i < n; i++) {
+      const q = seg[i]!, s = i * ds, br = inBranch.get(q);
+      if (br) canon[i] = br.c0 + (br.c1 - br.c0) * Math.min(1, Math.max(0, (s - br.s0) / Math.max(br.s1 - br.s0, 1e-6)));
+      else if (q < nr) canon[i] = Math.min(ring[q]! + (s - (first.get(q) ?? s)), ring[q + 1]!);
+      else canon[i] = ring[nr]!;
+    }
   }
 
   // power-ups: collected where the line passes through the pickup; they last to the end of that segment
@@ -134,6 +179,8 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     kap[i] = kk;
     const here = opts.gripAt ? opts.gripAt(x[i]!, y[i]!) : 1;
     vLim[i] = Math.min(st.vTop * topMul[i]!, Math.sqrt((st.aLat * gripMul[i]! * here) / Math.max(kk, 1e-4)));
+    // a bottleneck is taken carefully
+    if (half[i]! < PINCH_FREE) vLim[i] = Math.min(vLim[i]!, PINCH_SPEED * half[i]!);
     if (lane[i]) vLim[i] = Math.min(vLim[i]!, PIT_SPEED);
   }
   for (let pass = 0; pass < 2; pass++) {
@@ -154,7 +201,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   for (let k = 0; k < n; k++) ideal += ds / Math.max((v[k]! + v[(k + 1) % n]!) / 2, 1);
   let pitFromS: number | undefined;
   if (pitIn) for (let i = 0; i < n; i++) if (lane[i] && i > n / 2) { pitFromS = i * ds; break; }
-  return { n, ds, length: total, x, y, h, seg, vLim, accelMul, ghost, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
+  return { n, ds, length: total, x, y, h, seg, half, canon, vLim, accelMul, ghost, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
 }
 
 /** Linear lookup into a per-sample array at arclength s (wrapping, unless the lap is open: then it stops at the ends). */

@@ -87,7 +87,7 @@ phrase ──► generateTrack ──► Track (segments, biome, vehicle, weathe
 | Module | Responsibility |
 | --- | --- |
 | `seed.ts`, `rng.ts` | Phrase to seed (`normalizePhrase`, FNV-1a hash), `randomPhrase`, and the seeded `Rng` |
-| `track.ts`, `pieces.ts`, `circuits.ts` | `generateTrack` grows a cycle of grid cells (14 to 22 cells on 7×5). `enrich` swaps in kinks, chicanes, esses, sweepers and U-turns from a *separate* random stream. Circuits are hand-fitted loops reached by a hidden phrase |
+| `track.ts`, `pieces.ts`, `circuits.ts` | `generateTrack` grows a cycle of grid cells (14 to 22 cells on 7×5), starting from a big ring and preferring pushes that add no corners. `enrich` swaps in kinks, two-cell chicanes, esses, sweepers, U-turns and hairpins from a *separate* random stream. Circuits are hand-fitted loops reached by a hidden phrase |
 | `line.ts`, `lineFile.ts` | A racing line: a start point plus waypoints per segment, joined with a centripetal Catmull-Rom spline, and its validity check. `lineFile` is the file format for sharing lines |
 | `profile.ts`, `car.ts` | Turns a line and a car into a speed profile: capped by top speed and `sqrt(grip / curvature)`, with braking propagated backwards so the car slows in time |
 | `race.ts` | The 60 Hz deterministic race: traffic, drafting, fuel, tyres, pit stops, penalties |
@@ -166,6 +166,7 @@ CI runs exactly those two. The unit tests cover the sim, since it is pure and fa
 | `grid.test.ts` | The staggered 32-car grid and its order |
 | `pit.test.ts`, `pitlane.test.ts`, `tyrelife.test.ts` | Pit stops, the lane and bays, tyre life and wear |
 | `weather.test.ts` | Showers, the forecast and the drying field |
+| `maps.test.ts` | The circuits laid out from a map: every one has its data, is a valid loop with a straight start, has no bend a car cannot take, is about the right size, and gives the bots a line |
 | `circuits.test.ts` | Each hidden circuit: named by its phrase, a closed loop, smooth headings, a clear pit lane, a full grid that gets home |
 | `session.test.ts`, `flow.test.ts` | The session and weekend rules and the flows between them |
 | `share.test.ts` | Round-tripping a share link |
@@ -269,16 +270,33 @@ The **Release** workflow then:
 
 **Add a hidden circuit.** Add a `Spec` in `packages/sim/src/circuits.ts`: a `route` string (one letter per move, `E S W N`,
 which must close or `build` throws), a `from` cell, `kinds` for the cells that are not a plain corner or straight, optional
-`windows` for U-turn and sweeper arcs, a biome, and `aliases` for other things people might type. `circuits.test.ts` runs its checks over every circuit automatically. Shapes are fitted by eye to the real layouts, and no map data is shipped.
+`windows` for U-turn and sweeper arcs, a biome, and `aliases` for other things people might type. `circuits.test.ts` runs its checks over every circuit automatically. Shapes of the grid circuits are fitted by eye.
+
+**Add a real circuit from a map.** Add a `Source` to `tools/circuits/sources.ts` (a bounding box; the OpenStreetMap relation of the circuit, or a way on the
+lap; how long it really is; how many units a metre; where the start line is), run `npm run circuits:fetch` and `npm run circuits`, look at the picture
+it writes to `tools/circuits/cache/<id>.svg` (real in blue, the game track in white), and add a `FREE` entry (name, blurb, biome, aliases) in `circuits.ts`.
+The data is OpenStreetMap, so keep `docs/CIRCUIT_CREDITS.md` right.
 
 **Add a piece of road.** Add it to `packages/sim/src/pieces.ts`, then to `enrich` in `track.ts` so it is in the random pool,
 and give it art in `trackart.ts`. A shape that leaves the cell must keep the heading continuous at both gates.
 
 **Add a vehicle or a place.** Both are plain tables (`vehicles.ts`, `biomes.ts`) of multipliers with a selection `weight`.
-A biome also needs paint in `look.ts` and scenery rules in `scenery.ts`.
+A biome also needs paint in `look.ts` and scenery rules in `scenery.ts`. A vehicle needs a `case` in `cars.ts`, an entry in `ENGINES`
+(`audio.ts`) and one in `GEARS` (`gearbox.ts`, not type-checked: a missing one falls back to the rally car). A vehicle has a
+`domain` (`land` or `water`); `vehicleForSeed(seed, domain)` picks within it, and water biomes get boats. `slip` is how readily a
+boat drifts (`Race.drift`), `terrain` how much of a surface's penalty it ignores, `launch` a standing-start bonus.
+
+**Fun tracks** (`fun.ts`, `width.ts`, `branches.ts`). A phrase starting `fun-` builds its layout as a loop that may cross itself
+(through `buildCircuit`, as the Demolition Derby does), then lays pinches and wide runs (`Segment.half`, half the road width per
+centre point; `ROAD_HALF` when absent) and shortcuts. A shortcut is `Track.branches`: its segments have ids from the ring's length
+up (`Track.allSegments[id]`, with `segments` the ring only), a `next` that says where each leads, and the piece in the fork cell
+has an `alt` naming the ring segment that shares its entry gate. A `Line` then has a `path` (the segment id of each list of
+waypoints) once it takes a shortcut. Cars are ranked by `Profile.canon`, the distance round the ring, so routes of different
+length compare fairly; tracks without shortcuts rank by arclength exactly as before. Anything that walks "every segment" wants
+`allSegments`, anything that walks the lap wants the line's route.
 
 **Change anything that changes a race.** Races are deterministic from the phrase, lines and cars, so a rules change shifts
 every existing race. That is fine, since no race is stored, but a change to what a share link *contains* needs a new link
-version in `share.ts` that still reads the old ones (version 4 is current, and 1 to 3 still open).
+version in `share.ts` that still reads the old ones (version 5 is current, and 1 to 4 still open).
 
 **Not done yet.** Online upload of times and lines (line files stand in), code signing and auto-update, and proper art.

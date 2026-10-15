@@ -8,6 +8,7 @@ function separation(t: ReturnType<typeof generateTrack>): number {
   let best = Infinity;
   for (let i = 0; i < n; i++) for (let j = i + 2; j < n; j++) {
     if (i === 0 && j === n - 1) continue;
+    if (t.segments[i]!.kind === "cross" && t.segments[j]!.kind === "cross") continue; // a crossroads is meant to meet itself
     for (const p of t.segments[i]!.center) for (const q of t.segments[j]!.center) best = Math.min(best, Math.hypot(p.x - q.x, p.y - q.y));
   }
   return best;
@@ -22,6 +23,15 @@ function joinsSmoothly(a: Segment, b: Segment): boolean {
   return (d.x * a.exit.dir.x + d.y * a.exit.dir.y) / Math.hypot(d.x, d.y) > 0.8;
 }
 
+describe("lago-maggiore", () => {
+  it("is a traced free line about 5.8 km long (at the game's scale), not a grid of cells", () => {
+    expect(generateTrack("lago-maggiore").free).toBe(true);
+    const c = CIRCUITS.find((x) => x.id === "lago-maggiore")!;
+    expect(c.free?.length).toBeGreaterThan(400);
+    expect(c.cells.length).toBe(0);
+  });
+});
+
 describe("hidden circuits", () => {
   it("are named by their phrase, however it is typed", () => {
     expect(generateTrack("Donington Park").circuit?.id).toBe("donington-park");
@@ -32,6 +42,17 @@ describe("hidden circuits", () => {
     expect(generateTrack("Circuit de la Sarthe").circuit?.id).toBe("le-mans");
     expect(generateTrack("Autodrome Lago Maggiore").circuit?.id).toBe("lago-maggiore");
     expect(generateTrack("Daytona International Speedway").circuit?.id).toBe("daytona");
+    expect(generateTrack("Donington Park GP").circuit?.id).toBe("donington-park-gp");
+    expect(generateTrack("Donington Park").circuit?.id).toBe("donington-park");
+    expect(generateTrack("Demolition Derby").circuit?.id).toBe("demolition-derby");
+    expect(generateTrack("Spa Francorchamps").circuit?.id).toBe("spa-francorchamps");
+    expect(generateTrack("Circuit de Barcelona").circuit?.id).toBe("circuit-de-barcelona-catalunya");
+    expect(generateTrack("barcelona").circuit?.id).toBe("circuit-de-barcelona-catalunya");
+    expect(generateTrack("catalunya").circuit?.id).toBe("circuit-de-barcelona-catalunya");
+    expect(generateTrack("Monza").circuit?.id).toBe("monza");
+    expect(generateTrack("Silverstone").circuit?.id).toBe("silverstone");
+    expect(generateTrack("Laguna Seca").circuit?.id).toBe("laguna-seca");
+    expect(generateTrack("Monaco").circuit?.id).toBe("monaco");
   });
 
   it("are never found by a random phrase", () => {
@@ -50,7 +71,7 @@ describe("hidden circuits", () => {
       });
       it("is a valid closed loop with a straight start line, a fixed setting and room between roads", () => {
         expect(checkTrack(t)).toEqual([]);
-        expect(t.segments.length).toBe(c.cells.length);
+        if (!c.free) expect(t.segments.length).toBe(c.cells.length);
         expect(t.biome).toBe(c.biome);
         expect(separation(t)).toBeGreaterThan(MIN_GAP);
       });
@@ -68,7 +89,7 @@ describe("hidden circuits", () => {
       it("gives the same track every time and a sane lap", () => {
         expect(trackLength(generateTrack(c.id))).toBe(trackLength(t));
         expect(trackLength(t)).toBeGreaterThan(1200);
-        expect(trackLength(t)).toBeLessThan(6000);
+        expect(trackLength(t)).toBeLessThan(c.free ? 7000 : 6000);
       });
       it("runs an 8-car race to the flag with every car finishing", () => {
         const es = Array.from({ length: 8 }, (_, i) => ({ id: `c${i}`, name: `c${i}`, car: defaultCar(), lines: [botLine(t, 2 + (i % 4), 1)], isPlayer: false }));
@@ -101,7 +122,7 @@ describe("the new pieces in random tracks", () => {
       expect(t.segments[0]!.kind).toBe("straight");
       expect(t.segments.at(-1)!.kind).toBe("straight");
     }
-    for (const k of ["kink", "chicane", "esses", "sweeper", "uturn"]) expect(seen.has(k), k).toBe(true);
+    for (const k of ["kink", "chicaneA", "chicaneB", "esses", "sweeper", "uturn"]) expect(seen.has(k), k).toBe(true);
   });
   it("leave the layout of the cells exactly as it was", () => {
     for (const p of phrases.slice(0, 80)) {

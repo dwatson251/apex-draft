@@ -1,12 +1,14 @@
 import type { BiomeId } from "./biomes.ts";
+import { CIRCUIT_DATA } from "./circuitData.ts";
 
 /**
- * Real circuits, drawn on the cell grid. Each is a loop of cells given as a route (one letter per move: E, S, W, N, with
- * screen y pointing down) from the first cell after the start line, and a few cells say what they are besides a corner or a
- * straight. A `window` lays a wide arc (`uturn` or `sweeper`) over three cells starting there. The shapes are simplified
- * to fit: the right sort of corner in the right order and direction, not a survey. Nothing here is copied from a map.
+ * The hidden circuits. Most are real ones laid out from a mapped line (`FREE`, below; the data is OpenStreetMap, see
+ * docs/CIRCUIT_CREDITS.md). The rest are drawn on the cell grid: each is a loop of cells given as a route (one letter per move: E, S, W,
+ * N, with screen y pointing down) from the first cell after the start line, and a few cells say what they are besides a corner or a
+ * straight. A `window` lays a wide arc (`uturn` or `sweeper`) over three cells starting there. Those shapes are not from a map.
  */
-export type CircuitKind = "straight" | "bendy" | "kink" | "chicane" | "esses" | "corner" | "sharp";
+/** In a route, "chicane" marks a chicane: `build` lays it as two cells, a `chicaneA` and the `chicaneB` beside it. */
+export type CircuitKind = "straight" | "bendy" | "kink" | "esses" | "chicaneA" | "chicaneB" | "cross" | "corner" | "sharp";
 
 export interface Circuit {
   id: string;
@@ -21,6 +23,8 @@ export interface Circuit {
   /** index in `cells` of the segment after the start line */
   start: number;
   windows?: { at: number; piece: "uturn" | "sweeper" }[];
+  /** a circuit laid out from a mapped line (x, y, x, y, ... in game units, the first point on the start line) rather than cells */
+  free?: number[];
 }
 
 interface Spec {
@@ -33,21 +37,50 @@ interface Spec {
   biome: BiomeId;
   from: [number, number];
   route: string;
-  kinds: Record<number, CircuitKind>;
+  kinds: Record<number, CircuitKind | "chicane">;
   windows?: { at: number; piece: "uturn" | "sweeper" }[];
   /** other things people might type */
   aliases?: string[];
 }
 
+/** A route written as runs: "E4 S2" is EEEESS. */
+const runs = (text: string): string => text.split(/\s+/).map((t) => t[0]!.repeat(Number(t.slice(1)))).join("");
+
 const MOVE: Record<string, [number, number]> = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
+
+/**
+ * A chicane takes two cells, the swing out and the swing back, so each chicane in a spec becomes a pair of straight cells: the one
+ * named and the one after it (or the one before, if that is the better fit). One that fits nowhere is a set of esses.
+ */
+function chicanePairs(s: Spec): Record<number, CircuitKind> {
+  const n = s.route.length;
+  const out: Record<number, CircuitKind> = {};
+  const windowed = new Set<number>();
+  for (const w of s.windows ?? []) for (let k = 0; k < 3; k++) windowed.add(w.at + k);
+  const straight = (j: number) => s.route[(j + n - 1) % n] === s.route[j];
+  // a cell can take half a chicane if it is a plain straight that nothing else has claimed
+  const open = (j: number) => j > 0 && j < n - 1 && straight(j) && !windowed.has(j) && out[j] === undefined && (s.kinds[j] === undefined || s.kinds[j] === "chicane");
+  for (const key of Object.keys(s.kinds)) {
+    const i = Number(key), k = s.kinds[i]!;
+    if (k !== "chicane" && out[i] === undefined) out[i] = k;
+  }
+  for (const key of Object.keys(s.kinds).map(Number).sort((a, b) => a - b)) {
+    if (s.kinds[key] !== "chicane" || out[key] !== undefined) continue;
+    if (open(key) && open(key + 1)) { out[key] = "chicaneA"; out[key + 1] = "chicaneB"; }
+    else if (open(key - 1) && open(key)) { out[key - 1] = "chicaneA"; out[key] = "chicaneB"; }
+    else out[key] = "esses";
+  }
+  return out;
+}
 
 function build(s: Spec): Circuit {
   const cells: [number, number, CircuitKind][] = [];
   let [x, y] = s.from;
   const n = s.route.length;
+  const kinds = chicanePairs(s);
   for (let i = 0; i < n; i++) {
     const turn = s.route[(i + n - 1) % n] !== s.route[i];
-    cells.push([x, y, s.kinds[i] ?? (turn ? "corner" : "straight")]);
+    cells.push([x, y, kinds[i] ?? (turn ? "corner" : "straight")]);
     const m = MOVE[s.route[i]!]!;
     x += m[0];
     y += m[1];
@@ -66,54 +99,47 @@ const SPECS: Spec[] = [
     aliases: ["stadium-oval", "speedway"],
   },
   {
-    id: "donington-park", name: "Donington Park", lengthKm: 4, blurb: "Redgate, the Craner Curves, the Old Hairpin and a long run home.",
-    cols: 6, rows: 5, biome: "grass", from: [2, 0],
-    // 3 Redgate, 5 Craner Curves, 6-7 Old Hairpin, 9 Starkey's, 11 Schwantz, 13 McLeans, 14 Fogarty Esses, 15 Melbourne, 18 Goddards
-    route: "EEESSSWNNWWSSWWNNNEE", kinds: { 3: "sharp", 5: "bendy", 6: "sharp", 7: "sharp", 9: "corner", 11: "corner", 13: "corner", 14: "chicane", 15: "sharp", 18: "sharp" },
-    aliases: ["donington", "donington-gp"],
-  },
-  {
-    id: "daytona", name: "Daytona", lengthKm: 5.7, blurb: "Tri-oval kink, Turn 1, the infield esses and chicanes, then the high banking home.",
-    cols: 10, rows: 6, biome: "grass", from: [4, 5],
-    // 2 tri-oval kink, 5 turn 1, 6 esses, 8 chicane, 9 the kink, 10-12 the horseshoe, 17 Le Mans chicane, 20 bus stop,
-    // 22-24 the banking (a uturn)
-    route: "EEEEENNNNNWWSSSWWWWWWWSSEEEE", kinds: { 2: "kink", 5: "sharp", 6: "esses", 8: "chicane", 9: "kink", 10: "sharp", 12: "sharp", 13: "chicane", 17: "chicane", 20: "esses" },
-    windows: [{ at: 22, piece: "uturn" }],
-    aliases: ["daytona-road-course", "daytona-international-speedway", "daytona-speedway"],
-  },
-  {
-    id: "le-mans", name: "Circuit de la Sarthe", lengthKm: 13.6, blurb: "Tertre Rouge, the Mulsanne straight and its chicanes, Arnage, the Porsche curves. Squashed to fit.",
-    cols: 14, rows: 4, biome: "grass", from: [6, 3],
-    // 3-4 Dunlop, 5-7 Tertre Rouge (a sweeper), 9 and 12 the Mulsanne chicanes, 16 Mulsanne corner, 17 Indianapolis,
-    // 18 Arnage, 19-22 the Porsche curves, 23-24 the Ford chicanes
-    route: "WWWNNNEEEEEEEEEESSWWWWWSWW",
-    kinds: { 4: "chicane", 9: "chicane", 12: "chicane", 17: "esses", 18: "sharp", 19: "esses", 20: "esses", 21: "kink" },
-    windows: [{ at: 5, piece: "sweeper" }],
-    aliases: ["circuit-de-la-sarthe", "sarthe", "le-mans-24-hours", "24-hours-of-le-mans"],
-  },
-  {
-    id: "lago-maggiore", name: "Autodrome Lago Maggiore", lengthKm: 5.8, blurb: "Full course: a hard left at Turn 1, S-bends, a long back straight, the banked hairpin and the banked final turn.",
-    cols: 10, rows: 6, biome: "grass", from: [6, 5],
-    // 3 turn 1, 4-5 turns 2 to 4, 7 turn 5, 11-12 the S-bends, 13-16 the long straight, 17-19 the banked hairpin (a uturn),
-    // 20-22 the esses, 24-26 the banked final turn (a sweeper)
-    route: "EEENNWWNNNWWWWWWWSSEEESSSEEE",
-    kinds: { 3: "sharp", 4: "chicane", 6: "esses", 7: "sharp", 8: "kink", 11: "esses", 12: "esses", 15: "kink", 20: "chicane", 21: "esses", 22: "sharp" },
-    windows: [{ at: 17, piece: "uturn" }, { at: 24, piece: "sweeper" }],
-    aliases: ["autodrome-lago-maggiore", "lago-maggiore-full", "maggiore"],
-  },
-  {
-    id: "willow-springs", name: "Willow Springs", lengthKm: 4, blurb: "Big Willow: huge sweepers in the high desert.",
-    cols: 7, rows: 5, biome: "desert", from: [3, 0],
-    // 2-4 and 6-8 and 13-15 are sweepers; 9 and 11 the tight ones between
-    route: "EEESSSSWWNNWWWNNEE", kinds: { 9: "sharp", 11: "sharp" },
-    windows: [{ at: 2, piece: "sweeper" }, { at: 6, piece: "sweeper" }, { at: 13, piece: "sweeper" }],
-    aliases: ["big-willow", "willow"],
+    id: "demolition-derby", name: "Demolition Derby", lengthKm: 0.9, blurb: "Two crossroads where the track runs over itself. Pick your moment.",
+    cols: 11, rows: 5, biome: "desert", from: [6, 2],
+    // a chain of three loops: the straight in the middle is crossed twice, once at each end (cells 2 and 28, and 10 and 20 for the
+    // other pass); the two end loops are fast wide turns
+    route: runs("E4 S2 W2 N4 W6 S4 W2 N2 E6"),
+    kinds: { 2: "cross", 10: "cross", 20: "cross", 28: "cross" },
+    windows: [{ at: 4, piece: "uturn" }, { at: 22, piece: "uturn" }],
+    aliases: ["demolition", "derby", "demo-derby", "demolition-derby-arena"],
   },
 ];
 
-export const CIRCUITS: Circuit[] = SPECS.map(build);
+/**
+ * The circuits laid out from a mapped line (circuitData.ts, made by tools/circuits). The shape is the real one, scaled to the
+ * game and eased only where a car could not drive it. Autodrome Lago Maggiore is the exception: it is a fictional circuit, traced from
+ * its published map (tools/circuits/trace.ts).
+ */
+interface FreeSpec { id: string; name: string; lengthKm: number; blurb: string; biome: BiomeId; aliases?: string[] }
+const FREE: FreeSpec[] = [
+  { id: "donington-park", name: "Donington Park National", lengthKm: 3.17, biome: "grass", aliases: ["donington", "donington-national", "donington-park-national"], blurb: "The National circuit: Redgate, the Craner Curves, the Old Hairpin, Starkey's, McLeans and Coppice, then the short cut to Goddards." },
+  { id: "donington-park-gp", name: "Donington Park GP", lengthKm: 4.02, biome: "grass", aliases: ["donington-gp", "donington-grand-prix", "donington-park-grand-prix"], blurb: "The full Grand Prix loop: Redgate, the Craner Curves, the Old Hairpin, Coppice, the Fogarty Esses and the Melbourne loop onto the Wheatcroft Straight." },
+  { id: "daytona", name: "Daytona", lengthKm: 5.73, biome: "grass", aliases: ["daytona-road-course", "daytona-international-speedway", "daytona-speedway"], blurb: "The road course: the tri-oval front stretch, a hard left into the infield, the International Horseshoe, the Dogleg and the West Horseshoe, the Le Mans chicane, then the banking home." },
+  { id: "spa-francorchamps", name: "Circuit de Spa-Francorchamps", lengthKm: 7.0, biome: "grass", aliases: ["spa", "circuit-de-spa-francorchamps", "spa-francorchamps-belgium", "spa-belgium"], blurb: "La Source, Eau Rouge and Raidillon, the Kemmel straight, Les Combes, Pouhon, Blanchimont and the Bus Stop." },
+  { id: "circuit-de-barcelona-catalunya", name: "Circuit de Barcelona-Catalunya", lengthKm: 4.66, biome: "grass", aliases: ["circuit-de-barcelona", "barcelona", "barcelona-catalunya", "catalunya", "montmelo"], blurb: "A long start straight, Elf and Renault, the long Repsol and Seat turns and the loop through the infield." },
+  { id: "monza", name: "Monza", lengthKm: 5.79, biome: "grass", aliases: ["autodromo-nazionale-monza", "autodromo-di-monza", "monza-circuit"], blurb: "The Temple of Speed: down the straight, the Rettifilo chicane, Curva Grande, the Lesmos, Ascari and the Parabolica." },
+  { id: "silverstone", name: "Silverstone", lengthKm: 5.89, biome: "grass", aliases: ["silverstone-circuit", "silverstone-gp", "silverstone-grand-prix"], blurb: "Abbey and Farm, Village and the Loop, Brooklands and Luffield, Copse, Maggotts-Becketts-Chapel, the Hangar Straight, Stowe and Club." },
+  { id: "laguna-seca", name: "Laguna Seca", lengthKm: 3.6, biome: "desert", aliases: ["weathertech-raceway-laguna-seca", "mazda-raceway-laguna-seca", "laguna"], blurb: "Short and steep: the Andretti hairpin, the Rahal Straight, the Corkscrew drop and Rainey Curve." },
+  { id: "le-mans", name: "Circuit de la Sarthe", lengthKm: 13.63, biome: "grass", aliases: ["circuit-de-la-sarthe", "sarthe", "le-mans-24-hours", "24-hours-of-le-mans", "circuit-des-24-heures-du-mans", "24-heures-du-mans"], blurb: "Dunlop, the Esses, Tertre Rouge, the Mulsanne straight and its chicane, Mulsanne corner, Indianapolis, Arnage, the Porsche curves and the Ford chicanes. Squeezed down to a third of its size." },
+  { id: "monaco", name: "Monaco", lengthKm: 3.34, biome: "city", aliases: ["circuit-de-monaco", "monte-carlo", "monaco-gp", "monaco-grand-prix"], blurb: "Sainte Dévote, the climb past the Casino, the Grand Hotel hairpin, the tunnel, the chicane, the pool and La Rascasse. There is nowhere to hide." },
+  { id: "willow-springs", name: "Willow Springs", lengthKm: 4.0, biome: "desert", aliases: ["big-willow", "willow", "willow-springs-international-raceway"], blurb: "Big Willow: huge sweepers in the high desert." },
+  { id: "lago-maggiore", name: "Autodrome Lago Maggiore", lengthKm: 5.81, biome: "grass", aliases: ["autodrome-lago-maggiore", "lago-maggiore-full", "maggiore"], blurb: "A fictional Grand Prix circuit by the lake: a hard left at Turn 1, fast S-bends, a banked hairpin at the foot of a long descent, two long straights and the banked final turn." },
+];
+const freeCircuit = (f: FreeSpec): Circuit => {
+  const free = CIRCUIT_DATA[f.id];
+  if (!free) throw new Error(`${f.id}: no map data`);
+  return { id: f.id, name: f.name, lengthKm: f.lengthKm, blurb: f.blurb, cols: 0, rows: 0, biome: f.biome, cells: [], start: 0, free };
+};
+
+export const CIRCUITS: Circuit[] = [...SPECS.map(build), ...FREE.map(freeCircuit)];
 const BY_PHRASE = new Map<string, Circuit>();
 SPECS.forEach((s, i) => { for (const p of [s.id, ...(s.aliases ?? [])]) BY_PHRASE.set(p, CIRCUITS[i]!); });
+FREE.forEach((f, i) => { for (const p of [f.id, ...(f.aliases ?? [])]) BY_PHRASE.set(p, CIRCUITS[SPECS.length + i]!); });
 
 /** The circuit a (normalised) phrase names, if any. Random phrases are four words and never match. */
 export const circuitFor = (phrase: string): Circuit | undefined => BY_PHRASE.get(phrase);

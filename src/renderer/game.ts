@@ -1,16 +1,18 @@
 import type { Application } from "pixi.js";
 import {
-  BIOMES, CAR_BUDGET, CELL, MAX_AMENDS, PIT_PENALTY, PIT_STOP_TIME, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
-  circuitFor, MAX_RIVALS, defaultCar, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
-  phraseToSeed, previewSegment, projectToGate, randomPhrase, serializeLineFile, setSegment, smooth, validateCar, validateLine, vehicleForSeed,
+  BIOMES, CAR_BUDGET, CELL, ROAD_HALF, MAX_AMENDS, PIT_PENALTY, PIT_STOP_TIME, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
+  circuitFor, completeLine, MAX_RIVALS, defaultCar, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
+  exitsAfter, idAt, makeLine, nextOf, phraseToSeed, previewSegment, projectToGate, randomPhrase, rerollPhrase, serializeLineFile, setSegment, smooth, validateCar, validateLine, vehicleForTrack, vehicleChoicesForTrack, migrateBest, isVehicleId, placeFor,
   COMPOUNDS, COMPOUND_IDS, MAX_PIT_STOPS, forecast, forecastText, isCompound, weatherFor,
   PRACTICE_SECONDS, clampWear, finishSession, newWeekend, quickGridTime, sessionBest, sessionLaps, sessionRules, trialKey,
   type CarConfig, type CarResult, type SessionKind, type Weekend, type Compound, type Entrant, type Line, type LineFile, type RaceCar, type ShareState, type Stat, type Track, type Vec2, type VehicleId,
 } from "@apex/sim";
 import { CarAudio } from "./audio.ts";
+import { WORLD_TIME, realSeconds } from "./scale.ts";
+import { FUEL_ICON, TYRE_SMALL, bubble, weatherGrid } from "./hudicons.ts";
 import { Bar, type BarButton } from "./bar.ts";
 import { load, save, type Best, type Settings } from "./store.ts";
-import { copyText, wireControls } from "./menus/controls.ts";
+import { copyText, dropdown, wireControls } from "./menus/controls.ts";
 import { homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
 import type { Handle, HandleKind, Skid, WorldView } from "./world.ts";
 
@@ -21,13 +23,18 @@ const RIVAL_NAMES = ["Nova", "Kestrel", "Dash", "Pebble", "Orbit", "Rook", "Embe
 const STAT_LABEL: Record<Stat, string> = { accel: "Acceleration", top: "Top speed", grip: "Cornering", brake: "Braking" };
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-export const fmt = (t: number | null | undefined) => {
-  if (t === null || t === undefined) return "–";
-  const m = Math.floor(t / 60);
+/** A time from the sim as a clock reading, in real seconds (see scale.ts). */
+export const fmt = (sim: number | null | undefined) => {
+  if (sim === null || sim === undefined) return "–";
+  const t = realSeconds(sim), m = Math.floor(t / 60);
   return `${m}:${(t - m * 60).toFixed(3).padStart(6, "0")}`;
 };
 const hex = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+/** Engine loudness against zoom: full at this many screen pixels to a world unit, quieter below it (further off), a little louder above. */
+const ENGINE_REF_SCALE = 3;
+const ENGINE_MIN_GAIN = 0.08;
+const ENGINE_MAX_GAIN = 1.3;
 
 /** A tyre drawn from above: dark rubber with a coloured sidewall. The colour is how you tell the kinds apart. */
 export function tyreIcon(c: Compound, px: number): string {
@@ -41,7 +48,10 @@ interface DrawState {
   mode: "lap" | "amend";
   /** lap: the start and the segments drawn so far; amend: the whole lap being edited */
   line: Line | null;
+  /** the position in the lap being drawn (the index into the line's lists of points) */
   seg: number;
+  /** the segment of the track it is drawn in; the same as `seg` until the lap takes a shortcut */
+  id: number;
   /** points between the start and the end of this segment */
   pts: Vec2[];
   /** where this segment leaves; null while drawing a lap means "wherever the last point lines up" */
@@ -64,7 +74,7 @@ interface RunConfig {
   mandatory: Compound[];
 }
 
-interface Motion { v: number; acc: number; slip: number; braking: boolean }
+interface Motion { v: number; acc: number; slip: number; beta: number; braking: boolean }
 
 export class Game {
   private settings: Settings = { phrase: "", laps: 3, mode: "race", rivals: 5, car: defaultCar(), realism: false, obstacles: false, startTyre: "medium", pitPlan: [], flow: "quick", wearFuel: 1, wearTyre: 1, mandatory: [] };
@@ -114,6 +124,8 @@ export class Game {
   private shareLine: Line | undefined;
   private inGame = false;
   private menuOpen = false;
+  /** the screen the garage was opened from, and where Done goes back to */
+  private garageFrom: "home" | "setup" = "setup";
   private previewKey = "";
   /** bots going round behind the title menu, replayed in a loop */
   private ambient: { race: Race; tick: number } | null = null;
@@ -128,13 +140,17 @@ export class Game {
   private pinch: { dist: number; cx: number; cy: number } | null = null;
   /** holding a point for a moment deletes it */
   private hold: { timer: number; x: number; y: number } | null = null;
+  /** space is held: a drag slides the view while drawing */
+  private spaceDown = false;
+  /** when a touch last placed a point, so a second finger arriving at once can take it back */
+  private placed: { at: number } | null = null;
   private pan: { lx: number; ly: number; sx: number; sy: number; moved: boolean; button: number; world: Vec2 } | null = null;
 
   constructor(private app: Application, private view: WorldView, private ui: HTMLElement) {
     const host = ui.parentElement!;
     this.menuLayer = document.createElement("div"); this.menuLayer.id = "menu"; host.appendChild(this.menuLayer);
     this.menuLayer.addEventListener("pointerdown", (e) => { if (e.target === this.menuLayer && this.inGame) this.closeMenu(); });
-    this.menuBtn = document.createElement("button"); this.menuBtn.id = "menubtn"; this.menuBtn.textContent = "☰  Menu"; this.menuBtn.style.display = "none";
+    this.menuBtn = document.createElement("button"); this.menuBtn.id = "menubtn"; this.menuBtn.innerHTML = '<span class="ic" aria-hidden="true">☰</span><span class="tx">Menu</span>'; this.menuBtn.title = "Menu"; this.menuBtn.setAttribute("aria-label", "Menu"); this.menuBtn.style.display = "none";
     this.menuBtn.addEventListener("click", () => this.openMenu());
     host.appendChild(this.menuBtn);
     this.modal = document.createElement("div"); this.modal.id = "modal"; host.appendChild(this.modal);
@@ -152,9 +168,13 @@ export class Game {
     if (!this.settings.phrase) this.settings.phrase = randomPhrase(new Rng((Math.random() * 2 ** 32) >>> 0));
     this.cars = await load<CarConfig[]>("cars", []);
     this.best = await load<Best>("best", {});
+    // times set before the machine was a choice belong to the track's own machine
+    const moved = migrateBest(this.best, (p) => placeFor(p).vehicle);
+    if (Object.keys(moved).some((k) => !(k in this.best)) || Object.keys(this.best).some((k) => !(k in moved))) { this.best = moved; void save("best", this.best); }
     this.version = (await window.apex?.version?.()) ?? "dev";
     this.audio.setMuted(!!this.settings.muted);
     this.audio.setMusic(!this.settings.musicOff);
+    this.audio.arm();
     const c = this.app.canvas;
     c.addEventListener("pointerdown", (e) => this.onPointerDown(e));
     c.addEventListener("pointermove", (e) => this.onPointerMove(e));
@@ -166,7 +186,10 @@ export class Game {
       e.preventDefault();
       this.view.zoomBy(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
     }, { passive: false });
+    window.addEventListener("keyup", (e) => { if (e.key === " ") this.spaceDown = false; });
+    window.addEventListener("blur", () => { this.spaceDown = false; });
     window.addEventListener("keydown", (e) => {
+      if (e.key === " " && this.draw && !this.menuOpen && (e.target as HTMLElement).tagName !== "INPUT") { this.spaceDown = true; e.preventDefault(); }
       if (e.key === "Escape") { this.toggleMenu(); return; }
       if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "SELECT") return;
       if (e.key === "m" || e.key === "M") this.toggleMute();
@@ -184,17 +207,26 @@ export class Game {
     } else this.showMenu();
   }
 
-  /** What the forecaster would say for this phrase and lap count: rain at the beginning, middle or end, never the detail. */
-  private forecastFor(phrase: string, laps: number, obstacles: boolean, on = this.run.realism): string {
-    if (!on) return "";
-    const t = generateTrack(phrase, { obstacles });
-    return forecastText(forecast(weatherFor(t.seed, laps, t.biome), laps));
+  /** What the forecaster would say for this phrase and lap count: rain at the start, middle or end of the race, never the detail. */
+  private forecastFor(phrase: string, laps: number, obstacles: boolean, on = this.run.realism): [boolean, boolean, boolean] | null {
+    if (!on) return null;
+    const key = `${phrase}|${laps}|${obstacles}`;
+    if (this.fcKey !== key) {
+      const t = generateTrack(phrase, { obstacles });
+      const ph = forecast(weatherFor(t.seed, laps, t.biome), laps);
+      this.fcKey = key;
+      this.fcRain = [ph.includes("beginning"), ph.includes("middle"), ph.includes("end")];
+    }
+    return this.fcRain;
   }
+  private fcKey = "";
+  private fcRain: [boolean, boolean, boolean] = [false, false, false];
 
   /** Make sure whatever came from storage or a link is something the game can run. */
   private normaliseSettings(): void {
     const s = this.settings;
     s.laps = Math.min(50, Math.max(1, Math.round(Number(s.laps)) || 3));
+    if (s.vehicle !== undefined && !isVehicleId(s.vehicle)) delete s.vehicle;
     // boxes and water are not offered any more
     s.obstacles = false;
     s.wearFuel = clampWear(s.wearFuel);
@@ -206,7 +238,7 @@ export class Game {
     s.pitPlan = (Array.isArray(s.pitPlan) ? s.pitPlan : [])
       .filter((p) => p && Number.isInteger(p.lap) && p.lap >= 0 && p.lap <= s.laps - 2 && isCompound(p.tyre))
       .filter((p, i, all) => all.findIndex((q) => q.lap === p.lap) === i)
-      .sort((a, b) => a.lap - b.lap).slice(0, MAX_PIT_STOPS);
+      .sort((a, b) => a.lap - b.lap).slice(0, 50);
   }
 
   // ---------- share link ----------
@@ -262,6 +294,7 @@ export class Game {
     this.draw = null; this.pick = null; this.play = null; this.race = undefined;
     this.inGame = false; this.shareLine = undefined; this.previewKey = "";
     this.audio.stopAll();
+    this.audio.setBiome(null); // back to the title's own track
     this.view.setFollow(null);
     this.view.clearCars();
     this.ui.innerHTML = "";
@@ -289,7 +322,7 @@ export class Game {
   private toggleMenu(): void {
     if (this.menuOpen) {
       if (this.inGame) { if (this.screen === "settings") { this.screen = "home"; this.renderMenu(); } else this.closeMenu(); }
-      else if (this.screen === "garage") this.go("setup");
+      else if (this.screen === "garage") this.go(this.garageFrom);
       else if (this.screen !== "home") this.go("home");
     } else if (this.inGame) { this.screen = "home"; this.openMenu(); }
   }
@@ -302,6 +335,7 @@ export class Game {
     this.menuBtn.style.display = "none";
     this.app.canvas.classList.add("blurred");
     this.audio.setDucked(true);
+    this.audio.setRacing(false);
     this.planLayer.style.visibility = "hidden";
     if (!this.inGame) this.showPreview();
     this.renderMenu();
@@ -312,6 +346,7 @@ export class Game {
     this.menuLayer.style.display = "none";
     this.app.canvas.classList.remove("blurred");
     this.audio.setDucked(false);
+    this.audio.setRacing(!!this.play);
     this.planLayer.style.visibility = "visible";
     this.menuBtn.style.display = this.inGame ? "block" : "none";
   }
@@ -325,12 +360,12 @@ export class Game {
     if (key === this.previewKey && this.ambient) return;
     this.previewKey = key;
     this.track = generateTrack(s.phrase, { obstacles: s.obstacles });
-    this.vehicle = vehicleForSeed(this.track.seed);
+    this.vehicle = vehicleForTrack(this.track);
     this.view.setTrack(this.track);
     this.view.resetCamera();
     this.view.clearCars();
     this.view.clearSkids();
-    this.view.drawTrack(this.track, { visibleUpTo: null });
+    this.view.drawTrack(this.track, { visible: null });
     this.view.clearLines();
     const bots: Entrant[] = Array.from({ length: 6 }, (_, i) => ({
       id: `a${i}`, name: `a${i}`, car: { name: "Bot", accel: 6, top: 6, grip: 6, brake: 6, type: this.vehicle },
@@ -402,6 +437,7 @@ export class Game {
     this.on(el, "#h-quick", () => this.openSetup("quick"));
     this.on(el, "#h-weekend", () => this.openSetup("weekend"));
     this.on(el, "#h-tutorial", () => this.startTutorial());
+    this.on(el, "#h-garage", () => { this.garageFrom = "home"; this.go("garage"); });
     this.on(el, "#h-settings", () => this.go("settings"));
     this.on(el, "#h-quit", () => void window.apex?.quit?.());
   }
@@ -419,18 +455,18 @@ export class Game {
     const phrase = normalizePhrase(s.phrase);
     const seed = phraseToSeed(phrase);
     const circuit = circuitFor(phrase);
-    const biome = BIOMES[circuit?.biome ?? biomeForSeed(seed)], veh = VEHICLES[vehicleForSeed(seed)];
+    const place = placeFor(phrase), biome = BIOMES[place.biome], chosen = this.pickVehicle(place.choices);
     const pct = (x: number, worse = false) => (x === 1 ? "" : `<span class="${(x > 1) !== worse ? "good" : "bad"}">${x > 1 ? "+" : "−"}${Math.round(Math.abs(x - 1) * 100)}%</span>`);
-    const tt = this.best[trialKey(phrase)];
+    const tt = this.best[trialKey(phrase, chosen)];
     const realism = flow === "weekend" ? true : flow === "quick" && s.realism;
     const chips = `
         ${circuit ? `<span class="chip circuit">🏁 ${esc(circuit.name)} · ${circuit.lengthKm} km</span>` : ""}
         <span class="chip biome-${biome.id}">${esc(biome.name)}</span>
-        <span class="chip">${esc(veh.plural)}</span>
+        <span class="chip chip-dd">${dropdown("vehicle", chosen, place.choices.map((id) => ({ value: id, label: VEHICLES[id].name })), { label: "Car type" })}</span>
         ${biome.grip !== 1 ? `<span class="chip dim">grip ${pct(biome.grip)}</span>` : ""}${biome.brake !== 1 ? `<span class="chip dim">braking ${pct(biome.brake)}</span>` : ""}${biome.wear !== 1 ? `<span class="chip dim">tyre wear ${pct(biome.wear, true)}</span>` : ""}`;
     const el = this.menuPanel(setupHtml({
       flow, phrase: s.phrase, chips, blurb: circuit ? circuit.blurb : biome.blurb,
-      forecast: realism && flow !== "trial" ? this.forecastFor(s.phrase, s.laps, false, true) : "",
+      forecast: realism && flow !== "trial" ? this.forecastFor(s.phrase, s.laps, false, true) : null,
       laps: s.laps, rivals: s.rivals, realism, wearFuel: s.wearFuel ?? 1, wearTyre: s.wearTyre ?? 1, mandatory: s.mandatory ?? [],
       carLine: `Car: ${s.car.name} (${carCost(s.car)}/${CAR_BUDGET} points)`,
       bestLine: flow === "trial" && tt !== undefined ? `Your time: <b>${fmt(tt)}</b>` : "",
@@ -441,13 +477,14 @@ export class Game {
     this.note = "";
     this.syncHash();
     const input = el.querySelector<HTMLInputElement>("#phrase")!;
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
-    input.addEventListener("change", () => {
-      const next = input.value;
-      if (normalizePhrase(next) === normalizePhrase(s.phrase)) return;
-      if (!normalizePhrase(next)) { input.value = s.phrase; return; }
-      void this.changeSeed(() => { s.phrase = next; });
-    });
+    // typing a different track turns Random into Load Track; they swap back when the box matches the current track again
+    const rand = el.querySelector<HTMLButtonElement>("#rand")!;
+    const typedDiffers = (): boolean => { const t = normalizePhrase(input.value); return !!t && t !== normalizePhrase(s.phrase); };
+    const syncRand = (): void => { const load = typedDiffers(); rand.textContent = load ? "Load Track" : "Random"; rand.classList.toggle("green", load); rand.classList.toggle("pink", !load); };
+    const loadTyped = (): void => { const next = input.value; if (typedDiffers()) void this.changeSeed(() => { s.phrase = next; }); };
+    input.addEventListener("input", syncRand);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { loadTyped(); input.blur(); } });
+    input.addEventListener("change", () => { if (!normalizePhrase(input.value)) input.value = s.phrase; syncRand(); });
     const copy = el.querySelector<HTMLButtonElement>("#phrase-copy")!;
     copy.addEventListener("click", () => {
       void copyText(input.value.trim()).then((ok) => {
@@ -457,9 +494,9 @@ export class Game {
         setTimeout(() => { copy.classList.remove("done"); if (label) label.textContent = "Copy"; }, 1400);
       });
     });
-    this.on(el, "#rand", () => void this.changeSeed(() => { s.phrase = randomPhrase(new Rng((Math.random() * 2 ** 32) >>> 0)); }));
+    this.on(el, "#rand", () => { if (typedDiffers()) loadTyped(); else void this.changeSeed(() => { s.phrase = rerollPhrase(s.phrase, new Rng((Math.random() * 2 ** 32) >>> 0)); }); });
     this.on(el, "#back", () => this.go("home"));
-    this.on(el, "#garage", () => this.go("garage"));
+    this.on(el, "#garage", () => { this.garageFrom = "setup"; this.go("garage"); });
     this.on(el, "#import", () => void this.importLines());
     this.on(el, "#go", () => {
       if (!normalizePhrase(s.phrase)) { this.note = "Type a phrase or press Random."; this.renderMenu(); return; }
@@ -474,6 +511,7 @@ export class Game {
         else if (id === "wearFuel") s.wearFuel = clampWear(Number(v));
         else if (id === "wearTyre") s.wearTyre = clampWear(Number(v));
         else if (id === "realism") s.realism = v === "1";
+        else if (id === "vehicle" && isVehicleId(v)) s.vehicle = v;
         this.normaliseSettings();
         this.persist();
         this.renderMenu();
@@ -497,9 +535,10 @@ export class Game {
   }
 
   private renderPause(): void {
-    const el = this.menuPanel(pauseHtml({ title: "Paused", sub: this.sessionTitle() }), "narrow");
+    const el = this.menuPanel(pauseHtml({ title: "Paused", sub: this.sessionTitle(), finish: this.draw?.mode === "lap" }), "narrow");
     this.on(el, "#resume", () => this.closeMenu());
     this.on(el, "#p-settings", () => this.go("settings"));
+    this.on(el, "#finish-track", () => this.finishTrackForMe());
     this.on(el, "#restart", () => {
       void (async () => {
         if (this.hasEdits() && !(await this.confirmDialog("Redraw this track?", "That throws away your drawing and any session in progress. The track and settings stay the same.", "Discard and redraw"))) return;
@@ -575,12 +614,12 @@ export class Game {
   /** Times only compare with times set under the same rules. */
   private bestKey(phrase: string): string {
     const r = this.run;
-    return `${phrase}:${r.laps}:${r.realism ? "r" : "x"}c`;
+    return `${phrase}:${r.laps}:${r.realism ? "r" : "x"}c:${this.vehicle}`;
   }
 
   /** The fastest lap you have set on this track (any number of laps), which can put you further up the grid. */
   private lapKey(phrase: string): string {
-    return `${phrase}:lap:${this.run.realism ? "r" : "x"}c`;
+    return `${phrase}:lap:${this.run.realism ? "r" : "x"}c:${this.vehicle}`;
   }
 
   private async importLines(): Promise<void> {
@@ -602,7 +641,7 @@ export class Game {
     const el = this.menuPanel(`
       <h2>Garage</h2>
       <p class="dim">Spend up to ${CAR_BUDGET} points. Every stat helps somewhere and costs somewhere else.</p>
-      <p class="dim">For <b>${esc(this.settings.phrase)}</b> the field is <b>${esc(VEHICLES[vehicleForSeed(phraseToSeed(normalizePhrase(this.settings.phrase)))].plural)}</b>, and your levels are scaled to suit. ${esc(VEHICLES[vehicleForSeed(phraseToSeed(normalizePhrase(this.settings.phrase)))].blurb)}</p>
+      <p class="dim">${this.garageFrom === "home" ? "Your levels are scaled to suit whichever machine you race: pick one in the race setup." : (() => { const v = VEHICLES[this.pickVehicle(placeFor(this.settings.phrase).choices)]; return `For <b>${esc(this.settings.phrase)}</b> the field is <b>${esc(v.plural)}</b>, and your levels are scaled to suit. ${esc(v.blurb)}`; })()}</p>
       <label>Name</label><input id="name" type="text" value="${esc(car.name)}" maxlength="30" />
       <div style="margin-top:10px">${STATS.map((st) => `
         <div class="stat"><b>${STAT_LABEL[st]}</b><button data-s="${st}" data-d="-1">−</button>
@@ -631,7 +670,13 @@ export class Game {
     });
     el.querySelectorAll<HTMLButtonElement>("button[data-load]").forEach((b) => b.addEventListener("click", () => { this.settings.car = { ...this.cars[Number(b.dataset["load"])]! }; this.showGarage(); }));
     el.querySelectorAll<HTMLButtonElement>("button[data-del]").forEach((b) => b.addEventListener("click", () => { this.cars.splice(Number(b.dataset["del"]), 1); void save("cars", this.cars); this.showGarage(); }));
-    this.on(el, "#back", () => { this.persist(); this.go("setup"); });
+    this.on(el, "#back", () => { this.persist(); this.go(this.garageFrom); });
+  }
+
+  /** The machine for a track: the one chosen in setup if the track offers it, else its own (the first of its choices). */
+  private pickVehicle(choices: VehicleId[]): VehicleId {
+    const v = this.settings.vehicle;
+    return v && choices.includes(v) ? v : choices[0]!;
   }
 
   // ---------- a game ----------
@@ -642,8 +687,9 @@ export class Game {
     if (carErr) { this.note = `Car: ${carErr}`; this.openMenu(); return; }
     // the title already built this track (and its scenery) behind the menu
     if (this.inGame || this.previewKey !== `${normalizePhrase(s.phrase)}|${s.obstacles}`) this.track = generateTrack(s.phrase, { obstacles: s.obstacles });
-    this.vehicle = vehicleForSeed(this.track.seed);
+    this.vehicle = this.pickVehicle(vehicleChoicesForTrack(this.track));
     this.ambient = null; this.previewKey = "";
+    this.audio.setBiome(this.track.biome);
     this.play = null; this.audio.stopAll(); this.updateRain(0);
     this.view.clearCars();
     this.closeMenu();
@@ -657,17 +703,17 @@ export class Game {
     this.inGame = true;
     this.menuBtn.style.display = "block";
     const n = this.track.segments.length;
-    const line = resume && resume.segs.length <= n && resume.start ? resume : null;
+    const line = resume && resume.start && this.routeStarts(resume) ? resume : null;
     this.shareLine = line ?? undefined;
     this.syncHash();
     void fromLink;
     const carried = !line && this.carry && this.carry.phrase === normalizePhrase(s.phrase) && isComplete(this.track, this.carry.line) && validateLine(this.track, this.carry.line).ok ? this.carry.line : null;
     if (carried) { this.currentLine = carried; this.shareLine = carried; this.lapNo = 0; this.syncHash(); this.showPicker(null); }
-    else if (line && line.segs.length === n) { this.currentLine = line; this.lapNo = 0; this.showPicker(null); }
+    else if (line && isComplete(this.track, line)) { this.currentLine = line; this.lapNo = 0; this.showPicker(null); }
     else if (line && line.segs.length > 0) {
       this.lapNo = 0;
       this.view.sky.setActive(false);
-      this.draw = { mode: "lap", line, seg: line.segs.length, pts: [], end: null, queue: [], drag: null, warn: "" };
+      this.draw = { mode: "lap", line, seg: line.segs.length, id: nextOf(this.track, idAt(line, line.segs.length - 1)), pts: [], end: null, queue: [], drag: null, warn: "" };
       this.renderDraw();
     } else this.beginLapDraw();
   }
@@ -692,7 +738,7 @@ export class Game {
         const to = rng.pick(STATS.filter((x) => car[x] < 9 && x !== from));
         car[from]--; car[to]++;
       }
-      const skill = 0.4 + 0.55 * rng.next();
+      const skill = 0.65 + 0.35 * rng.next();
       const seed = rng.int(2 ** 30);
       out.push({ id: `bot${i}`, name: names.splice(rng.int(names.length), 1)[0] ?? `Bot ${i}`, car, lines: [botLine(this.track, seed, skill)], bot: { seed, skill } });
     }
@@ -704,18 +750,31 @@ export class Game {
     this.lapNo = 0;
     this.pick = null;
     this.view.sky.setActive(false);
-    this.draw = { mode: "lap", line: null, seg: 0, pts: [], end: null, queue: [], drag: null, warn: "" };
+    this.draw = { mode: "lap", line: null, seg: 0, id: 0, pts: [], end: null, queue: [], drag: null, warn: "" };
     this.renderDraw();
   }
 
   private joinPoint(d: DrawState): Vec2 | null { return d.line ? joinBefore(d.line, d.seg) : null; }
 
+  /** Is this (partial) line a legal start of a route round the track? Used for lines that come from a link. */
+  private routeStarts(line: Line): boolean {
+    const t = this.track;
+    for (let k = 0; k < line.segs.length; k++) {
+      const id = idAt(line, k);
+      if (k === 0 ? id !== 0 : !exitsAfter(t, idAt(line, k - 1)).includes(id)) return false;
+    }
+    return line.segs.length > 0 && !(nextOf(t, idAt(line, line.segs.length - 1)) === 0 && !isComplete(t, line)) && line.segs.length <= 128;
+  }
+
+  /** The last segment of a lap ends on the start line. */
+  private isLast(d: DrawState): boolean { return nextOf(this.track, d.id) === 0; }
+
   private exitPoint(d: DrawState): Vec2 | null {
     const t = this.track;
-    if (d.seg === t.segments.length - 1) return d.line?.start ?? null;
+    if (this.isLast(d)) return d.line?.start ?? null;
     if (d.end) return d.end;
     const j = this.joinPoint(d);
-    return j ? projectToGate(t.segments[d.seg]!.exit, d.pts.at(-1) ?? j) : null;
+    return j ? projectToGate(t.allSegments[d.id]!.exit, d.pts.at(-1) ?? j) : null;
   }
 
   private handles(d: DrawState): { kind: HandleKind; i: number; p: Vec2 }[] {
@@ -724,6 +783,11 @@ export class Game {
     if (j) out.push({ kind: "join", i: 0, p: j });
     d.pts.forEach((p, i) => out.push({ kind: "pt", i, p }));
     if (j && e) out.push({ kind: "end", i: 0, p: e });
+    // where the road forks, the exit of the other way on is a handle too: drag the end to it, or tap it
+    if (!this.isLast(d)) {
+      const t = this.track;
+      for (const c of t.allSegments[d.id]!.alt ?? []) out.push({ kind: "alt", i: c, p: t.allSegments[c]!.exit.mid });
+    }
     return out;
   }
 
@@ -747,9 +811,17 @@ export class Game {
     const d = this.draw!;
     const t = this.track;
     // fill the screen with this segment; the camera glides there from wherever it was
-    const cell = t.segments[d.seg]!, m = 8;
-    this.view.setFocus({ x: cell.cx * CELL - m, y: cell.cy * CELL - m, w: CELL + 2 * m, h: CELL + 2 * m });
-    this.view.drawTrack(t, { visibleUpTo: d.mode === "lap" ? d.seg : null, selected: d.mode === "amend" ? new Set([d.seg]) : undefined });
+    const cell = t.allSegments[d.id]!, m = 8;
+    // (at a fork the view takes in both exits, so there is a way on to see and tap, clear of the panel at the bottom)
+    const alts = (cell.alt ?? []).map((c) => t.allSegments[c]!);
+    this.view.setFocus(alts.length ? segmentRect([cell, ...alts], m + 30) : t.free ? segmentRect([cell], m) : { x: cell.cx * CELL - m, y: cell.cy * CELL - m, w: CELL + 2 * m, h: CELL + 2 * m });
+    // drawing a lap, only the road so far is shown in full, and, where it forks, the other way on too
+    let visible: Set<number> | null = null;
+    if (d.mode === "lap") {
+      visible = new Set([d.id, ...(t.allSegments[d.id]!.alt ?? [])]);
+      if (d.line) for (let k = 0; k < d.seg; k++) visible.add(idAt(d.line, k));
+    }
+    this.view.drawTrack(t, { visible, selected: d.mode === "amend" ? new Set([d.id]) : undefined });
     const curves: { pts: Vec2[]; color: number; width?: number; alpha?: number }[] = [];
     if (d.mode === "lap" && d.line && d.line.segs.length) {
       curves.push({ pts: smooth([d.line.start, ...d.line.segs.flat()], false).map((x) => x.p), color: PLAYER_COLOR, width: 2, alpha: 0.55 });
@@ -771,7 +843,8 @@ export class Game {
     const needStart = d.mode === "lap" && d.seg === 0 && !d.line;
     const title = d.mode === "lap" ? `Lap 1 · segment ${d.seg + 1} of ${n}` : `Editing segment ${d.seg + 1}${d.queue.length ? ` · ${d.queue.length} more to go` : ""}`;
     const status = needStart ? `${coarse() ? "Tap" : "Click"} the white start line to place your start.` : pv ? (pv.ok ? '<span class="good">Line is clear</span>' : '<span class="bad">Line leaves the road or hits something</span>') : "";
-    const last = d.mode === "lap" && d.seg === n - 1 ? ' <span class="dim">· last segment: it returns to your start</span>' : "";
+    const forks = !this.isLast(d) && (this.track.allSegments[d.id]!.alt?.length ?? 0) > 0;
+    const last = d.mode === "lap" && this.isLast(d) ? ' <span class="dim">· last segment: it returns to your start</span>' : forks ? ` <span class="dim">· the road splits here: ${coarse() ? "tap" : "click"} the faint diamond to take the other way, or drag the end onto it</span>` : "";
     this.bar.set([
       { id: "undo", label: "Undo", color: "orange", tip: "Take back the last point you placed (Backspace, or right-click a point to delete just that one).", onClick: () => this.undo() },
       ...(coarse() ? [{ id: "tool", label: TOOL_LABEL[this.tool], color: "cyan" as const, tip: "What a tap does: add a point, insert one on the line, or delete one.", onClick: () => { this.tool = TOOL_NEXT[this.tool]; this.renderDraw(); } }] : []),
@@ -790,15 +863,25 @@ export class Game {
     const touch = e.pointerType === "touch";
     if (touch) {
       this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (this.touches.size === 2 && !d) {
-        // a second finger turns the gesture into pinch zoom and two-finger pan
+      if (this.touches.size === 2) {
+        // a second finger turns the gesture into pinch zoom and two-finger pan (while drawing, just the pan)
         this.pan = null;
+        if (d && this.placed && performance.now() - this.placed.at < 450 && d.pts.length) { d.pts.pop(); this.renderDraw(); }
+        this.cancelHold();
+        if (d?.drag) { d.drag = null; }
         this.pinch = this.pinchNow();
         return;
       }
       if (this.touches.size > 1) return;
     }
     if (d) {
+      if (e.button === 1 || (e.button === 0 && this.spaceDown && !touch)) {
+        // middle button, or space and drag: slide the view a little
+        this.pan = { lx: e.clientX, ly: e.clientY, sx: e.clientX, sy: e.clientY, moved: true, button: e.button, world: p };
+        this.app.canvas.setPointerCapture(e.pointerId);
+        e.preventDefault();
+        return;
+      }
       if (e.button === 2) {
         const h = this.hit(d, p);
         if (h?.kind === "pt") { d.pts.splice(h.i, 1); d.warn = ""; this.renderDraw(); } else this.undo();
@@ -811,6 +894,17 @@ export class Game {
         if (h?.kind === "pt") { d.pts.splice(h.i, 1); d.warn = ""; this.vibrate(); this.renderDraw(); }
         return;
       }
+      if (h?.kind === "alt") {
+        // take the other way on at the fork: this segment now ends at that exit, and the end can be dragged from there
+        const t = this.track, was = d.end ?? this.exitPoint(d) ?? p;
+        d.id = h.i;
+        d.end = projectToGate(t.allSegments[h.i]!.exit, was);
+        d.warn = "";
+        d.drag = { kind: "end", i: 0 };
+        this.app.canvas.setPointerCapture(e.pointerId);
+        this.drawWorld();
+        return;
+      }
       if (h && !(touch && tool === "insert")) {
         d.drag = h;
         this.app.canvas.setPointerCapture(e.pointerId);
@@ -820,8 +914,8 @@ export class Game {
       }
       d.warn = "";
       if (d.mode === "lap" && d.seg === 0 && !d.line) d.line = beginLine(this.track, p);
-      else if (tool === "insert") this.insertPoint(d, p);
-      else d.pts.push(p);
+      else this.insertPoint(d, p);
+      if (touch) this.placed = { at: performance.now() };
       this.renderDraw();
     } else if (this.view.cameraMode === "overview") {
       // drag to pan; a click that did not move picks a segment
@@ -856,25 +950,31 @@ export class Game {
 
   private pickAt(p: Vec2): void {
     if (!this.pick) return;
-    const idx = this.track.cellIndex.get(`${Math.floor(p.x / CELL)},${Math.floor(p.y / CELL)}`);
-    if (idx === undefined) return;
+    // where the road crosses itself a cell holds two segments: take the one whose road is nearer the click
+    const here = this.track.cellSegments.get(`${Math.floor(p.x / CELL)},${Math.floor(p.y / CELL)}`);
+    if (!here?.length) return;
+    const near = (i: number) => Math.min(...this.track.allSegments[i]!.center.map((c) => Math.hypot(c.x - p.x, c.y - p.y)));
+    // (only roads on the route the line takes can be edited: the rest are not part of the lap)
+    const onLine = here.filter((i) => !this.currentLine || this.posOf(this.currentLine, i) >= 0);
+    if (!onLine.length) { this.showPicker("That part of the track is not on your route."); return; }
+    const idx = onLine.reduce((a, b) => (near(b) < near(a) ? b : a));
     const s = this.pick.selected;
     if (s.has(idx)) s.delete(idx);
     else if (new Set([...this.changedThisLap(), ...s, idx]).size <= this.pick.limit) s.add(idx);
     this.showPicker(this.pickMessage);
   }
 
+  /** A new point bends the path between the two nodes nearest it, whatever order points were clicked in, so the line never doubles back. */
   private insertPoint(d: DrawState, p: Vec2): void {
     const j = this.joinPoint(d), e = this.exitPoint(d);
     if (!j || !e) { d.pts.push(p); return; }
     const poly = [j, ...d.pts, e];
-    let best = -1, bd = 14;
+    let best = 0, bd = Infinity;
     for (let i = 0; i < poly.length - 1; i++) {
       const dd = distToSegment(p, poly[i]!, poly[i + 1]!);
       if (dd < bd) { bd = dd; best = i; }
     }
-    if (best < 0) d.pts.push(p);
-    else d.pts.splice(best, 0, p);
+    d.pts.splice(best, 0, p);
   }
 
   private onPointerMove(e: PointerEvent): void {
@@ -897,11 +997,21 @@ export class Game {
     const d = this.draw;
     if (!d?.drag || !d.line) return;
     const p = this.view.toWorld(e.clientX, e.clientY);
-    const t = this.track, last = d.seg === t.segments.length - 1;
+    const t = this.track, last = this.isLast(d);
     if (d.drag.kind === "pt") d.pts[d.drag.i] = p;
     else if (d.drag.kind === "join") d.line = moveJoin(t, d.line, d.seg, p);
     else if (last) d.line = moveJoin(t, d.line, 0, p); // the last segment ends on the start line
-    else d.end = projectToGate(t.segments[d.seg]!.exit, p);
+    else {
+      // where the road forks the end node snaps to whichever of the exits is nearer, and that is the way the lap goes on
+      let id = d.id;
+      let bd = Infinity;
+      for (const c of [d.id, ...(t.allSegments[d.id]!.alt ?? [])]) {
+        const q = projectToGate(t.allSegments[c]!.exit, p), dd = Math.hypot(q.x - p.x, q.y - p.y);
+        if (dd < bd) { bd = dd; id = c; }
+      }
+      d.id = id;
+      d.end = projectToGate(t.allSegments[id]!.exit, p);
+    }
     this.drawWorld();
   }
 
@@ -935,8 +1045,10 @@ export class Game {
     else if (d.mode === "lap" && d.seg > 0) {
       // go back into the previous segment and reopen its points
       const prev = d.line!.segs[d.seg - 1]!;
-      d.line = { start: d.line!.start, segs: d.line!.segs.slice(0, d.seg - 1) };
+      const prevId = idAt(d.line!, d.seg - 1);
+      d.line = makeLine(d.line!.start, d.line!.segs.slice(0, d.seg - 1), d.line!.path?.slice(0, d.seg - 1));
       d.seg--;
+      d.id = prevId;
       d.pts = prev.slice(0, -1);
       d.end = prev.at(-1)!;
       this.shareLine = d.line;
@@ -953,14 +1065,19 @@ export class Game {
     const n = this.track.segments.length;
     const end = this.exitPoint(d)!;
     if (d.mode === "lap") {
-      d.line = setSegment(d.line!, d.seg, d.pts, end, true);
+      d.line = setSegment(d.line!, d.seg, d.pts, end, true, d.id);
+      const done = this.isLast(d);
       d.pts = []; d.end = null;
       d.seg++;
+      if (!done) d.id = nextOf(this.track, d.id);
       this.shareLine = d.line;
       this.syncHash();
-      if (d.seg >= n) { this.draw = null; this.finishedLine(d.line); return; }
+      if (done) { this.draw = null; this.finishedLine(d.line); return; }
     } else {
-      const candidate = setSegment(d.line!, d.seg, d.pts, end, false);
+      // ending on the other exit of a fork takes the other road: everything after this segment is re-drawn along it
+      const rerouted = d.id !== idAt(d.line!, d.seg);
+      const candidate = rerouted ? completeLine(this.track, setSegment(d.line!, d.seg, d.pts, end, true, d.id)) : setSegment(d.line!, d.seg, d.pts, end, false, d.id);
+      if (rerouted) d.queue = [];
       if (this.race) {
         const changed = changedSegments(this.me.lines[this.lapNo]!, candidate);
         if (changed.length > MAX_AMENDS) {
@@ -976,11 +1093,22 @@ export class Game {
       const next = d.queue.shift();
       if (next === undefined) { this.draw = null; this.finishedLine(d.line); return; }
       d.seg = next;
+      d.id = idAt(d.line, next);
       d.pts = d.line.segs[next]!.slice(0, -1);
       d.end = d.line.segs[next]!.at(-1)!;
     }
     d.warn = "";
     this.renderDraw();
+  }
+
+  /** Pause menu, while a lap is being drawn: keep the sound segments drawn so far and draw the rest (and repair the broken ones). */
+  private finishTrackForMe(): void {
+    const d = this.draw;
+    if (!d || d.mode !== "lap") return;
+    const line = completeLine(this.track, d.line);
+    this.draw = null;
+    this.closeMenu();
+    this.finishedLine(line);
   }
 
   private finishedLine(line: Line): void {
@@ -996,7 +1124,14 @@ export class Game {
   /** Segments that differ from the line just raced. They use up the amend allowance. */
   private changedThisLap(): number[] {
     if (!this.race || !this.me.lines[this.lapNo]) return [];
-    return changedSegments(this.me.lines[this.lapNo]!, this.currentLine);
+    // as the ids of the segments, to count against the picks on the map
+    return changedSegments(this.me.lines[this.lapNo]!, this.currentLine).map((k) => idAt(this.currentLine!, k));
+  }
+
+  /** Where in a line the segment with this id is drawn, or -1 if the line does not go that way. */
+  private posOf(line: Line, id: number): number {
+    for (let k = 0; k < line.segs.length; k++) if (idAt(line, k) === id) return k;
+    return -1;
   }
 
   /** The lap after the one in progress when the car stopped (lapNo is the lap it is finishing). */
@@ -1041,43 +1176,35 @@ export class Game {
     this.draw = null;
     const changed = this.changedThisLap();
     const used = new Set([...changed, ...sel]).size;
-    this.view.drawTrack(this.track, { visibleUpTo: null, selected: sel, bad });
+    this.view.drawTrack(this.track, { visible: null, selected: sel, bad });
     this.view.drawCurves([{ pts: lapCurve(line, this.track.segments.length).map((x) => x.p), color: PLAYER_COLOR, width: 3 }]);
     if (this.race) this.drawCarsAt(this.race.tick);
     const next = this.nextLapIndex();
     const tooMany = !firstLap && changed.length > MAX_AMENDS;
     const real = this.run.realism;
     const me = this.race?.cars.find((c) => c.entrant.id === ME);
-    const fuel = me ? me.fuel : TANK, tyre = me ? me.tyre : 1;
-    const compound = me ? me.compound : this.settings.startTyre;
+    const fuel = me ? me.fuel : TANK;
     const dryAt = real ? this.fuelProblem(next, fuel) : null;
-    const gauges = !real ? "" : `
-      <div class="gauge"><span>Fuel</span><b><i class="${fuel < 25 ? "low" : ""}" style="width:${Math.round(fuel)}%"></i></b><em>${Math.round(fuel)}%</em></div>
-      <div class="gauge"><span>Tyres</span><b><i class="${tyre < 0.4 ? "low" : ""}" style="width:${Math.round(tyre * 100)}%"></i></b><em>${Math.round(tyre * 100)}%</em></div>
-      <p class="dim"><span class="tyrechip" style="background:#${COMPOUNDS[compound].color.toString(16).padStart(6, "0")}"></span>${COMPOUNDS[compound].name} tyres · ${this.settings.pitPlan.length} stop${this.settings.pitPlan.length === 1 ? "" : "s"} queued</p>
-      ${dryAt !== null ? `<p class="bad">As planned you run dry on lap ${dryAt + 1}. The car would limp to the pits for an emergency refuel, which is slow and gives no fresh tyres. Queue a stop before it to avoid that.</p>` : ""}
-      ${(me?.pits ?? 0) === 0 && this.settings.pitPlan.length === 0 ? `<p class="dim">Finishing without a single stop adds ${PIT_PENALTY.toFixed(1)}s.</p>` : ""}
-      ${this.plannedMissing(me, next).length ? `<p class="bad">Your plan never uses ${this.plannedMissing(me, next).map((c) => COMPOUNDS[c].name).join(" or ")} tyres, which you must run: +${PIT_PENALTY.toFixed(1)}s each.</p>` : ""}`;
-    this.ui.innerHTML = "";
-    this.show("top", `
-      <h2>${firstLap ? `${this.sessionTitle()} · your line` : `In the pits after lap ${next} of ${this.run.laps}`}</h2>
-      ${check.ok ? '<p class="good">Your line is clear all the way round.</p>' : '<p class="bad">Your line leaves the road or hits something, in the red segments.</p>'}
-      ${gauges}
-      ${firstLap && real ? `<p class="dim">☁ ${esc(this.forecastFor(this.settings.phrase, this.run.laps, false))}</p>` : ""}
-      ${tooMany ? '<p class="bad">Too many segments changed. Revert and try again.</p>' : ""}
-      ${message ? `<p class="bad">${esc(message)}</p>` : ""}`);
+    // no title, no gauges and no notes here: the weather as three tiles, and a box only when something is wrong
+    const warns: string[] = [];
+    if (!check.ok) warns.push('<p class="bad">Your line leaves the road or hits something, in the red segments.</p>');
+    if (dryAt !== null) warns.push(`<p class="bad">As planned you run dry on lap ${dryAt + 1}. Queue a stop before it.</p>`);
+    if (tooMany) warns.push('<p class="bad">Too many segments changed. Revert and try again.</p>');
+    if (message) warns.push(`<p class="bad">${esc(message)}</p>`);
+    const rainTiles = firstLap && real ? this.forecastFor(this.settings.phrase, this.run.laps, false) : null;
+    this.ui.innerHTML = `<div class="tl">${rainTiles ? weatherGrid(rainTiles, 75) : ""}${warns.length ? `<div class="panel warn">${warns.join("")}</div>` : ""}</div>`;
     const goLabel = firstLap ? (this.timed() ? "Go!" : "Race!") : "Back out";
     this.bar.set([
-      { id: "edit", label: "Edit segments", color: "cyan", disabled: !sel.size, tip: "Redraw the segments you have selected on the map. Click segments to select them; scroll to zoom and drag to pan.", onClick: () => {
-        const queue = [...sel].sort((a, b) => a - b);
+      { id: "edit", label: "Edit segments", color: "cyan", disabled: ![...sel].some((i) => this.posOf(line, i) >= 0), tip: "Redraw the segments you have selected on the map. Click segments to select them; scroll to zoom and drag to pan.", onClick: () => {
+        const queue = [...sel].map((i) => this.posOf(line, i)).filter((k) => k >= 0).sort((a, b) => a - b);
         const first = queue.shift()!;
         this.pick = null;
         this.view.sky.setActive(false);
-        this.draw = { mode: "amend", line, seg: first, pts: line.segs[first]!.slice(0, -1), end: line.segs[first]!.at(-1)!, queue, drag: null, warn: "" };
+        this.draw = { mode: "amend", line, seg: first, id: idAt(line, first), pts: line.segs[first]!.slice(0, -1), end: line.segs[first]!.at(-1)!, queue, drag: null, warn: "" };
         this.renderDraw();
       } },
       ...(!firstLap && changed.length ? [{ id: "revert", label: "Revert", color: "orange" as const, tip: "Undo every change you have made to your line during this stop.", onClick: () => { this.currentLine = this.me.lines[this.lapNo]!; this.shareLine = this.currentLine; this.syncHash(); this.pick = null; this.showPicker(null); } }] : []),
-      ...(real ? [{ id: "pits", label: `Pit strategy${this.settings.pitPlan.length ? ` (${this.settings.pitPlan.length})` : ""}`, color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap, and none on the last lap.", onClick: () => this.togglePlan() }] : []),
+      ...(real ? [{ id: "pits", label: `Pit strategy${this.queuedStops().length ? ` (${this.queuedStops().length})` : ""}`, color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap, and none on the last lap.", onClick: () => this.togglePlan() }] : []),
       { id: "go", label: goLabel, color: "yellow", wide: true, disabled: !(check.ok && !tooMany), tip: firstLap ? (this.timed() ? "Start the session with this line." : "Start the race with this line.") : "Leave the pits and carry on with your line as it now is.", onClick: () => { this.pick = null; this.closePlan(); if (firstLap) this.startRace(); else this.resumeRace(); } },
     ], `${firstLap ? `Select segments on the map to edit them, or go. ${this.timed() ? "" : `<span class="dim">Once the race starts you can only change your line during a pit stop.</span>`}` : `You are in the pits: change up to <b>${MAX_AMENDS}</b> segments before you go back out (<b>${used}</b> used).`} <span class="dim">Scroll to zoom, drag to pan.</span>`);
     if (this.planOpen) this.renderPlan();
@@ -1094,8 +1221,17 @@ export class Game {
   }
 
   // ---------- pit strategy ----------
-  private togglePlan(): void { if (this.planOpen) this.closePlan(); else { this.planOpen = true; this.planMsg = ""; this.renderPlan(); this.updateTutorial(); } }
+  private togglePlan(): void { if (this.planOpen) this.closePlan(); else { this.planOpen = true; this.planMsg = ""; if (!this.race) this.planLap = -1; this.renderPlan(); this.updateTutorial(); } }
   private closePlan(): void { this.planOpen = false; this.planLayer.innerHTML = ""; if (this.tutBackup) this.updateTutorial(); }
+
+  /** How many stops can be queued now: five slots, of which the starting tyre takes the first until the race has started. */
+  private queueCap(): number { return !this.race && this.run.realism ? MAX_PIT_STOPS - 1 : MAX_PIT_STOPS; }
+
+  /** The stops still to come: the queue. Stops already made are history, and the five-stop limit applies only to these. */
+  private queuedStops(): { lap: number; tyre: Compound }[] {
+    const next = this.nextLapIndex();
+    return this.settings.pitPlan.filter((p) => p.lap >= next);
+  }
 
   /** Laps (counting from 0) that can still have a stop at their end, and are not taken. */
   private freeStopLaps(): number[] {
@@ -1108,7 +1244,9 @@ export class Game {
   /** Queue a stop. The limits are the rules: five at most, one a lap, only laps still to come, never the last lap. */
   private addStop(lap: number, tyre: Compound): void {
     const s = this.settings;
-    if (s.pitPlan.length >= MAX_PIT_STOPS) { this.planMsg = `You can queue at most ${MAX_PIT_STOPS} stops.`; return this.renderPlan(); }
+    // the first "stop" is the tyre the race starts on (always there, medium unless chosen)
+    if (lap === -1) { if (this.race) return; s.startTyre = tyre; this.planMsg = ""; this.persist(); return this.afterPlanChange(); }
+    if (this.queuedStops().length >= this.queueCap()) { this.planMsg = `You can queue at most ${MAX_PIT_STOPS} entries at a time, the starting tyre included.`; return this.renderPlan(); }
     if (s.pitPlan.some((p) => p.lap === lap)) { this.planMsg = `There is already a stop at the end of lap ${lap + 1}.`; return this.renderPlan(); }
     if (!this.freeStopLaps().includes(lap)) { this.planMsg = "That lap has gone, or is the last one."; return this.renderPlan(); }
     s.pitPlan.push({ lap, tyre });
@@ -1135,42 +1273,43 @@ export class Game {
 
   private renderPlan(): void {
     const s = this.settings, next = this.nextLapIndex();
-    const free = this.freeStopLaps(), full = s.pitPlan.length >= MAX_PIT_STOPS;
-    if (!free.includes(this.planLap)) this.planLap = free.find((l) => l >= this.planLap) ?? free[0] ?? next;
-    const stopAt = new Map(s.pitPlan.map((p) => [p.lap, p.tyre]));
+    const queue = this.queuedStops(), free = this.freeStopLaps(), cap = this.queueCap(), full = queue.length >= cap;
+    const startable = !this.race && this.run.realism; // before the race, "Start" is the first place a tyre can go
+    const options = [...(startable ? [-1] : []), ...free];
+    if (!options.includes(this.planLap)) this.planLap = options.find((l) => l >= this.planLap) ?? options[0] ?? next;
+    const onStart = this.planLap === -1;
+    const stopAt = new Map(queue.map((p) => [p.lap, p.tyre]));
     const cells = Array.from({ length: this.run.laps }, (_, l) => {
       const cls = [l < next ? "done" : l === next ? "now" : "", stopAt.has(l) ? "stop" : ""].join(" ");
       const col = stopAt.has(l) ? `style="--stop:#${COMPOUNDS[stopAt.get(l)!].color.toString(16).padStart(6, "0")}"` : "";
       return `<i class="${cls}" ${col} title="Lap ${l + 1}"></i>`;
     }).join("");
-    const slots = Array.from({ length: MAX_PIT_STOPS }, (_, i) => {
-      const p = s.pitPlan[i];
+    const startSlot = startable ? `<div class="slot start">${tyreIcon(s.startTyre, 52)}<b>Start</b><span>${COMPOUNDS[s.startTyre].name}</span></div>` : "";
+    const slots = startSlot + Array.from({ length: cap }, (_, i) => {
+      const p = queue[i];
       if (!p) return `<div class="slot empty"><span>Stop ${i + 1}</span><em>empty</em></div>`;
-      const locked = p.lap < next;
-      return `<div class="slot ${locked ? "locked" : ""}">${tyreIcon(p.tyre, 52)}<b>Lap ${p.lap + 1}</b><span>${COMPOUNDS[p.tyre].name}</span>${locked ? '<em>done</em>' : `<button class="rm" data-rm="${p.lap}" title="Take this stop out of the queue">✕</button>`}</div>`;
+      return `<div class="slot">${tyreIcon(p.tyre, 52)}<b>Lap ${p.lap + 1}</b><span>${COMPOUNDS[p.tyre].name}</span><button class="rm" data-rm="${p.lap}" title="Take this stop out of the queue">✕</button></div>`;
     }).join("");
-    const reason = full ? `You have queued the most you can: ${MAX_PIT_STOPS} stops.` : free.length === 0 ? "No laps left to queue a stop on." : "";
-    const can = !full && free.length > 0;
+    const reason = full && !onStart ? `The queue is full: ${MAX_PIT_STOPS} places${startable ? ', the start included' : ''}. Once a stop is made, another can be added.` : free.length === 0 ? "No laps left to queue a stop on." : "";
+    const can = options.length > 0 && (onStart || !full);
     this.planLayer.innerHTML = `<div class="panel plan">
-      <div class="row"><h2 style="flex:1">Pit strategy <span class="dim" style="font-weight:400;font-size:13px">a stop gives fresh tyres and a full tank</span></h2><span class="dim" style="flex:0 0 auto">${s.pitPlan.length} / ${MAX_PIT_STOPS} stops</span><button id="planclose" class="big grey slim">Done</button></div>
+      <div class="row"><h2 style="flex:1">Pit strategy <span class="dim" style="font-weight:400;font-size:13px">a stop gives fresh tyres and a full tank</span></h2><span class="dim" style="flex:0 0 auto">${queue.length + (startable ? 1 : 0)} / ${MAX_PIT_STOPS} queued</span><button id="planclose" class="big grey slim">Done</button></div>
       <div class="timeline">${cells}</div>
       <div class="slots">${slots}</div>
-      <label>Add a stop</label>
+      <label>${startable ? "Starting tyre, then pit stops" : "Add a stop"}</label>
       <div class="adder">
-        <div class="lapstep"><button id="lapminus" ${can ? "" : "disabled"}>−</button><div><span class="dim">end of lap</span><b>${can ? this.planLap + 1 : "–"}</b></div><button id="lapplus" ${can ? "" : "disabled"}>+</button></div>
+        <div class="lapstep"><button id="lapminus" ${can ? "" : "disabled"}>−</button><div><span class="dim">${onStart ? "when" : "end of lap"}</span><b>${options.length ? (onStart ? "Start" : this.planLap + 1) : "–"}</b></div><button id="lapplus" ${can ? "" : "disabled"}>+</button></div>
         <div class="tyrepick big">${COMPOUND_IDS.map((c) => `<button class="tyrebtn" data-add="${c}" ${can ? "" : "disabled"} title="${esc(COMPOUNDS[c].blurb)}">${tyreIcon(c, 74)}<span>${COMPOUNDS[c].name}</span></button>`).join("")}</div>
       </div>
-      <p class="${reason || this.planMsg ? "bad" : "dim"}">${esc(reason || this.planMsg || "Pick the lap, then tap a tyre to queue the stop.")}</p>
-      ${this.race || !this.run.realism ? "" : `<label>Starting tyre</label><div class="tyrepick">${COMPOUND_IDS.map((c) => `<button class="tyrebtn ${s.startTyre === c ? "on" : ""}" data-start="${c}" title="${esc(COMPOUNDS[c].blurb)}">${tyreIcon(c, 46)}<span>${COMPOUNDS[c].name}</span></button>`).join("")}</div>`}
+      <p class="${reason || this.planMsg ? "bad" : "dim"}">${esc(reason || this.planMsg || (onStart ? "Pick a tyre to start the race on, or step to a lap to queue a stop." : "Pick the lap, then tap a tyre to queue the stop."))}</p>
     </div>`;
     const root = this.planLayer;
     root.querySelector("#planclose")?.addEventListener("click", () => this.closePlan());
-    const step = (dir: number) => { const i = free.indexOf(this.planLap); const j = Math.min(free.length - 1, Math.max(0, i + dir)); this.planLap = free[j] ?? this.planLap; this.planMsg = ""; this.renderPlan(); };
+    const step = (dir: number) => { const i = options.indexOf(this.planLap); const j = Math.min(options.length - 1, Math.max(0, i + dir)); this.planLap = options[j] ?? this.planLap; this.planMsg = ""; this.renderPlan(); };
     root.querySelector("#lapminus")?.addEventListener("click", () => step(-1));
     root.querySelector("#lapplus")?.addEventListener("click", () => step(1));
     root.querySelectorAll<HTMLButtonElement>("[data-add]").forEach((b) => b.addEventListener("click", () => this.addStop(this.planLap, b.dataset["add"] as Compound)));
     root.querySelectorAll<HTMLButtonElement>("[data-rm]").forEach((b) => b.addEventListener("click", () => this.removeStop(Number(b.dataset["rm"]))));
-    root.querySelectorAll<HTMLButtonElement>("[data-start]").forEach((b) => b.addEventListener("click", () => { s.startTyre = b.dataset["start"] as Compound; this.persist(); this.renderPlan(); }));
   }
 
   // ---------- racing ----------
@@ -1180,7 +1319,7 @@ export class Game {
     const timed = this.timed();
     // practice and qualifying: the rivals are out on the track already, spread round it, and the player is on the line
     if (timed) this.rivalEntrants.forEach((e, i) => { e.startFrac = (i + 1) / (this.rivalEntrants.length + 1); });
-    const tt = this.best[trialKey(st.phrase)];
+    const tt = this.best[trialKey(st.phrase, this.vehicle)];
     this.me = {
       id: ME, name: "You", car: this.playerCar(), lines: Array.from({ length: r.laps }, () => this.currentLine), isPlayer: true,
       pitPlan: r.realism ? st.pitPlan : [], startTyre: r.kind === "trial" ? "soft" : st.startTyre,
@@ -1224,18 +1363,20 @@ export class Game {
     this.skidTick = fromTick;
     this.ui.innerHTML = "";
     this.closePlan();
-    this.view.drawTrack(this.track, { visibleUpTo: null });
+    this.view.drawTrack(this.track, { visible: null });
     this.view.drawCurves([{ pts: lapCurve(this.currentLine, this.track.segments.length).map((x) => x.p), color: PLAYER_COLOR, width: 1.5, alpha: 0.3 }]);
     this.view.clearCars();
     this.view.sky.setActive(true);
     this.audio.unlock();
+    this.audio.setRacing(!this.menuOpen);
     this.drawCarsAt(fromTick);
     const me = race.cars.find((c) => c.entrant.id === ME)!;
     this.view.setFollow({ x: me.trace[fromTick * 3]!, y: me.trace[fromTick * 3 + 1]! });
     // the race controls are big buttons at the bottom
-    const speeds = [1, 3, 8, 20];
+    // 1x is real-world pace; the next is the pace the game used to play at, then faster still
+    const speeds = [1, WORLD_TIME, WORLD_TIME * 3, WORLD_TIME * 8, WORLD_TIME * 20];
     this.bar.set([
-      { id: "speed", label: "1×", color: "green", tip: "Change how fast the race plays: 1×, 3×, 8× or 20×.", onClick: () => { const q = this.play; if (q) { q.speed = speeds[(speeds.indexOf(q.speed) + 1) % speeds.length]!; const b = this.bar.button("speed"); if (b) b.textContent = `${q.speed}×`; } } },
+      { id: "speed", label: "1×", color: "green", tip: `Change how fast the race plays: ${speeds.map((x) => `${x}×`).join(", ")}. 1× is real-world pace.`, onClick: () => { const q = this.play; if (q) { q.speed = speeds[(speeds.indexOf(q.speed) + 1) % speeds.length]!; this.bar.setLabel("speed", `${q.speed}×`); } } },
       { id: "skip", label: "Skip ahead", color: "blue", tip: "Jump ahead to your next pit stop, or to the end of the race.", onClick: () => { const q = this.play; if (q) q.tick = q.end; } },
       { id: "sound", label: this.audio.isMuted() ? "Sound off" : "Sound on", color: "violet", tip: "Turn the engines and effects on or off (M).", onClick: () => this.toggleMute() },
     ]);
@@ -1257,13 +1398,25 @@ export class Game {
     if (dh > Math.PI) dh -= 2 * Math.PI; else if (dh < -Math.PI) dh += 2 * Math.PI;
     const st = carStats(c.entrant.car);
     const ratio = Math.abs(v * dh * 20) / st.aLat;
-    return { v, acc, slip: clamp((ratio - 0.88) / 0.12, 0, 1), braking: acc < -0.5 * st.brake && v > 20 };
+    const beta = c.btrace[i] ?? 0;
+    // a boat's slip is the angle of its hull to its path; a car's is how hard its tyres work (or how far round they are slipping)
+    const veh = VEHICLES[c.entrant.car.type ?? "rally"];
+    const slip = veh?.domain === "water" ? clamp(Math.abs(beta) / 0.5, 0, 1) : Math.max(clamp((ratio - 0.88) / 0.12, 0, 1), clamp(Math.abs(beta) / (((veh?.slipDeg ?? 10) * Math.PI) / 180), 0, 1));
+    return { v, acc, slip, beta, braking: acc < -0.5 * st.brake && v > 20 };
+  }
+
+  /** Where a car is part-way between two ticks, so a slow playback still moves smoothly. */
+  private pose(c: RaceCar, tick: number): { x: number; y: number; h: number } {
+    const last = c.trace.length / 3 - 1, k = Math.min(Math.floor(tick), last), n = Math.min(k + 1, last), f = n === k ? 0 : tick - k;
+    let dh = c.trace[n * 3 + 2]! - c.trace[k * 3 + 2]!;
+    if (dh > Math.PI) dh -= 2 * Math.PI; else if (dh < -Math.PI) dh += 2 * Math.PI;
+    return { x: c.trace[k * 3]! + (c.trace[n * 3]! - c.trace[k * 3]!) * f, y: c.trace[k * 3 + 1]! + (c.trace[n * 3 + 1]! - c.trace[k * 3 + 1]!) * f, h: c.trace[k * 3 + 2]! + dh * f };
   }
 
   private drawCarsAt(tick: number): void {
     for (const c of this.race!.cars) {
-      const k = Math.min(tick, c.trace.length / 3 - 1);
-      this.view.setCar(c.entrant.id, c.entrant.car.type, c.trace[k * 3]!, c.trace[k * 3 + 1]!, c.trace[k * 3 + 2]!, this.colorOf(c.entrant.id), c.gtrace[k] === 1, c.entrant.id === ME, this.motion(c, k).braking || c.ptrace[k] === 2, c.ptrace[k] === 3);
+      const k = Math.min(Math.floor(tick), c.trace.length / 3 - 1), q = this.pose(c, tick);
+      this.view.setCar(c.entrant.id, c.entrant.car.type, q.x, q.y, q.h, this.colorOf(c.entrant.id), c.gtrace[k] === 1, c.entrant.id === ME, this.motion(c, k).braking || c.ptrace[k] === 2, c.ptrace[k] === 3, { v: c.vtrace[k] ?? 0, beta: c.btrace[k] ?? 0 });
     }
   }
 
@@ -1273,7 +1426,7 @@ export class Game {
     for (let i = this.skidTick + 1; i <= k; i++) {
       if (i < 2 || i % 2) continue;
       for (const c of this.race!.cars) {
-        if (i >= c.vtrace.length || c.gtrace[i] || c.vtrace[i]! < 30) continue;
+        if (i >= c.vtrace.length || c.gtrace[i] || c.vtrace[i]! < 30 || VEHICLES[c.entrant.car.type ?? "rally"]?.domain === "water") continue; // boats leave a wake, not rubber
         const m = this.motion(c, i);
         const strength = Math.max(m.slip * 0.42, m.braking ? 0.16 : 0);
         if (strength < 0.05) continue;
@@ -1298,19 +1451,33 @@ export class Game {
 
   private updateAudio(k: number, now: number, speed: number): void {
     const race = this.race!;
-    this.audio.setDucked(speed > 1);
+    this.audio.setDucked(speed > WORLD_TIME); // faster than the pace the engines were made for
     const me = race.cars.find((c) => c.entrant.id === ME)!;
     const mk = Math.min(k, me.trace.length / 3 - 1);
     const fx = me.trace[mk * 3]!;
     const fy = me.trace[mk * 3 + 1]!;
     this.updatePlane(fx, fy);
+    // you hear the engines of the cars you can see, as if your ears were where the camera is: zoomed out, more cars are on screen but
+    // each is further off and quieter; zoomed in, fewer and louder. A car fades in and out at the edge of the screen.
+    const view = this.view.visibleWorld();
+    const near = clamp(Math.pow(view.scale / ENGINE_REF_SCALE, 0.9), ENGINE_MIN_GAIN, ENGINE_MAX_GAIN);
+    const fade = 0.08 * Math.min(view.x1 - view.x0, view.y1 - view.y0);
+    const heard: { c: (typeof race.cars)[number]; i: number; x: number; y: number; edge: number }[] = [];
     for (const c of race.cars) {
       if (c.finishTime !== null && c.finishTime <= now) { this.audio.hush(c.entrant.id); continue; }
-      const i = Math.min(k, c.trace.length / 3 - 1), m = this.motion(c, i);
-      const x = c.trace[i * 3]!, y = c.trace[i * 3 + 1]!, isMe = c.entrant.id === ME;
-      const vol = isMe ? 1 : 0.8 / (1 + Math.hypot(x - fx, y - fy) / 45);
-      if (c.ptrace[i] === 3) { this.audio.hush(c.entrant.id); continue; }
-      this.audio.update(c.entrant.id, c.entrant.car.type, { speed: m.v, accel: m.acc, slip: m.slip, vol, pan: (x - fx) / 160 }, isMe);
+      const i = Math.min(k, c.trace.length / 3 - 1);
+      const x = c.trace[i * 3]!, y = c.trace[i * 3 + 1]!;
+      const edge = clamp(Math.min(x - view.x0, view.x1 - x, y - view.y0, view.y1 - y) / fade, 0, 1);
+      if (edge <= 0 || c.ptrace[i] === 3) { this.audio.hush(c.entrant.id); continue; }
+      heard.push({ c, i, x, y, edge });
+    }
+    // a crowd of cars is not a crowd of full-volume engines
+    const crowd = 1 / (1 + 0.06 * Math.max(0, heard.length - 1));
+    const cx = (view.x0 + view.x1) / 2, half = Math.max(1, (view.x1 - view.x0) / 2);
+    for (const { c, i, x, edge } of heard) {
+      const m = this.motion(c, i), isMe = c.entrant.id === ME;
+      const vol = near * edge * crowd * (isMe ? 1 : 0.8);
+      this.audio.update(c.entrant.id, c.entrant.car.type, { speed: m.v, accel: m.acc, slip: m.slip, vol, pan: (x - cx) / half, top: carStats(c.entrant.car).vTop }, isMe);
     }
   }
 
@@ -1332,28 +1499,29 @@ export class Game {
     const p = this.play;
     if (!p || !this.race || (this.menuOpen && this.inGame)) return; // the menu pauses the race
     const race = this.race;
-    p.tick = Math.min(p.end, p.tick + dt * 60 * p.speed);
+    p.tick = Math.min(p.end, p.tick + (dt * 60 * p.speed) / WORLD_TIME);
     const k = Math.floor(p.tick);
     const now = k / 60;
-    this.drawCarsAt(k);
+    this.drawCarsAt(p.tick);
     this.updateSkids(k);
     const me = race.cars.find((c) => c.entrant.id === ME)!;
     const mi = Math.min(k, me.trace.length / 3 - 1);
     const meDone = (me.finishTime !== null && me.finishTime <= now) || me.ptrace[mi] === 3;
     // slowly in on the player, and back out to the whole track once they finish
-    this.view.setFollow(meDone ? null : { x: me.trace[mi * 3]!, y: me.trace[mi * 3 + 1]! });
-    this.view.setCrew(me.ptrace[mi] === 2 ? { x: me.trace[mi * 3]!, y: me.trace[mi * 3 + 1]!, h: me.trace[mi * 3 + 2]! } : null);
+    const at = this.pose(me, p.tick);
+    this.view.setFollow(meDone ? null : { x: at.x, y: at.y });
+    this.view.setCrew(me.ptrace[mi] === 2 ? at : null);
     // the crowd as you go past the line, the wheel guns in your box, the radio when you are let go
     while (this.eventIdx < race.events.length && race.events[this.eventIdx]!.tick <= k) {
       const ev = race.events[this.eventIdx++]!;
       if (ev.type === "bump") {
         this.view.spark(ev.x ?? 0, ev.y ?? 0, ev.strength ?? 0);
-        if (p.speed <= 1 && (ev.id === ME || ev.other === ME)) this.audio.bump(ev.strength ?? 0);
+        if (p.speed <= WORLD_TIME && (ev.id === ME || ev.other === ME)) this.audio.bump(ev.strength ?? 0);
         continue;
       }
-      if (ev.id !== ME || p.speed > 1) continue;
+      if (ev.id !== ME || p.speed > WORLD_TIME) continue;
       if (ev.type === "cross") this.audio.cheer();
-      else if (ev.type === "pitStart") this.audio.drill(PIT_STOP_TIME);
+      else if (ev.type === "pitStart") this.audio.drill(realSeconds(PIT_STOP_TIME));
       else if (ev.type === "pitEnd") this.audio.goGoGo();
     }
     this.updateAudio(k, now, p.speed);
@@ -1379,12 +1547,27 @@ export class Game {
     // the panel is built once and only its contents change
     let el = this.ui.querySelector<HTMLElement>(".panel.top");
     if (!el || !el.querySelector("#hud-head")) {
-      el = this.show("top", `<h2 id="hud-head"></h2><div id="hud-weather"></div><div id="hud-gauges"></div><div id="hud-status"></div><table id="hud-table"></table>`);
+      el = this.show("top", `<h2 id="hud-head"></h2><div id="hud-weather"></div><div id="hud-best"></div><div id="hud-laps"></div><div id="hud-status"></div><table id="hud-table"></table><div id="hud-gauges" class="bubbles"></div>`);
     }
     const set = (sel: string, html: string) => { const n = el!.querySelector(sel); if (n && n.innerHTML !== html) n.innerHTML = html; };
     set("#hud-head", `${this.lapText(lap)} <span class="dim">${fmt(now)}</span>`);
-    set("#hud-weather", this.run.realism ? (rain > 0.05 ? `<p class="dim">🌧 Raining${rain > 0.7 ? " hard" : ""}</p>` : "") : "");
-    set("#hud-table", standing.map(({ c }, i) => `<tr class="${c.entrant.id === ME ? "me" : ""}"><td>${i + 1}</td><td><span style="color:${hex(this.colorOf(c.entrant.id))}">■</span> ${esc(c.entrant.name)}</td></tr>`).join(""));
+    const fc = this.forecastFor(this.settings.phrase, this.run.laps, false);
+    set("#hud-weather", fc ? weatherGrid(fc, 75, Math.min(2, Math.floor(((lap - 1) / this.run.laps) * 3))) : "");
+    // a time trial or practice: the best lap in a box of its own, with the last three laps listed under it, newest first
+    if (this.timed()) {
+      const times: { n: number; t: number }[] = [];
+      for (let k = 1; k <= this.run.laps - 2; k++) {
+        const a = me.lapStart[k], b = me.lapStart[k + 1];
+        if (a !== undefined && b !== undefined && b <= now) times.push({ n: k, t: b - a });
+      }
+      const best = times.length ? Math.min(...times.map((x) => x.t)) : null;
+      set("#hud-best", `<div class="best-box"><span>Best lap</span><b>${best === null ? "–" : fmt(best)}</b></div>`);
+      set("#hud-laps", `<ul class="lap-list">${times.slice(-3).reverse().map((x) => `<li class="${x.t === best ? "best" : ""}"><span>Lap ${x.n}</span><b>${fmt(x.t)}</b></li>`).join("") || '<li class="dim"><span>No laps timed yet</span></li>'}</ul>`);
+      set("#hud-table", "");
+    } else {
+      set("#hud-best", ""); set("#hud-laps", "");
+    }
+    if (!this.timed()) set("#hud-table", standing.map(({ c }, i) => `<tr class="${c.entrant.id === ME ? "me" : ""}"><td>${i + 1}</td><td><span style="color:${hex(this.colorOf(c.entrant.id))}">■</span> ${esc(c.entrant.name)}</td></tr>`).join(""));
     // with a big grid the list scrolls: keep your own row in view
     const mine = el.querySelector<HTMLElement>("#hud-table tr.me");
     if (mine && el.scrollHeight > el.clientHeight) {
@@ -1394,13 +1577,14 @@ export class Game {
     if (this.run.realism) {
       const fuel = me.ftrace[mi] ?? 100, tyre = me.ttrace[mi] ?? 1, per = fuelPerLap(this.playerCar(), this.run.laps) * this.run.wearFuel;
       const comp = (["soft", "medium", "wet"] as const)[me.ctrace[mi] ?? 1]!;
-      set("#hud-gauges", `<div class="gauge"><span>Fuel</span><b><i class="${fuel < per * 0.5 ? "low" : ""}" style="width:${Math.round(fuel)}%"></i></b><em>${Math.round(fuel)}%</em></div>
-        <div class="gauge"><span><span class="tyrechip" style="background:#${COMPOUNDS[comp].color.toString(16).padStart(6, "0")}"></span>Tyres</span><b><i class="${tyre < 0.4 ? "low" : ""}" style="width:${Math.round(tyre * 100)}%"></i></b><em>${Math.round(tyre * 100)}%</em></div>`);
+      const col = `#${COMPOUNDS[comp].color.toString(16).padStart(6, "0")}`;
+      const lowFuel = fuel < per * 0.5;
+      set("#hud-gauges", bubble("bub-fuel", FUEL_ICON, fuel / 100, lowFuel ? "#ff5d6c" : "#5fe08a", lowFuel) + bubble("bub-tyre", TYRE_SMALL, tyre, tyre < 0.4 ? "#ff5d6c" : col, tyre < 0.4));
       const code = me.ptrace[mi];
       set("#hud-status", fuel <= 0 && code !== 2 ? '<p class="bad">Out of fuel! Limping to the pits</p>' : code === 2 ? '<p class="good">In the pits…</p>' : code === 1 ? '<p class="dim">Pit lane: speed limit</p>' : fuel < per * 0.5 ? '<p class="bad">Fuel low</p>' : "");
     }
     const sb = this.bar.button("sound");
-    if (sb) { const t = this.audio.isMuted() ? "Sound off" : "Sound on"; if (sb.textContent !== t) sb.textContent = t; }
+    if (sb) { const t = this.audio.isMuted() ? "Sound off" : "Sound on"; if (sb.title !== t) this.bar.setLabel("sound", t); }
     if (p.tick >= p.end) {
       this.play = null;
       this.drawCarsAt(p.end);
@@ -1445,9 +1629,12 @@ export class Game {
       const timedLap = i > 0 && i < mine.lapTimes.length - 1;
       return `<tr class="${timedLap && t === time ? "me" : ""}"><td>${label}</td><td class="num">${fmt(t)}</td></tr>`;
     }).join("") + (early ? '<tr><td>Cool-down</td><td class="num dim">driving…</td></tr>' : "");
+    // the last three timed laps, newest first (the out lap and the cool-down lap have no time that counts)
+    const timedLaps = shown.map((t, i) => ({ n: i, t })).filter((x) => x.n > 0 && x.n < mine.lapTimes.length - 1);
+    const lastLaps = timedLaps.slice(-3).reverse().map((x) => `<li class="${x.t === time ? "best" : ""}"><span>Lap ${x.n}</span><b>${fmt(x.t)}</b></li>`).join("");
     let extra = "", buttons = "";
     if (kind === "trial") {
-      const key = trialKey(this.settings.phrase);
+      const key = trialKey(this.settings.phrase, this.vehicle);
       if (time !== null && (this.best[key] === undefined || time < this.best[key]!)) {
         this.best[key] = time;
         void save("best", this.best);
@@ -1460,7 +1647,7 @@ export class Game {
       const w = this.weekend ?? newWeekend();
       this.weekend = { ...w, practice: time !== null && (w.practice === undefined || time < w.practice) ? time : w.practice };
       const left = Math.max(0, PRACTICE_SECONDS - this.practiceSecs);
-      extra = `<p class="dim">Best practice time: <b>${fmt(this.weekend.practice)}</b> · ${left > 0 ? `${Math.ceil(left / 60)} min of practice left` : "practice time is up"}</p>`;
+      extra = `<p class="dim">Best practice time: <b>${fmt(this.weekend.practice)}</b> · ${left > 0 ? `${Math.ceil(realSeconds(left) / 60)} min of practice left` : "practice time is up"}</p>`;
       buttons = `${left > 0 ? '<button class="primary" id="again">Edit line &amp; go again</button>' : ""}<button id="next" class="${left > 0 ? "" : "primary"}">Finish practice → Qualifier</button><button id="res-menu">Menu</button>`;
     } else {
       const times = res.map((x) => ({ id: x.id, time: sessionBest(x.lapTimes, "qualifying") }));
@@ -1474,8 +1661,9 @@ export class Game {
     const el = this.show("side", `
       <h2>${esc(name)}</h2>
       <p class="dim">${esc(this.track.phrase)} · ${esc(VEHICLES[this.vehicle].plural)}</p>
-      <p style="font-size:26px;margin:8px 0"><b>${fmt(time)}</b> <span class="dim" style="font-size:13px">${time === null ? "no timed lap set" : "best timed lap"}</span></p>
-      <table>${laps}</table>${extra}
+      ${kind === "qualifying" ? `<p style="font-size:26px;margin:8px 0"><b>${fmt(time)}</b> <span class="dim" style="font-size:13px">${time === null ? "no timed lap set" : "best timed lap"}</span></p>
+      <table>${laps}</table>` : `<div class="best-box"><span>Best lap</span><b>${time === null ? "–" : fmt(time)}</b></div>
+      <ul class="lap-list">${lastLaps || '<li class="dim"><span>No laps timed</span></li>'}</ul>`}${extra}
       ${buttons}`);
     this.on(el, "#res-menu", () => this.showMenu());
     this.on(el, "#again", () => { this.audio.unlock(); this.rerun(); });
@@ -1503,15 +1691,15 @@ export class Game {
     if (r.flow === "weekend" && this.weekend) this.weekend = finishSession(this.weekend, "race", null);
     if (r.flow === "tutorial" && this.tutBackup) { this.tutBackup.tutorialDone = true; this.persist(); }
     const title = mine.position === 1 ? "You won!" : `You finished P${mine.position}`;
-    const when = (x: CarResult) => (fmt(x.finishTime) + (x.penalty ? ` <span class="bad">+${x.penalty.toFixed(1)}</span>` : ""));
+    const when = (x: CarResult) => (fmt(x.finishTime) + (x.penalty ? ` <span class="bad">+${realSeconds(x.penalty).toFixed(1)}</span>` : ""));
     const grid = r.flow === "weekend" ? this.weekend?.grid?.[ME] : undefined;
     const noStop = mine.penalty - mine.missing.length * PIT_PENALTY;
     const el = this.show("center", `
       <h2>${r.flow === "weekend" ? "Race weekend · " : ""}${title}</h2>
       <p class="dim">${esc(this.track.phrase)} · ${r.laps} lap(s) · ${esc(VEHICLES[this.vehicle].plural)}${r.realism ? (r.wearFuel > 1 || r.wearTyre > 1 ? ` · fuel ${r.wearFuel}× · tyres ${r.wearTyre}×` : "") : " · no tyres or fuel"}${grid !== undefined ? ` · started P${grid + 1}` : ""}</p>${record}
       ${mine.emergencies ? `<p class="bad">The tank ran dry ${mine.emergencies === 1 ? "once" : `${mine.emergencies} times`}: ${mine.emergencies === 1 ? "an emergency refuel" : "emergency refuels"} cost you a slow limp to the pits and a long stop.</p>` : ""}
-      ${noStop > 0 ? `<p class="bad">+${noStop.toFixed(1)}s because you never stopped in the pits.</p>` : ""}
-      ${mine.missing.length ? `<p class="bad">+${(mine.missing.length * PIT_PENALTY).toFixed(1)}s for never running ${mine.missing.map((c) => COMPOUNDS[c].name).join(" or ")} tyres.</p>` : ""}
+      ${noStop > 0 ? `<p class="bad">+${realSeconds(noStop).toFixed(1)}s because you never stopped in the pits.</p>` : ""}
+      ${mine.missing.length ? `<p class="bad">+${realSeconds(mine.missing.length * PIT_PENALTY).toFixed(1)}s for never running ${mine.missing.map((c) => COMPOUNDS[c].name).join(" or ")} tyres.</p>` : ""}
       <table><tr><th>#</th><th>Driver</th><th class="num">Stops</th><th class="num">Time</th><th class="num">Best lap</th></tr>
       ${res.map((x) => `<tr class="${x.isPlayer ? "me" : ""}"><td>${x.position}</td><td>${esc(x.name)}</td><td class="num">${x.pits}${x.emergencies ? ` <span class="bad" title="emergency refuel">!</span>` : ""}</td><td class="num">${when(x)}</td><td class="num">${fmt(x.lapTimes.length ? Math.min(...x.lapTimes) : null)}</td></tr>`).join("")}</table>
       <p class="dim">Your laps: ${mine.lapTimes.map(fmt).join(" · ")}</p>
@@ -1572,13 +1760,13 @@ export class Game {
       this.draw = null;
       this.showPicker(null);
       this.pick = null;
-      this.draw = { mode: "amend", line: guide, seg: segments, pts: guide.segs[segments]!.slice(0, -1), end: guide.segs[segments]!.at(-1)!, queue: [], drag: null, warn: "" };
+      this.draw = { mode: "amend", line: guide, seg: segments, id: segments, pts: guide.segs[segments]!.slice(0, -1), end: guide.segs[segments]!.at(-1)!, queue: [], drag: null, warn: "" };
       this.renderDraw();
       return;
     }
     let line = beginLine(this.track, guide.start);
     for (let i = 0; i < segments; i++) line = setSegment(line, i, guide.segs[i]!.slice(0, -1), guide.segs[i]!.at(-1)!, true);
-    this.draw = { mode: "lap", line, seg: segments, pts: guide.segs[segments]!.slice(0, 3), end: null, queue: [], drag: null, warn: "" };
+    this.draw = { mode: "lap", line, seg: segments, id: segments, pts: guide.segs[segments]!.slice(0, 3), end: null, queue: [], drag: null, warn: "" };
     this.renderDraw();
   }
 
@@ -1601,6 +1789,15 @@ export class Game {
     this.view.setFollow(opts.zoomed === false ? null : { x: me.trace[k * 3]!, y: me.trace[k * 3 + 1]! });
     if (opts.zoomed !== false) this.view.snapCamera();
   }
+}
+
+/** The view for segments that are not tied to a cell (a mapped circuit, or the two ways on at a fork): their road and a margin, as near square as the road allows. */
+function segmentRect(segs: { center: Vec2[] }[], m: number): { x: number; y: number; w: number; h: number } {
+  const pts = segs.flatMap((s) => s.center);
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const size = Math.max(x1 - x0, y1 - y0, CELL) + 2 * (ROAD_HALF + m);
+  return { x: (x0 + x1) / 2 - size / 2, y: (y0 + y1) / 2 - size / 2, w: size, h: size };
 }
 
 const coarse = (): boolean => matchMedia("(pointer: coarse)").matches;

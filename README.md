@@ -117,7 +117,7 @@ Turn on **Realism** and the car stops being a perfect machine.
 | --- | --- | --- | --- |
 | 🔴 **Soft** | The most grip (+6%) | Fastest: about 5 laps | Falls to almost nothing once the road is soaked |
 | 🟡 **Medium** | Standard grip | About 10 laps | The sensible default. Poor once it rains |
-| 🔵 **Wet** | 16% less grip | Gone in half the time on a dry road | For rain: grips best on a wet track and lasts about 10 laps there |
+| 🔵 **Wet** | 16% less grip | Gone in a few laps on a dry road | For rain: grips best on a wet track and lasts about 15 laps there |
 
 These are at 1x wear. On longer races tyre life and fuel stretch, so that five stops cover fifty laps.
 
@@ -154,9 +154,16 @@ What the phrase decides:
   hairpin U-turns. The start and finish always sit on plain straights, so there is room for the pit lane.
 - **The place.** Countryside, desert, snow and ice, a city, or the Moon. Each changes grip, braking, acceleration, tyre
   wear and fuel use for everyone, and each has its own scenery: trains, planes, wind turbines, boats, villages.
-- **What you drive.** One class of vehicle for the whole field.
+- **What you drive.** One class of vehicle for the whole field: go-karts, formula cars, rally cars, muscle cars, trucks, tanks,
+  superbikes, dune buggies, electric GTs, dragsters and four racing classes (touring cars, prototypes, GT3 and GT4) on land, and jet skis, speedboats, hovercraft and airboats on water.
 - **The weather**, in a race with Realism on.
-- **Secrets.** Some real circuits are hidden behind their names. Try typing a famous one as the phrase.
+- **Secrets.** Some real circuits are hidden behind their names. Try typing a famous one as the phrase. Each races its best-known class: Donington Park touring cars, Daytona prototypes, Spa GT3, Lago Maggiore GT4, Silverstone F1 cars (Le Mans prototypes, Monza, Barcelona and Monaco F1, Laguna Seca GT3, Willow Springs GT4). Their shapes come from
+  [OpenStreetMap](https://www.openstreetmap.org/copyright) (see [docs/CIRCUIT_CREDITS.md](docs/CIRCUIT_CREDITS.md)).
+- **Fun tracks.** A phrase that starts with `fun-` (for example `fun-healthy-bear-eats-tuna`) is a fun track, and Random keeps the
+  `fun-` and changes the rest. The road runs over itself at crossings, narrows to a single-file bottleneck and opens out into wide
+  arenas, and may have a shortcut: where the road forks, drag the diamond at the end of the segment onto the other exit and only
+  that route is filled in. Open water turns up only on fun tracks, as likely as any other place. Boats have no grip: they carry
+  speed into a corner and slide wide, hull at an angle to their path.
 
 The address of the game holds the track, your settings and the segments you have drawn. Copy it to share a track, or
 reload to carry on drawing. **Laps and times are never saved in it**, so a reload always starts the race afresh.

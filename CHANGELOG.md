@@ -1,5 +1,69 @@
 # Changelog
 
+## 0.1.0-alpha.5
+- **Racing line editor on forks.** Editing a segment where the road splits now lets you drag its end node onto the other exit and it
+  snaps there (it already did while drawing a lap); the rest of the lap is re-drawn along the new road. On small screens the editor
+  buttons, and Menu, become icons stacked at the top right (spaced apart on phones), and the hint sits just above whatever the
+  buttons wrap to. Menu is the same size and type as the editor buttons.
+- **Pit strategy.** The starting tyre is the first entry of the queue (medium by default); the separate starting-tyre section is
+  gone. The five-place limit is a queue limit: stops already made no longer show or count, and share links carry a plan for a whole
+  50-lap race. Buttons: a tyre for pit strategy, a chequered flag for Race, a line-and-nodes icon for Edit.
+- **HUD.** The top-left box is gone from editing (it only appears if something is wrong). The forecast is three tiles (start,
+  middle, end: sun or rain), and one pill beside the track's other pills on the race setup screen. Fuel and tyres are tall
+  bubble gauges during the race, with no numbers. Time trial and practice show the best lap in its own box with the last three laps
+  under it. The setup screen's Random button becomes Load Track when the typed phrase differs from the current track.
+- The player's car is now exactly the same model as everyone else's, marked by a soft circle round the whole vehicle.
+- **New distance anchor, fitted to real laps.** A unit is now 1.1 m (a 100-unit segment is about 110 m), measured against the real
+  lengths of seven circuits, and a sim second is shown as about 1.64 s. Level-10 cars on a clean line now lap the real circuits in
+  the real time (F1 at Silverstone about 1:24, touring cars at Donington GP about 1:33). Races look about 3.6 times faster on screen.
+  Accelerations are scaled to the real g, with one `PACE` of 1.35 and a small calibration per racing class. Tyre wear is recalibrated again.
+- **New car models from real cars, seen from above:** F1 car, rally (Subaru WRC), muscle (each car is a Dodge Viper GT or a Ford
+  Mustang GT, a mix), Ariel Nomad-style buggy, a racing kart with its driver (helmet, shoulders, arms, gloves, legs), pickup truck (F-150 Raptor, with its wheelbase and overhangs), Abrams tank (tracks, skirts, wedge turret, long
+  gun), superbike, kart, Class 1 buggy, electric GT (Taycan) and Top Fuel dragster. Sizes follow the real ratios. The boats follow their real types too: a sit-down personal watercraft (Sea-Doo RXP-X), an offshore
+  deep-V powerboat with quad outboards, a racing hovercraft with a caged pusher fan, and a flat-hulled airboat with a caged aero engine.
+- **Splits on fun tracks.** The cell where the road splits and the one where it comes together are pieces of their own (`fork`, `merge`),
+  painted with chevrons, and the sand and grandstands are never laid over another road. While drawing, the other exit at a fork shows as
+  a faint diamond (tap it, or drag the end onto it), and the view takes in both. A shortcut is now a real decision: it is compared with
+  the ring road it replaces (`estimateTime`), squeezed with bottlenecks until it is not simply quicker, and dropped if it is far slower
+  (or, unless it avoids a crossing, far quicker). A fun layout with no shortcut is only used if no other layout has one.
+- **Racing classes.** Four new cars with real figures (level 10 = the real class), top-down drawings, engine voices and sequential
+  gearboxes: touring car (BTCC/TCR, 160 mph, 1.5 g), prototype (LMP2/DPi, 205 mph, 3 g), GT3 (190 mph, 1.9 g) and GT4 (155 mph,
+  1.4 g). They join the random pool, and real circuits now race their best-known class: Donington Park touring cars, Daytona
+  and Le Mans prototypes, Spa and Laguna Seca GT3, Lago Maggiore and Willow Springs GT4, Silverstone, Monza, Barcelona and
+  Monaco the formula (F1) car. The Oval and the Demolition Derby keep the random pool. Their drawings follow real cars from above
+  (BMW 330i, an Audi R18-style prototype, Porsche 911 GT3 R, Mazda 6) in true proportion and with real wheelbases.
+- **Real-world vehicle tuning.** Level 10 of each stat is now the real machine: top speed, 0-60 launch, peak lateral g and
+  braking g (a formula car at 10 is 230 mph and about 4 g in a corner, a tank 45 mph and 0.13 g off the line). Every vehicle also
+  has a peak slip angle (formula 4°, rally 18°, hovercraft 40°); cars now slide to it at the limit of grip, as boats already did.
+  Free-track segments are 100 units, a quarter of a mile like a grid piece. Tyre wear is recalibrated so tyre life stays at about
+  5/10/15 laps.
+- **Fun tracks.** A phrase that starts with `fun-` gets crossings (the road runs over itself), pinches and wide arenas, and
+  shortcuts. Random keeps the `fun-` prefix. A shortcut leaves the ring at a junction cell with two exits: drag the end node of the
+  segment onto the other exit and the rest of that route is drawn. Bots pick the quicker way most of the time. Cars are ranked by
+  where they are round the ring, so a shortcut and the long way compare fairly. Share links are version 5 (they carry the route),
+  line files version 2; older ones still open.
+- **Open water**, only on fun tracks, with four boats (jet ski, speedboat, hovercraft, airboat). Boats carry more speed into
+  corners than a car could and slide: a slip angle builds quickly on entry and dies away slowly, carrying the hull wide and
+  scrubbing speed. The hull points into the turn, with a wake and spray.
+- Eight new vehicles: superbike, dune buggy (loses little to sand, snow or moondust), electric GT (single-speed whine, tiny running
+  cost) and dragster (standing-start launch, poor grip and brakes), plus the four boats. Each has a drawing, an engine voice and
+  a gearbox.
+- Road width can vary on fun tracks (`half` per centre point): bottlenecks slow everyone, arenas give room to pass.
+- Tyres and fuel: a wet tyre lasts about 15 laps on a soaked track (soft about 5, medium about 10); a full tank lasts about 11 laps.
+- **Finish track for me** in the pause menu while a lap is being drawn: keeps the sound segments you have drawn, repairs any that
+  leave the road, and draws the rest.
+- Random tracks have far fewer corners: long straights, fast sweepers, hairpins, tight 90s, kinks and esses. A chicane is now
+  two cells, one swing each way, and no longer as tight.
+- Bots draw a smooth line (least curvature, with a slow wander for skill instead of jitter) and are closer in pace.
+- **Real circuits from a map.** The hidden circuits are now the real shapes, taken from OpenStreetMap (`docs/CIRCUIT_CREDITS.md`) and
+  no longer loops of cells: `spa-francorchamps`, `monza`, `silverstone`, `circuit-de-barcelona`, `laguna-seca`, `monaco`, `le-mans`,
+  `daytona` (the road course), `donington-park` (the National), `donington-park-gp` and `willow-springs`. Laps are 3 to 6 thousand
+  units (a hundred-odd units to a segment) instead of 2 to 3 thousand, and each is within a few metres of the real line (the old
+  hand-fitted ones were 50 to 190 m out). The `oval`, `lago-maggiore` and the new `demolition-derby` (a `cross` piece: two
+  crossroads) are still on the grid. `npm run circuits` rebuilds the data (`tools/circuits`).
+- Drawing: while drawing a lap, the segments you have not reached yet show faintly instead of not at all, and the view can be dragged a
+  little (up to about half a segment) with the middle button, or space and drag, or two fingers; it eases to a stop at the limit.
+
 ## 0.1.0-alpha.4
 - Android: an installable debug APK (`apex-draft-<version>-debug.apk`) is attached to each release, built with Capacitor. It
   runs in landscape, full screen, and sharing a line opens the Android share sheet.

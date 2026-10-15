@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { LOOKS } from "./look.ts";
 import {
-  PIT_BAYS, PIT_BAY_GAP, PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, ROAD_HALF, Rng, centreAt, cross, dot, laneCentre, pitPoint, sub,
+  PIT_BAYS, PIT_BAY_GAP, PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, ROAD_HALF, Rng, centreAt, halfIdx, halfAt, cross, distToSegment, dot, nearbySegments, nextOf, norm, laneCentre, pitPoint, sub,
   type Segment, type Track, type Vec2,
 } from "@apex/sim";
 
@@ -18,10 +18,13 @@ export const PAL = {
 
 const at = (s: Segment, i: number, lat: number): Vec2 => ({ x: s.center[i]!.x + s.normals[i]!.x * lat, y: s.center[i]!.y + s.normals[i]!.y * lat });
 
-function strip(g: Graphics, s: Segment, i0: number, i1: number, latA: number, latB: number): Graphics {
+type Lat = number | ((i: number) => number);
+const latOf = (l: Lat, i: number): number => (typeof l === "number" ? l : l(i));
+
+function strip(g: Graphics, s: Segment, i0: number, i1: number, latA: Lat, latB: Lat): Graphics {
   const pts: number[] = [];
-  for (let i = i0; i <= i1; i++) { const p = at(s, i, latA); pts.push(p.x, p.y); }
-  for (let i = i1; i >= i0; i--) { const p = at(s, i, latB); pts.push(p.x, p.y); }
+  for (let i = i0; i <= i1; i++) { const p = at(s, i, latOf(latA, i)); pts.push(p.x, p.y); }
+  for (let i = i1; i >= i0; i--) { const p = at(s, i, latOf(latB, i)); pts.push(p.x, p.y); }
   return g.poly(pts);
 }
 
@@ -33,6 +36,22 @@ export interface SegmentArt {
   pulses: Container[];
 }
 
+/**
+ * Is a flat list of points (x, y, x, y, ...) clear of every other road, within `margin` of an edge? The segment itself and the ones
+ * joined to it end to end are left out (a bend's sand may run up to its neighbours); a sibling at a fork or a crossing is not.
+ */
+function clearOfOtherRoad(track: Track, s: Segment, pts: number[], margin: number): boolean {
+  const joined = (o: Segment) => nextOf(track, s.index) === o.index || nextOf(track, o.index) === s.index;
+  for (let k = 0; k < pts.length; k += 2) {
+    const p = { x: pts[k]!, y: pts[k + 1]! };
+    for (const o of nearbySegments(track, p)) {
+      if (o.index === s.index || joined(o)) continue;
+      for (let i = 0; i < o.center.length - 1; i++) if (distToSegment(p, o.center[i]!, o.center[i + 1]!) < halfIdx(o, i) + margin) return false;
+    }
+  }
+  return true;
+}
+
 /** One segment: tarmac, markings, sausage kerbs, apex paint, gravel traps, grandstands, obstacles, pick-ups. */
 export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   const rng = new Rng(track.seed ^ (Math.imul(s.index + 1, 0x9e3779b1) >>> 0));
@@ -40,6 +59,8 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   const root = new Container();
   const art: SegmentArt = { root, crowdA: [], crowdB: [], pulses: [] };
   const n = s.center.length - 1;
+  const hw = (i: number): number => halfIdx(s, i);
+  const water = track.biome === "water";
 
   // turning angle at each sample: positive turns toward the +normal side
   const ang = new Array<number>(n + 1).fill(0);
@@ -56,18 +77,25 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
     const out = total > 0 ? -1 : 1;
     const g = new Graphics();
     const i0 = 5, i1 = 19;
-    const pts: number[] = [];
-    for (let i = i0; i <= i1; i++) { const p = at(s, i, out * (ROAD_HALF + 1)); pts.push(p.x, p.y); }
-    for (let i = i1; i >= i0; i--) {
-      const depth = 4 + 10 * Math.sin((Math.PI * (i - i0)) / (i1 - i0));
-      const p = at(s, i, out * (ROAD_HALF + 1 + depth)); pts.push(p.x, p.y);
+    // sand never lies over another road: where a full trap would, it is made shallower, and where even that would, it is left out
+    const trap = (scale: number): number[] => {
+      const pts: number[] = [];
+      for (let i = i0; i <= i1; i++) { const p = at(s, i, out * (hw(i) + 1)); pts.push(p.x, p.y); }
+      for (let i = i1; i >= i0; i--) {
+        const depth = (4 + 10 * Math.sin((Math.PI * (i - i0)) / (i1 - i0))) * scale;
+        const p = at(s, i, out * (hw(i) + 1 + depth)); pts.push(p.x, p.y);
+      }
+      return pts;
+    };
+    const scale = [1, 0.6, 0.3].find((k) => clearOfOtherRoad(track, s, trap(k), 1.5));
+    if (scale !== undefined) {
+      g.poly(trap(scale)).fill(look.runoff).stroke({ width: 0.8, color: look.runoffDark });
+      for (let k = 0; k < 40; k++) {
+        const i = i0 + rng.int(i1 - i0), p = at(s, i, out * (hw(i) + rng.range(2, 9) * scale));
+        g.circle(p.x, p.y, rng.range(0.3, 0.8)).fill({ color: look.runoffDark, alpha: 0.7 });
+      }
+      root.addChild(g);
     }
-    g.poly(pts).fill(look.runoff).stroke({ width: 0.8, color: look.runoffDark });
-    for (let k = 0; k < 40; k++) {
-      const i = i0 + rng.int(i1 - i0), p = at(s, i, out * (ROAD_HALF + rng.range(2, 9)));
-      g.circle(p.x, p.y, rng.range(0.3, 0.8)).fill({ color: look.runoffDark, alpha: 0.7 });
-    }
-    root.addChild(g);
   }
 
   // grandstands: the start straight on both sides, other straights on one side now and then
@@ -76,34 +104,81 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   const sides: (1 | -1)[] = pitSeg
     ? (s.index === 0 || rng.chance(0.5) ? [(-track.pit.side) as 1 | -1] : [])
     : s.kind === "straight" && rng.chance(0.5) ? [rng.chance(0.5) ? 1 : -1] : [];
-  for (const side of sides) root.addChild(stand(art, s, side, rng));
+  for (const side of sides) {
+    // (a grandstand is left out where it would stand on another road)
+    const lat0 = Math.max(...s.center.map((_, i) => hw(i))) + 9, outline: number[] = [];
+    for (let i = 3; i <= 21; i += 2) for (const l of [lat0, lat0 + 14]) { const p = at(s, i, side * l); outline.push(p.x, p.y); }
+    if (clearOfOtherRoad(track, s, outline, 3)) root.addChild(stand(art, s, side, rng));
+  }
 
   // tarmac
   const road = new Graphics();
-  strip(road, s, 0, n, -ROAD_HALF, ROAD_HALF).fill(look.asphalt);
-  strip(road, s, 0, n, -7, 7).fill({ color: look.worn, alpha: 0.55 });
+  strip(road, s, 0, n, (i) => -hw(i), hw).fill(look.asphalt);
+  strip(road, s, 0, n, (i) => -Math.min(7, hw(i) - 2), (i) => Math.min(7, hw(i) - 2)).fill({ color: look.worn, alpha: 0.55 });
   for (let k = 0; k < 90; k++) {
-    const t = rng.next(), c = centreAt(s, t), l = rng.range(-ROAD_HALF + 1, ROAD_HALF - 1);
+    const t = rng.next(), c = centreAt(s, t), h = halfAt(s, t), l = rng.range(-h + 1, h - 1);
     road.circle(c.p.x + c.n.x * l, c.p.y + c.n.y * l, rng.range(0.3, 0.8)).fill({ color: look.speck, alpha: rng.range(0.25, 0.6) });
   }
   // a hair of overlap at both gates, so no grass seam shows between neighbouring segments
   for (const [gate, push] of [[s.entry, -0.9], [s.exit, 0.9]] as const) {
     const pt = (l: number, a: number) => [gate.mid.x + gate.n.x * l + gate.dir.x * a, gate.mid.y + gate.n.y * l + gate.dir.y * a];
-    road.poly([...pt(-ROAD_HALF, 0), ...pt(ROAD_HALF, 0), ...pt(ROAD_HALF, push), ...pt(-ROAD_HALF, push)]).fill(look.asphalt);
+    const gh = gate.half ?? ROAD_HALF;
+    road.poly([...pt(-gh, 0), ...pt(gh, 0), ...pt(gh, push), ...pt(-gh, push)]).fill(look.asphalt);
   }
   root.addChild(road);
 
   // paint: edge lines and a faint dashed centre line
   const paint = new Graphics();
-  for (const side of [-1, 1]) {
-    const p0 = at(s, 0, side * (ROAD_HALF - 2.6));
+  for (const side of water ? [] : [-1, 1]) {
+    const p0 = at(s, 0, side * (hw(0) - 2.6));
     paint.moveTo(p0.x, p0.y);
-    for (let i = 1; i <= n; i++) { const p = at(s, i, side * (ROAD_HALF - 2.6)); paint.lineTo(p.x, p.y); }
+    for (let i = 1; i <= n; i++) { const p = at(s, i, side * (hw(i) - 2.6)); paint.lineTo(p.x, p.y); }
     paint.stroke({ width: 1, color: PAL.paint, alpha: 0.85 });
+  }
+  // on the water the edges are lines of buoys, orange and white, a little outside the course
+  if (water) {
+    for (const side of [-1, 1]) for (let i = 0; i <= n; i += 2) {
+      const p = at(s, i, side * (hw(i) + 1.2));
+      paint.circle(p.x, p.y, 1.5).fill((i / 2 + (side > 0 ? 1 : 0)) % 2 ? 0xff7a2f : 0xffffff).stroke({ width: 0.4, color: 0x14161c, alpha: 0.6 });
+    }
   }
   for (let i = 0; i < n; i += 2) paint.moveTo(s.center[i]!.x, s.center[i]!.y).lineTo(s.center[i + 1]!.x, s.center[i + 1]!.y);
   paint.stroke({ width: 0.8, color: PAL.paint, alpha: 0.28 });
   root.addChild(paint);
+
+  // a crossroads: the other road's tarmac goes over this one, so mark the box where they meet with yellow hatching
+  if (s.kind === "cross") {
+    const c = s.center[n / 2]!, d = norm(sub(s.center[n / 2 + 1]!, s.center[n / 2 - 1]!)), nn = { x: -d.y, y: d.x };
+    const h = ROAD_HALF - 2;
+    const P = (a: number, b: number) => ({ x: c.x + d.x * a + nn.x * b, y: c.y + d.y * a + nn.y * b });
+    const box = new Graphics();
+    box.poly([P(-h, -h), P(h, -h), P(h, h), P(-h, h)].flatMap((q) => [q.x, q.y])).fill({ color: PAL.paint, alpha: 0.07 });
+    for (let k = -h + 5; k < h; k += 5) { const a = P(k, -h), b = P(k - 0, h); box.moveTo(a.x, a.y).lineTo(b.x, b.y); }
+    box.stroke({ width: 0.9, color: 0xffd23f, alpha: 0.55 });
+    const ring = [P(-h, -h), P(h, -h), P(h, h), P(-h, h)];
+    box.moveTo(ring[0]!.x, ring[0]!.y);
+    for (const q of [ring[1]!, ring[2]!, ring[3]!, ring[0]!]) box.lineTo(q.x, q.y);
+    box.stroke({ width: 1.2, color: 0xffd23f, alpha: 0.9 });
+    root.addChild(box);
+  }
+
+  // where the road splits, and where the two ways come together again, the piece is its own: chevrons painted across the road that
+  // point the way on, and a solid white line along each edge so the junction reads as a junction
+  if (s.kind === "fork" || s.kind === "merge") {
+    const g = new Graphics();
+    const forkKind = s.kind === "fork";
+    for (const t of forkKind ? [0.12, 0.26, 0.4] : [0.6, 0.74, 0.88]) {
+      const c = centreAt(s, t), a = centreAt(s, Math.min(1, t + 0.04)), dir = norm(sub(a.p, c.p));
+      const nn = { x: -dir.y, y: dir.x }, h = Math.max(3, halfAt(s, t) - 7);
+      // a chevron on each side of the centre line, apex forward
+      for (const side of [-1, 1]) {
+        const mid = { x: c.p.x + c.n.x * side * h * 0.55, y: c.p.y + c.n.y * side * h * 0.55 };
+        g.moveTo(mid.x - dir.x * 3 + nn.x * 3.2, mid.y - dir.y * 3 + nn.y * 3.2).lineTo(mid.x + dir.x * 2, mid.y + dir.y * 2).lineTo(mid.x - dir.x * 3 - nn.x * 3.2, mid.y - dir.y * 3 - nn.y * 3.2);
+      }
+    }
+    g.stroke({ width: 1.3, color: 0xffd23f, alpha: 0.85, cap: "round", join: "round" });
+    root.addChild(g);
+  }
 
   // sausage kerbs on the inside of every bend, alternating red and white
   const kerbs = new Graphics();
@@ -111,7 +186,8 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
     const a = (ang[i]! + ang[i + 1]!) / 2;
     if (Math.abs(a) < 0.045) continue;
     const side = a > 0 ? 1 : -1;
-    const p = at(s, i, side * (ROAD_HALF - 0.2)), q = at(s, i + 1, side * (ROAD_HALF - 0.2));
+    if (water) continue;
+    const p = at(s, i, side * (hw(i) - 0.2)), q = at(s, i + 1, side * (hw(i + 1) - 0.2));
     kerbs.moveTo(p.x, p.y).lineTo(q.x, q.y).stroke({ width: 3.6, color: 0x2a1010, alpha: 0.35, cap: "round" });
     kerbs.moveTo(p.x, p.y).lineTo(q.x, q.y).stroke({ width: 3, color: i % 2 ? PAL.kerbRed : PAL.kerbWhite, cap: "round" });
   }
@@ -123,7 +199,7 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
     const m = Math.abs(ang[i]!);
     if (m < 0.07 || m < Math.abs(ang[i - 1]!) || m <= Math.abs(ang[i + 1]!)) continue;
     const side = ang[i]! > 0 ? 1 : -1;
-    const p = at(s, i, side * (ROAD_HALF - 8));
+    const p = at(s, i, side * Math.max(2, hw(i) - 8));
     const d = sub(s.center[i + 1]!, s.center[i - 1]!), l = Math.hypot(d.x, d.y) || 1, t = { x: d.x / l, y: d.y / l };
     const nn = s.normals[i]!;
     apex.poly([p.x + t.x * 3.4, p.y + t.y * 3.4, p.x - t.x * 1.8 + nn.x * 2.3, p.y - t.y * 1.8 + nn.y * 2.3,
@@ -170,7 +246,7 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
 /** A grandstand with advertising boards, three rows of spectators, and a second frame so they bob about. */
 function stand(art: SegmentArt, s: Segment, side: 1 | -1, rng: Rng): Container {
   const c = new Container();
-  const lat0 = ROAD_HALF + 9, depth = 14, i0 = 3, i1 = 21;
+  const lat0 = Math.max(...s.center.map((_, i) => halfIdx(s, i))) + 9, depth = 14, i0 = 3, i1 = 21;
   const base = new Graphics();
   strip(base, s, i0, i1, side * lat0, side * (lat0 + depth)).fill(PAL.concrete).stroke({ width: 0.8, color: PAL.concreteDark });
   for (const r of [0.33, 0.66]) {

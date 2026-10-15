@@ -58,6 +58,15 @@ export const LOOKS: Record<BiomeId, Look> = {
     asphalt: 0x2e3038, worn: 0x282a31, speck: 0x5b6070, runoff: 0x8a8f9b, runoffDark: 0x666b77,
     clouds: 0.4, cloudTint: 0xa9b2c2, snow: false, birds: true, tramway: false,
   },
+  // open water: the sea is the ground, the course is a lighter channel marked with buoys, and the hills are islands
+  water: {
+    ground: [0x1d5a96, 0x215f9e], hill: [0xd9c58a, 0x6aa05a, 0x4f8c4a, 0x3d7a3f], rockHill: [0x6c6f78, 0x80838d, 0x9a9da7, 0xb4b7c0], hillLine: 0xa89a68,
+    tree: [0x2f7a3a, 0x3d8c3f, 0x4f9c46], treeKind: "round",
+    lake: { shore: 0x1d5a96, deep: 0x174a80, mid: 0x1d5a96, light: 0x2c74b4, kind: "none" },
+    mountain: { dark: 0x3e414b, light: 0x9a9ea9, snowDark: 0xaab8d0, snowLight: 0xffffff, snow: false },
+    asphalt: 0x3a90cf, worn: 0x4aa3e0, speck: 0xd6efff, runoff: 0xff7a2f, runoffDark: 0xffffff,
+    clouds: 0.45, cloudTint: 0xc3d2e6, snow: false, birds: true, tramway: false,
+  },
   moon: {
     ground: [0x8c8f97, 0x92959d], hill: [0x6f727b, 0x7f828b, 0x8f929b, 0x9fa2ab], rockHill: [0x585b64, 0x6a6d77, 0x7c808a, 0x8e929c], hillLine: 0x5a5d66,
     tree: [0x6d7078, 0x7b7e87, 0x898c95], treeKind: "rock",

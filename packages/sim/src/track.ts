@@ -1,7 +1,12 @@
 import { phraseToSeed, normalizePhrase } from "./seed.ts";
 import { Rng } from "./rng.ts";
-import { biomeForSeed, type BiomeId } from "./biomes.ts";
+import { biomeForSeed, biomeOf, type BiomeId } from "./biomes.ts";
+import { CIRCUIT_VEHICLES, vehicleChoices, vehicleForSeed, type VehicleId } from "./vehicles.ts";
+import { applyWidths } from "./width.ts";
+import { funLayout } from "./fun.ts";
+import { MIN_CLEAR, makeBranches, minClearance } from "./branches.ts";
 import { circuitFor, type Circuit } from "./circuits.ts";
+import { buildFreeCircuit } from "./freetrack.ts";
 import { makePit, type Pit } from "./pit.ts";
 import { gateAt, straightCentre, sweeperWindow, uturnWindow, type GateGeom, type StraightShape } from "./pieces.ts";
 import { add, dist, distToSegment, lerp, mul, norm, perp, sub, v2, type Vec2 } from "./vec.ts";
@@ -18,7 +23,7 @@ export const ROAD_HALF = 22;
 export const CAR_R = 3;
 const SAMPLES = 24;
 
-export type SegmentKind = "straight" | "bendy" | "kink" | "chicane" | "esses" | "corner" | "sharp" | "sweeper" | "uturn";
+export type SegmentKind = "straight" | "bendy" | "kink" | "chicaneA" | "chicaneB" | "esses" | "cross" | "fork" | "merge" | "corner" | "sharp" | "sweeper" | "uturn";
 export type PowerupKind = "boost" | "grip" | "ghost";
 
 export interface Gate {
@@ -28,6 +33,8 @@ export interface Gate {
   n: Vec2;
   /** Direction of travel through the gate. */
   dir: Vec2;
+  /** half the road width here; ROAD_HALF when left out */
+  half?: number;
 }
 
 export interface Obstacle { kind: "box" | "water"; x: number; y: number; r: number }
@@ -45,7 +52,58 @@ export interface Segment {
   exit: Gate;
   obstacles: Obstacle[];
   powerup?: Powerup;
+  /** half the road width at each centre point; ROAD_HALF all the way when left out (only `fun-` tracks narrow and widen) */
+  half?: number[];
+  /** the segment that follows this one when it is not the next in the ring: set on every segment of a shortcut */
+  next?: number;
+  /** segments that start from the same gate as this one: where the road forks, the two ways on from a junction cell */
+  alt?: number[];
 }
+
+/**
+ * A shortcut. It leaves the ring in the cell of segment `fork` (a straight, which becomes a junction with two exits: on along the
+ * ring, or off to the side) and meets it again in the cell of segment `rejoin`. `segs` are the ids of its pieces in driving order,
+ * the first in the fork cell and the last in the rejoin cell. It replaces ring segments `fork` to `rejoin`, which are longer.
+ */
+export interface Branch {
+  id: number;
+  fork: number;
+  rejoin: number;
+  segs: number[];
+}
+
+/** Half the road width at centre point i of a segment. */
+export const halfIdx = (s: Segment, i: number): number => s.half?.[i] ?? ROAD_HALF;
+/** Half the road width a fraction t of the way along a segment. */
+export function halfAt(s: Segment, t: number): number {
+  if (!s.half) return ROAD_HALF;
+  const f = Math.min(Math.max(t, 0), 1) * SAMPLES, i = Math.min(SAMPLES - 1, Math.floor(f)), u = f - i;
+  return s.half[i]! + (s.half[i + 1]! - s.half[i]!) * u;
+}
+/** The segment that follows segment `id` along the road (for a ring segment, usually the next one round). */
+export const nextOf = (t: Track, id: number): number => t.allSegments[id]!.next ?? (id + 1) % t.segments.length;
+/** Every segment a car can take after `id`: the next one, and any that start from the same gate. */
+export function exitsAfter(t: Track, id: number): number[] {
+  const nx = nextOf(t, id);
+  return [nx, ...(t.allSegments[nx]!.alt ?? [])];
+}
+const RING_CUM = new WeakMap<Track, number[]>();
+/** Distance round the ring to the start of each ring segment, with the lap length at the end (n + 1 values). */
+export function ringCum(t: Track): number[] {
+  let c = RING_CUM.get(t);
+  if (!c) {
+    c = [0];
+    for (const s of t.segments) {
+      let len = 0;
+      for (let k = 0; k < s.center.length - 1; k++) len += dist(s.center[k]!, s.center[k + 1]!);
+      c.push(c[c.length - 1]! + len);
+    }
+    RING_CUM.set(t, c);
+  }
+  return c;
+}
+/** The narrowest the road gets anywhere on a segment. */
+export const narrowest = (s: Segment): number => (s.half ? Math.min(...s.half) : ROAD_HALF);
 
 export interface Track {
   phrase: string;
@@ -58,37 +116,83 @@ export interface Track {
   obstacles: boolean;
   /** where it is: scenery and surface */
   biome: BiomeId;
+  /** a `fun-` phrase: open water, crossings, narrows and wide pieces, shortcuts */
+  fun: boolean;
+  /** a real circuit laid out from a mapped line rather than a loop of cells: its segments are not tied to the grid */
+  free?: boolean;
   /** a real circuit this track is a copy of, when the phrase named one */
   circuit?: { id: string; name: string; lengthKm: number; blurb: string };
-  /** "cx,cy" -> segment index */
+  /** shortcuts; their segments have ids from segments.length up */
+  branches: Branch[];
+  /** every segment by id: the ring first, then the shortcuts */
+  allSegments: Segment[];
+  /** "cx,cy" -> segment index (the first one, where a cell is used twice) */
   cellIndex: Map<string, number>;
+  /** "cx,cy" -> every segment in that cell: two where the road crosses itself, one anywhere else */
+  cellSegments: Map<string, number[]>;
 }
 
 const DIRS: readonly [number, number][] = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 const key = (cx: number, cy: number) => `${cx},${cy}`;
 
-/** A simple cycle of grid cells, grown by pushing edges outward. Every cell has exactly two road neighbours. */
+/** Corner cells in a cycle: the ones where the road turns. */
+function countTurns(cyc: [number, number][]): number {
+  const n = cyc.length;
+  let t = 0;
+  for (let i = 0; i < n; i++) {
+    const a = cyc[(i + n - 1) % n]!, b = cyc[i]!, c = cyc[(i + 1) % n]!;
+    if (a[0] + c[0] !== 2 * b[0] || a[1] + c[1] !== 2 * b[1]) t++;
+  }
+  return t;
+}
+
+/** How often a track grows by the push that adds the fewest corners, rather than by any push at all. */
+const STRAIGHT_BIAS = 0.9;
+
+/**
+ * A simple cycle of grid cells, grown by pushing edges outward. Most pushes are the ones that add the fewest corners (they
+ * lengthen a straight, or deepen a bend that is already there), so corners are the exception and the road runs in long
+ * stretches; now and then a push anywhere makes a notch, a hairpin or an S.
+ */
 function growCycle(rng: Rng, cols: number, rows: number, target: number): [number, number][] {
-  const x0 = rng.int(cols - 1);
-  const y0 = rng.int(rows - 1);
-  let cyc: [number, number][] = [[x0, y0], [x0 + 1, y0], [x0 + 1, y0 + 1], [x0, y0 + 1]];
-  const used = new Set(cyc.map(([x, y]) => key(x, y)));
-  for (let attempt = 0; attempt < 4000 && cyc.length < target; attempt++) {
-    const k = rng.int(cyc.length);
-    const a = cyc[k]!;
-    const b = cyc[(k + 1) % cyc.length]!;
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    const side = rng.chance(0.5) ? 1 : -1;
-    const px = -dy * side;
-    const py = dx * side;
-    const a2: [number, number] = [a[0] + px, a[1] + py];
-    const b2: [number, number] = [b[0] + px, b[1] + py];
-    const inGrid = (c: [number, number]) => c[0] >= 0 && c[1] >= 0 && c[0] < cols && c[1] < rows;
-    if (!inGrid(a2) || !inGrid(b2) || used.has(key(...a2)) || used.has(key(...b2))) continue;
-    cyc = [...cyc.slice(0, k + 1), a2, b2, ...cyc.slice(k + 1)];
-    used.add(key(...a2));
-    used.add(key(...b2));
+  // start from a ring of cells round the edge of a w x h block, as big as fits, so the road has room for wide bends
+  const rings: [number, number][] = [];
+  for (let w = 3; w <= cols; w++) for (let h = 3; h <= Math.min(w, rows); h++) {
+    const perimeter = 2 * (w + h) - 4;
+    if (perimeter <= target && perimeter >= target - RING_SLACK) rings.push([w, h]);
+  }
+  const [rw, rh] = rings.length ? rings[rng.int(rings.length)]! : [2, 2];
+  const x0 = rng.int(cols - rw + 1);
+  const y0 = rng.int(rows - rh + 1);
+  let cyc: [number, number][] = [];
+  for (let x = 0; x < rw; x++) cyc.push([x0 + x, y0]);
+  for (let y = 1; y < rh; y++) cyc.push([x0 + rw - 1, y0 + y]);
+  for (let x = rw - 2; x >= 0; x--) cyc.push([x0 + x, y0 + rh - 1]);
+  for (let y = rh - 2; y >= 1; y--) cyc.push([x0, y0 + y]);
+  const inGrid = (c: [number, number]) => c[0] >= 0 && c[1] >= 0 && c[0] < cols && c[1] < rows;
+  while (cyc.length < target) {
+    const used = new Set(cyc.map(([x, y]) => key(x, y)));
+    const options: { cyc: [number, number][]; turns: number }[] = [];
+    for (let k = 0; k < cyc.length; k++) {
+      const a = cyc[k]!;
+      const b = cyc[(k + 1) % cyc.length]!;
+      for (const side of [1, -1]) {
+        const px = -(b[1] - a[1]) * side;
+        const py = (b[0] - a[0]) * side;
+        const a2: [number, number] = [a[0] + px, a[1] + py];
+        const b2: [number, number] = [b[0] + px, b[1] + py];
+        if (!inGrid(a2) || !inGrid(b2) || used.has(key(...a2)) || used.has(key(...b2))) continue;
+        const next: [number, number][] = [...cyc.slice(0, k + 1), a2, b2, ...cyc.slice(k + 1)];
+        options.push({ cyc: next, turns: countTurns(next) });
+      }
+    }
+    if (!options.length) break;
+    let pool = options;
+    if (rng.chance(STRAIGHT_BIAS)) {
+      const fewest = Math.min(...options.map((o) => o.turns));
+      pool = options.filter((o) => o.turns === fewest);
+    }
+    cyc = pool[rng.int(pool.length)]!.cyc;
   }
   return cyc;
 }
@@ -104,14 +208,14 @@ function makeGate(mid: Vec2, dir: Vec2): Gate {
   return { mid, dir, n: perp(dir) };
 }
 
-const normalsOf = (center: Vec2[]): Vec2[] => center.map((_, i) => {
+export const normalsOf = (center: Vec2[]): Vec2[] => center.map((_, i) => {
   const a = center[Math.max(0, i - 1)]!;
   const b = center[Math.min(SAMPLES, i + 1)]!;
   return perp(norm(sub(b, a)));
 });
 
 /** Boxes, water and power-ups on a segment (never on the two straights beside the start line). */
-function placeFeatures(seg: Segment, rng: Rng, pitStraight: boolean): void {
+export function placeFeatures(seg: Segment, rng: Rng, pitStraight: boolean): void {
   seg.obstacles = [];
   seg.powerup = undefined;
   if (!pitStraight && rng.chance(0.4)) {
@@ -134,7 +238,7 @@ function placeFeatures(seg: Segment, rng: Rng, pitStraight: boolean): void {
 }
 
 /** `force` fixes the kind (circuits do), but the same random draws are made either way. */
-function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [number, number], next: [number, number], total: number, force?: SegmentKind): Segment {
+export function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [number, number], next: [number, number], total: number, force?: SegmentKind): Segment {
   const [cx, cy] = cell;
   const C = v2((cx + 0.5) * CELL, (cy + 0.5) * CELL);
   const toPrev = v2(prev[0] - cx, prev[1] - cy);
@@ -149,7 +253,7 @@ function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [nu
   else kind = rng.chance(0.4) ? "sharp" : "corner";
   const bendSign: 1 | -1 = rng.chance(0.5) ? 1 : -1;
   if (force) {
-    if (straight !== (force === "straight" || force === "bendy" || force === "kink" || force === "chicane" || force === "esses")) throw new Error(`a ${force} cell at ${cx},${cy} does not fit the way the road runs`);
+    if (straight !== (force === "straight" || force === "bendy" || force === "kink" || force === "chicaneA" || force === "chicaneB" || force === "esses" || force === "cross")) throw new Error(`a ${force} cell at ${cx},${cy} does not fit the way the road runs`);
     kind = force;
   }
 
@@ -161,14 +265,15 @@ function buildSegment(rng: Rng, index: number, cell: [number, number], prev: [nu
   if (kind === "corner" || kind === "sharp") {
     center = [];
     for (let i = 0; i <= SAMPLES; i++) center.push(bezier(p0, c1, c2, p2, i / SAMPLES));
-  } else center = straightCentre(kind as StraightShape, p0, p2, bendSign);
+  } else center = straightCentre(kind === "cross" ? "straight" : (kind as StraightShape), p0, p2, bendSign);
   const seg: Segment = {
     index, cx, cy, kind, center, normals: normalsOf(center),
     entry: makeGate(p0, mul(toPrev, -1)),
     exit: makeGate(p2, toNext),
     obstacles: [],
   };
-  placeFeatures(seg, rng, pitStraight);
+  // nothing sits in a junction, and nothing is laid on the road just before it
+  placeFeatures(seg, rng, pitStraight || kind === "cross");
   return seg;
 }
 
@@ -185,7 +290,7 @@ function separationFrom(segs: Segment[], i: number): number {
 }
 
 /** Enough room between road and road that two cars on different bits of track can never touch. */
-const MIN_SEPARATION = 2 * ROAD_HALF + 4;
+export const MIN_SEPARATION = 2 * ROAD_HALF + 4;
 
 interface Saved { center: Vec2[]; normals: Vec2[]; entry: Gate; exit: Gate; kind: SegmentKind; obstacles: Obstacle[]; powerup: Powerup | undefined }
 const save = (s: Segment): Saved => ({ center: s.center, normals: s.normals, entry: s.entry, exit: s.exit, kind: s.kind, obstacles: s.obstacles, powerup: s.powerup });
@@ -214,10 +319,24 @@ function applyWindow(segs: Segment[], i: number, piece: "uturn" | "sweeper", rng
   return true;
 }
 
+/** A corner cell's centre line: `sharp` squeezes the bend toward the cell corner for a tight, square 90. */
+function cornerCentre(s: Segment, kind: "corner" | "sharp"): Vec2[] {
+  const handle = kind === "sharp" ? 36 : 27.6;
+  const c1 = add(s.entry.mid, mul(s.entry.dir, handle));
+  const c2 = sub(s.exit.mid, mul(s.exit.dir, handle));
+  const out: Vec2[] = [];
+  for (let i = 0; i <= SAMPLES; i++) out.push(bezier(s.entry.mid, c1, c2, s.exit.mid, i / SAMPLES));
+  return out;
+}
+
 /**
  * The extra pieces for a random track, chosen from a stream of their own so that the layout and the rest of the random
- * draws are exactly what they always were: some bendy cells become kinks or chicanes, and some patterns of cells get a
- * wide arc (a corner, a straight and a corner become a `uturn`; a straight, a corner and a straight a `sweeper`).
+ * draws are exactly what they always were. Corners are meant to be the exception, so the work here is to give the road
+ * character:
+ *  - a corner between two straights is often a long fast `sweeper` (radius 1.5 cells), and a corner, a straight and a corner
+ *    in the same direction sometimes a wide `uturn`;
+ *  - two corners in a row the same way are a tight hairpin, so those corners are made `sharp`;
+ *  - plenty of the straights get a `kink` or `esses`, and some a chicane: two cells, one swinging each way.
  */
 function enrich(segs: Segment[], cyc: [number, number][], seed: number): void {
   const n = segs.length;
@@ -232,22 +351,61 @@ function enrich(segs: Segment[], cyc: [number, number][], seed: number): void {
   for (let i = 1; i + 2 <= n - 2; i++) {
     if (used.has(i) || used.has(i + 1) || used.has(i + 2)) continue;
     const t0 = turn(i), t1 = turn(i + 1), t2 = turn(i + 2);
-    const piece = t0 !== 0 && t1 === 0 && t2 === t0 ? "uturn" : t0 === 0 && t1 !== 0 && t2 === 0 ? "sweeper" : null;
-    if (!piece || !rng.chance(0.35)) continue;
-    if (applyWindow(segs, i, piece, rng)) { used.add(i); used.add(i + 1); used.add(i + 2); }
+    const sweeper = t0 === 0 && t1 !== 0 && t2 === 0;
+    const uturn = t0 !== 0 && t1 === 0 && t2 === t0;
+    if (!sweeper && !uturn) continue;
+    if (!rng.chance(sweeper ? SWEEPER_CHANCE : UTURN_CHANCE)) continue;
+    if (applyWindow(segs, i, sweeper ? "sweeper" : "uturn", rng)) { used.add(i); used.add(i + 1); used.add(i + 2); }
   }
-  // then the straight-cell pieces: a bendy cell may be a kink or a chicane instead
-  for (const s of segs) {
-    if (s.kind !== "bendy" || s.index === 0 || s.index === n - 1) continue;
-    const r = rng.next();
-    if (r < 0.25) continue;
-    const kind: StraightShape = r < 0.5 ? "kink" : r < 0.75 ? "chicane" : "esses";
-    const p0 = s.entry.mid, p2 = s.exit.mid;
-    s.center = straightCentre(kind, p0, p2, rng.chance(0.5) ? 1 : -1);
+  // hairpins: corners that follow each other the same way are squeezed tight
+  for (let i = 1; i < n - 1; i++) {
+    const s = segs[i]!;
+    if (used.has(i) || (s.kind !== "corner" && s.kind !== "sharp")) continue;
+    const t = turn(i);
+    const pair = (j: number) => j >= 0 && j < n && !used.has(j) && turn(j) === t;
+    if ((pair(i - 1) || pair(i + 1)) && rng.chance(HAIRPIN_CHANCE) && s.kind !== "sharp") { s.kind = "sharp"; s.center = cornerCentre(s, "sharp"); s.normals = normalsOf(s.center); }
+  }
+  // then the straight-cell pieces: a bendy cell is always something else, and so are many plain straights. A chicane is two
+  // cells, a swing one way and a swing back, so it needs the next cell to be a plain straight too
+  const free = (k: number) => k > 0 && k < n - 1 && !used.has(k) && turn(k) === 0 && (segs[k]!.kind === "straight" || segs[k]!.kind === "bendy");
+  const reshape = (s: Segment, kind: StraightShape, sign: 1 | -1) => {
+    s.center = straightCentre(kind, s.entry.mid, s.exit.mid, sign);
     s.normals = normalsOf(s.center);
     s.kind = kind;
+    used.add(s.index);
     placeFeatures(s, rng, false);
+  };
+  for (const s of segs) {
+    if (!free(s.index)) continue;
+    if (s.kind !== "bendy" && !(rng.chance(TECHNICAL_STRAIGHT))) continue;
+    const r = rng.next();
+    const sign: 1 | -1 = rng.chance(0.5) ? 1 : -1;
+    if (r >= 1 - CHICANE_SHARE && free(s.index + 1)) { reshape(s, "chicaneA", sign); reshape(segs[s.index + 1]!, "chicaneB", sign); continue; }
+    reshape(s, r < 0.35 ? "kink" : "esses", sign);
   }
+}
+
+/** Chances, for the pieces `enrich` lays. */
+const SWEEPER_CHANCE = 0.85;
+const UTURN_CHANCE = 0.45;
+const HAIRPIN_CHANCE = 0.25;
+const TECHNICAL_STRAIGHT = 0.12;
+/** Of the technical straights, the share that are the start of a chicane (when the cell after it is free for the other half). */
+const CHICANE_SHARE = 0.4;
+/** How many cells shorter than the target the starting ring may be; the rest of the length comes from bumps. */
+const RING_SLACK = 4;
+
+/** The lookup tables from cells to segments. */
+export function indexCells(segments: Segment[], branches: Branch[] = [], extra: Segment[] = []): Pick<Track, "cellIndex" | "cellSegments" | "branches" | "allSegments"> {
+  const cellIndex = new Map<string, number>();
+  const cellSegments = new Map<string, number[]>();
+  const allSegments = [...segments, ...extra];
+  for (const s of allSegments) {
+    const k = key(s.cx, s.cy);
+    if (!cellIndex.has(k)) cellIndex.set(k, s.index);
+    cellSegments.set(k, [...(cellSegments.get(k) ?? []), s.index]);
+  }
+  return { cellIndex, cellSegments, branches, allSegments };
 }
 
 /** Centreline point and normal at t in [0, 1]. */
@@ -267,12 +425,52 @@ export interface TrackOptions {
   pieces?: boolean;
 }
 
+/** Fun tracks are asked for by name: the phrase starts with `fun-`. */
+export const isFunPhrase = (normalised: string): boolean => normalised.startsWith("fun-");
+
+/** What a phrase says about a track without building it: its place and the machines on it. */
+export function placeFor(phrase: string): { phrase: string; seed: number; fun: boolean; biome: BiomeId; vehicle: VehicleId; choices: VehicleId[] } {
+  const norm_ = normalizePhrase(phrase);
+  const circuit = circuitFor(norm_);
+  const seed = phraseToSeed(circuit ? circuit.id : norm_);
+  const fun = !circuit && isFunPhrase(norm_);
+  const biome = circuit ? circuit.biome : biomeForSeed(seed, fun);
+  const choices = vehicleChoices(seed, biomeOf(biome).domain, circuit?.id);
+  return { phrase: norm_, seed, fun, biome, vehicle: choices[0]!, choices };
+}
+
+/** The machines for a track. */
+export const vehicleForTrack = (t: Track): VehicleId => (t.circuit && CIRCUIT_VEHICLES[t.circuit.id]) || vehicleForSeed(t.seed, biomeOf(t.biome).domain);
+
+/** Every machine a track offers, its own first. */
+export const vehicleChoicesForTrack = (t: Track): VehicleId[] => vehicleChoices(t.seed, biomeOf(t.biome).domain, t.circuit?.id);
+
 /** The same phrase (and options) always give the same track. */
 export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
   const norm_ = normalizePhrase(phrase);
   const named = circuitFor(norm_);
   if (named) return buildCircuit(named, norm_, opts);
   const seed = phraseToSeed(norm_);
+  if (isFunPhrase(norm_)) {
+    // fun tracks run over themselves; a layout that does not come out well is thrown away for the next one
+    // a fun track is meant to have a choice in it: the first layout that comes out well and has a shortcut wins, and if none has one,
+    // the first that comes out well at all
+    let plain: Track | null = null;
+    for (let attempt = 0; attempt < FUN_ATTEMPTS; attempt++) {
+      const lay = funLayout(norm_, seed, attempt);
+      if (!lay) continue;
+      for (const windows of [lay.windows, undefined]) {
+        try {
+          const t = buildCircuit({ ...lay, windows }, norm_, opts, true);
+          if (checkTrack(t).length !== 0 || minClearance(t) < MIN_CLEAR - 0.01) continue;
+          if (t.branches.length) return t;
+          plain ??= t;
+          break;
+        } catch { /* try the layout without its wide arcs, then the next layout */ }
+      }
+    }
+    if (plain) return plain;
+  }
   const rng = new Rng(seed);
   const cols = 7;
   const rows = 5;
@@ -299,40 +497,70 @@ export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
   if (opts.pieces !== false) enrich(segments, cyc, seed);
   // the layout is drawn from the same random stream either way, so switching obstacles off keeps the track
   if (opts.obstacles === false) for (const s of segments) s.obstacles = [];
+  const fun = isFunPhrase(norm_);
+  let branches: Branch[] = [], extra: Segment[] = [];
+  if (fun) {
+    applyWidths(segments, seed);
+    ({ branches, extra } = makeBranches(segments, cols, rows, seed));
+    if (opts.obstacles === false) for (const s of extra) s.obstacles = [];
+  }
   const g = segments[0]!.entry;
   const pit = makePit(g.mid, g.dir, g.n, rng.chance(0.5) ? 1 : -1);
-  const cellIndex = new Map<string, number>();
-  segments.forEach((s) => cellIndex.set(key(s.cx, s.cy), s.index));
-  return { phrase: norm_, seed, cols, rows, segments, pit, obstacles: opts.obstacles !== false, biome: opts.biome ?? biomeForSeed(seed), cellIndex };
+  return { phrase: norm_, seed, cols, rows, segments, pit, obstacles: opts.obstacles !== false, biome: opts.biome ?? biomeForSeed(seed, fun), fun, ...indexCells(segments, branches, extra) };
 }
 
 /** A track copied from a real circuit: its cells in driving order, with the kind of each, and its wide arcs. */
-function buildCircuit(c: Circuit, typed: string, opts: TrackOptions): Track {
+function buildCircuit(c: Circuit, typed: string, opts: TrackOptions, fun = false): Track {
+  if (c.free) return buildFreeCircuit(c, typed, opts);
   const seed = phraseToSeed(c.id);
   const rng = new Rng(seed);
   const n = c.cells.length;
   const rot = (i: number) => (i + c.start) % n;
   const cyc = c.cells.map((_, i) => [c.cells[rot(i)]![0], c.cells[rot(i)]![1]] as [number, number]);
   const segments = cyc.map((cell, i) => buildSegment(rng, i, cell, cyc[(i + n - 1) % n]!, cyc[(i + 1) % n]!, n, c.cells[rot(i)]![2]));
+  // the two halves of a chicane swing opposite ways; which way it starts is fixed by where it is
+  segments.forEach((q, i) => {
+    if (q.kind !== "chicaneA" && q.kind !== "chicaneB") return;
+    const start = q.kind === "chicaneA" ? i : i - 1;
+    q.center = straightCentre(q.kind, q.entry.mid, q.exit.mid, start % 2 === 0 ? 1 : -1);
+    q.normals = normalsOf(q.center);
+    placeFeatures(q, new Rng(seed ^ (i + 1)), false);
+  });
   for (const w of c.windows ?? []) {
     const i = (w.at - c.start + n) % n;
     if (i + 2 > n - 1) throw new Error(`${c.id}: the ${w.piece} at cell ${w.at} runs past the end of the loop`);
     if (!applyWindow(segments, i, w.piece, rng)) throw new Error(`${c.id}: the ${w.piece} at cell ${w.at} does not fit`);
   }
-  if (opts.obstacles === false) for (const s of segments) s.obstacles = [];
+  let branches: Branch[] = [], extra: Segment[] = [];
+  if (fun) {
+    applyWidths(segments, seed);
+    ({ branches, extra } = makeBranches(segments, c.cols, c.rows, seed));
+  }
+  if (opts.obstacles === false) for (const s of [...segments, ...extra]) s.obstacles = [];
   const g = segments[0]!.entry;
-  // the pit lane goes on the infield side of the start straight
+  // the pit lane goes on the infield side of the start straight, unless other road runs close beside it there
   const mx = segments.reduce((a, q) => a + q.center[12]!.x, 0) / n, my = segments.reduce((a, q) => a + q.center[12]!.y, 0) / n;
   const inward = (mx - g.mid.x) * g.n.x + (my - g.mid.y) * g.n.y;
-  const pit = makePit(g.mid, g.dir, g.n, inward >= 0 ? 1 : -1);
-  const cellIndex = new Map<string, number>();
-  segments.forEach((s) => cellIndex.set(key(s.cx, s.cy), s.index));
+  const crowding = (side: 1 | -1): number => {
+    let near = 0;
+    for (const q of segments.slice(1, -1)) for (const p of q.center) {
+      const along = (p.x - g.mid.x) * g.dir.x + (p.y - g.mid.y) * g.dir.y, across = ((p.x - g.mid.x) * g.n.x + (p.y - g.mid.y) * g.n.y) * side;
+      if (Math.abs(along) < 90 && across > 0 && across < 80) near++;
+    }
+    return near;
+  };
+  const inwardSide: 1 | -1 = inward >= 0 ? 1 : -1;
+  const pit = makePit(g.mid, g.dir, g.n, crowding(inwardSide) <= crowding(-inwardSide as 1 | -1) ? inwardSide : (-inwardSide as 1 | -1));
   const track: Track = {
     phrase: typed, seed, cols: c.cols, rows: c.rows, segments, pit, obstacles: opts.obstacles !== false,
-    biome: opts.biome ?? c.biome, cellIndex, circuit: { id: c.id, name: c.name, lengthKm: c.lengthKm, blurb: c.blurb },
+    biome: opts.biome ?? (fun ? biomeForSeed(seed, true) : c.biome), fun, ...indexCells(segments, branches, extra),
+    ...(fun ? {} : { circuit: { id: c.id, name: c.name, lengthKm: c.lengthKm, blurb: c.blurb } }),
   };
   return track;
 }
+
+/** How many layouts a fun phrase tries before it settles for an ordinary loop. */
+const FUN_ATTEMPTS = 40;
 
 /** Length of one lap along the centreline, units. */
 export function trackLength(t: Track): number {
@@ -345,27 +573,58 @@ export function trackLength(t: Track): number {
 export function checkTrack(t: Track): string[] {
   const problems: string[] = [];
   const n = t.segments.length;
-  const seen = new Set<string>();
+  const seen = new Map<string, number>();
   t.segments.forEach((s, i) => {
     const k = key(s.cx, s.cy);
-    if (seen.has(k)) problems.push(`cell ${k} used twice`);
-    seen.add(k);
+    // only a crossing may use a cell twice, and then both visits are crossing pieces going different ways
+    const other = seen.get(k);
+    if (other !== undefined && !t.free) {
+      const o = t.segments[other]!;
+      if (s.kind !== "cross" || o.kind !== "cross" || s.entry.dir.x * o.entry.dir.x + s.entry.dir.y * o.entry.dir.y !== 0) problems.push(`cell ${k} used twice`);
+    }
+    seen.set(k, i);
     if (s.cx < 0 || s.cy < 0 || s.cx >= t.cols || s.cy >= t.rows) problems.push(`cell ${k} outside the grid`);
     const nx = t.segments[(i + 1) % n]!;
-    if (Math.abs(nx.cx - s.cx) + Math.abs(nx.cy - s.cy) !== 1) problems.push(`segment ${i} does not touch segment ${(i + 1) % n}`);
+    // (a mapped circuit's segments are cut along the road, not laid in cells)
+    if (!t.free && Math.abs(nx.cx - s.cx) + Math.abs(nx.cy - s.cy) !== 1) problems.push(`segment ${i} does not touch segment ${(i + 1) % n}`);
     if (dist(s.exit.mid, nx.entry.mid) > 1e-6) problems.push(`gate ${i} does not join`);
     for (const o of s.obstacles) {
       // a car must be able to pass on at least one side
       const lat = lateralOf(s, o);
-      const gap = Math.max(ROAD_HALF - (lat + o.r), ROAD_HALF - (-lat + o.r));
+      const hh = narrowestNear(s, o);
+      const gap = Math.max(hh - (lat + o.r), hh - (-lat + o.r));
       if (gap < 2 * CAR_R + 2) problems.push(`obstacle in segment ${i} leaves no way through`);
     }
   });
-  if (n < 4 || n % 2) problems.push(`loop has ${n} cells`);
+  // shortcuts: they start at the fork cell's entry gate, join up piece by piece, and end at the rejoin cell's exit gate
+  for (const b of t.branches) {
+    const F = t.segments[b.fork]!, R = t.segments[b.rejoin]!;
+    const ids = b.segs, first = t.allSegments[ids[0]!]!, last = t.allSegments[ids.at(-1)!]!;
+    if (first.cx !== F.cx || first.cy !== F.cy || dist(first.entry.mid, F.entry.mid) > 1e-6) problems.push(`shortcut ${b.id} does not leave from its fork`);
+    if (last.cx !== R.cx || last.cy !== R.cy || dist(last.exit.mid, R.exit.mid) > 1e-6) problems.push(`shortcut ${b.id} does not rejoin the road`);
+    ids.forEach((id, k) => {
+      const s = t.allSegments[id]!;
+      if (s.index !== id) problems.push(`shortcut piece ${id} has the wrong index`);
+      const nx = k + 1 < ids.length ? t.allSegments[ids[k + 1]!]! : t.segments[(b.rejoin + 1) % n]!;
+      if (dist(s.exit.mid, nx.entry.mid) > 1e-6) problems.push(`shortcut piece ${id} does not join the next`);
+      if (k > 0 && k < ids.length - 1 && seen.has(key(s.cx, s.cy))) problems.push(`shortcut piece ${id} is on the ring`);
+    });
+  }
+  if (n < 4 || (n % 2 && !t.free)) problems.push(`loop has ${n} cells`);
   const first = t.segments[0], last = t.segments.at(-1);
   if (first && last && (first.kind !== "straight" || last.kind !== "straight")) problems.push("the pit straight is not straight");
   if (first && last && (first.entry.dir.x !== last.exit.dir.x || first.entry.dir.y !== last.exit.dir.y)) problems.push("the pit straight bends at the start line");
   return problems;
+}
+
+/** Half the road width at the centre point nearest an obstacle. */
+function narrowestNear(s: Segment, o: Obstacle): number {
+  let best = Infinity, h = ROAD_HALF;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const d = Math.hypot(o.x - s.center[i]!.x, o.y - s.center[i]!.y);
+    if (d < best) { best = d; h = halfIdx(s, i); }
+  }
+  return h;
 }
 
 /** Signed distance of an obstacle from the centreline of its segment. */
@@ -390,8 +649,7 @@ export function nearbySegments(t: Track, p: Vec2): Segment[] {
   const out: Segment[] = [];
   for (let dx = -1; dx <= 1; dx++) {
     for (let dy = -1; dy <= 1; dy++) {
-      const i = t.cellIndex.get(key(cx + dx, cy + dy));
-      if (i !== undefined) out.push(t.segments[i]!);
+      for (const i of t.cellSegments.get(key(cx + dx, cy + dy)) ?? []) out.push(t.allSegments[i]!);
     }
   }
   return out;
@@ -406,6 +664,22 @@ export function roadDistance(t: Track, p: Vec2): number {
   return best;
 }
 
+/** How far inside the road p is: the best of (half the road width there minus the distance from its centre line) over the nearby road. Negative off the road. */
+export function roadMargin(t: Track, p: Vec2): number {
+  let best = -Infinity;
+  for (const s of nearbySegments(t, p)) {
+    for (let i = 0; i < SAMPLES; i++) {
+      const a = s.center[i]!, b = s.center[i + 1]!;
+      const abx = b.x - a.x, aby = b.y - a.y, l2 = abx * abx + aby * aby;
+      const u = l2 < 1e-12 ? 0 : Math.min(1, Math.max(0, ((p.x - a.x) * abx + (p.y - a.y) * aby) / l2));
+      const d = Math.hypot(p.x - (a.x + abx * u), p.y - (a.y + aby * u));
+      const h = s.half ? s.half[i]! + (s.half[i + 1]! - s.half[i]!) * u : ROAD_HALF;
+      if (h - d > best) best = h - d;
+    }
+  }
+  return best;
+}
+
 export function inObstacle(t: Track, p: Vec2, margin: number): Obstacle | undefined {
   for (const s of nearbySegments(t, p)) {
     for (const o of s.obstacles) if (Math.hypot(p.x - o.x, p.y - o.y) < o.r + margin) return o;
@@ -415,7 +689,7 @@ export function inObstacle(t: Track, p: Vec2, margin: number): Obstacle | undefi
 
 /** True when a car centred at p stays on the road and clear of obstacles. */
 export function isDrivable(t: Track, p: Vec2, margin = CAR_R): boolean {
-  return roadDistance(t, p) <= ROAD_HALF - margin && !inObstacle(t, p, margin);
+  return roadMargin(t, p) >= margin && !inObstacle(t, p, margin);
 }
 
 export function trackBounds(t: Track): { w: number; h: number } {

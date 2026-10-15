@@ -27,3 +27,8 @@ export function normalizePhrase(text: string): string {
 export function phraseToSeed(phrase: string): number {
   return hashString(normalizePhrase(phrase));
 }
+
+/** A new random phrase to replace `current`. A `fun-` phrase stays a fun phrase: only the words after the prefix change. */
+export function rerollPhrase(current: string, rng: Rng): string {
+  return normalizePhrase(current).startsWith("fun-") ? `fun-${randomPhrase(rng)}` : randomPhrase(rng);
+}

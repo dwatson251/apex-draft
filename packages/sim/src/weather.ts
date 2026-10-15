@@ -6,7 +6,7 @@ export interface Shower { start: number; end: number; intensity: number }
 export interface Weather { showers: Shower[] }
 
 /** Chance that a race has any rain at all. The moon has no weather. */
-const RAINY: Record<BiomeId, number> = { grass: 0.55, city: 0.55, snow: 0.5, desert: 0.15, moon: 0 };
+const RAINY: Record<BiomeId, number> = { grass: 0.55, city: 0.55, snow: 0.5, desert: 0.15, moon: 0, water: 0 };
 
 /**
  * The weather for a race, from the track's seed and the number of laps: the same phrase and lap count always rain at the

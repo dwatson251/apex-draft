@@ -1,3 +1,4 @@
+import { weatherPill } from "../hudicons.ts";
 import { MAX_RIVALS, MAX_WEAR_MULT, type Compound } from "@apex/sim";
 import { compoundChips, copyField, dropdown, esc, stepper, toggle, type Opt } from "./controls.ts";
 
@@ -14,6 +15,7 @@ export function homeHtml(o: { version: string; quit: boolean; note: string }): s
       <button class="hb h-orange" id="h-quick"><b>Quick Race</b><span>Rivals, tyres and fuel</span></button>
       <button class="hb h-pink" id="h-weekend"><b>Race Weekend</b><span>Practice, qualifier, race</span></button>
       <button class="hb h-cyan" id="h-tutorial"><b>Tutorial</b><span>Learn on the oval</span></button>
+      <button class="hb h-green" id="h-garage"><b>Garage</b><span>Tune your car</span></button>
       <button class="hb h-violet" id="h-settings"><b>Settings</b><span>Sound and controls</span></button>
       ${o.quit ? '<button class="hb h-grey" id="h-quit"><b>Quit</b><span>Close the game</span></button>' : ""}
     </div>
@@ -27,7 +29,8 @@ export interface SetupData {
   /** chips for the circuit, surface and vehicle, already HTML */
   chips: string;
   blurb: string;
-  forecast: string;
+  /** rain at the start, middle and end of the race, or null with nothing to forecast */
+  forecast: [boolean, boolean, boolean] | null;
   laps: number;
   rivals: number;
   realism: boolean;
@@ -61,9 +64,7 @@ export function setupHtml(d: SetupData): string {
     ${d.flow === "weekend" ? '<div class="sessions"><span>Practice</span><i></i><span>Qualifier</span><i></i><span>Race</span></div>' : ""}
     <label>Track phrase</label>
     <div class="row">${copyField("phrase", d.phrase)}<button id="rand" class="pill pink">Random</button></div>
-    <div class="chips">${d.chips}</div>
-    <p class="dim blurb">${esc(d.blurb)}</p>
-    ${d.forecast ? `<p class="forecast">☁ ${esc(d.forecast)}</p>` : ""}
+    <div class="chips">${d.chips}${d.forecast ? weatherPill(d.forecast) : ""}</div>
     ${d.flow === "trial" ? '<div class="chips"><span class="chip dim">Soft tyres</span><span class="chip dim">No wear or fuel</span><span class="chip dim">No rivals</span></div>' : ""}
     ${race ? `<div class="opts">
       <div class="opt"><span>Laps</span>${stepper("laps", d.laps, 1, 50)}</div>
@@ -103,12 +104,13 @@ export function settingsHtml(o: { muted: boolean; music: boolean; version: strin
     <p class="ver">v${esc(o.version)}</p>`;
 }
 
-export function pauseHtml(o: { title: string; sub: string }): string {
+export function pauseHtml(o: { title: string; sub: string; finish?: boolean }): string {
   return `
     <h2 class="pause-title">${esc(o.title)}</h2>
     <p class="dim center-text">${esc(o.sub)}</p>
     <div class="bigbtns col">
       <button class="big yellow wide" id="resume">Resume</button>
+      ${o.finish ? '<button class="big cyan" id="finish-track">Finish track for me</button>' : ""}
       <button class="big orange" id="restart">Redraw track</button>
       <button class="big violet" id="p-settings">Settings</button>
       <button class="big grey" id="quit">Quit to menu</button>

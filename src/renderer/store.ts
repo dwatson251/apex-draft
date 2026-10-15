@@ -1,4 +1,4 @@
-import type { CarConfig, Compound } from "@apex/sim";
+import type { CarConfig, Compound, VehicleId } from "@apex/sim";
 
 declare global {
   interface Window {
@@ -36,6 +36,8 @@ export interface Settings {
   mode: "trial" | "race";
   rivals: number;
   car: CarConfig;
+  /** the machine chosen in race setup, when the track offers it (else the track's own) */
+  vehicle?: VehicleId;
   muted?: boolean;
   musicOff?: boolean;
   /** tyre wear, fuel and pit stops */
