@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.9
 
+- **Overtaking is committed and taken in turn** (the Aggressive overtaking setting). A car now commits to passing one car and stays out until that car is clearly behind it (more than both lengths and a little more), then eases back to its line; before, it dropped the pass about when the two were level and cut back in alongside. Passes are taken in turn: a car does not start one while the car it is following is passing or waiting to, or while another car is passing it, so the front of a queue goes first and a column no longer pulls out all at once and blocks the cars behind. With 16 cars contacts fell (Spa 46 to 5, river bend 13 to 3); with 32 it is still rough.
 - **Name tag in the pits.** While you are stopped in the box with the map showing, the name tag now stays on your car (it was left where it had been on screen before the view changed, in the middle of the map).
 
 ## 0.1.0-alpha.8

@@ -156,14 +156,19 @@ const SLOW_REACH = 45;
 /**
  * Overtaking (RaceRules.overtake): held this many ticks behind a car that is slower by at least OVT_GAIN, a car looks for a gap between the cars round it
  * (every car going its way within OVT_AHEAD in front and OVT_BEHIND behind counts, with the room of their bodies and OVT_MARGIN) and commits to it for
- * OVT_HOLD ticks, so it does not change its mind each tick; it goes back to its line once it is through.
+ * OVT_MAX ticks at most, so it does not change its mind each tick; it goes back to its line once it is through.
+ * A pass is a commitment to one car (`passOn`): the car stays out until that car is behind it by more than the length of both plus OVT_CLEAR, or
+ * OVT_MAX ticks have gone, and only then eases back, so it never cuts in alongside. Passes are taken in turn: a car does not start one while the car
+ * it is following is passing or is waiting to (the front of a queue goes first, then the next), or while another car is passing it, so a column does not
+ * pull out all at once.
  */
 const OVT_TICKS = 18;
 const OVT_GAIN = 6;
 const OVT_SHARE = 0.9;
 const OVT_AHEAD = 90;
 const OVT_BEHIND = 14;
-const OVT_HOLD = 90;
+const OVT_CLEAR = 4;
+const OVT_MAX = 300;
 /** How far ahead of the car in front its speed limit is read, for a follower to brake with it. */
 /** A follower looks ahead of the car in front by this many seconds of its speed (and at least ANTICIPATE_MIN units): the braking zone it is heading for. */
 const ANTICIPATE_SECS = 0.9;
@@ -423,6 +428,9 @@ export interface RaceCar {
   /** ticks the car has been held to well under its line speed by a slower car ahead; the lateral offset it has committed to for a pass, and until when (see `dodge`) */
   fol: number;
   passTo: number | null;
+  /** the car a pass in progress is on, and the last one finished */
+  passOn: RaceCar | null;
+  lastPassed: RaceCar | null;
   passUntil: number;
   /** the fuel and tyre the car came into its box with, and how long the stop takes in ticks: for the gauges to show the stop as it happens (see `stopShown`) */
   stopFuel: number;
@@ -549,7 +557,7 @@ export class Race {
         trace: [], prog: [], vtrace: [], gtrace: [], ltrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
-        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, wake: 0, tmtrace: [], ctrace: [], used: [],
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, wake: 0, tmtrace: [], ctrace: [], used: [],
         hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, btrace: [], radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
       };
       c.used.push(c.compound);
@@ -848,7 +856,15 @@ export class Race {
     c.held = c.tlVal !== Infinity && c.v < 0.5 * lineSpeed && !c.rec && this.tick > HELD_GRACE ? c.held + 1 : Math.max(0, c.held - 2);
     const impatient = c.held > HELD_TICKS;
     c.fol = this.rules.overtake === true && c.tlWhy === 1 && c.tlBy !== null && c.tlVal < OVT_SHARE * lineSpeed && c.v > 8 && !c.rec && lineSpeed - c.tlBy.v > OVT_GAIN ? c.fol + 1 : Math.max(0, c.fol - 2);
-    const overtaking = this.rules.overtake === true && !c.rec && (c.fol > OVT_TICKS || (c.passTo !== null && this.tick < c.passUntil));
+    // a pass in progress is over when the car passed is far enough behind (or it has gone on too long, or the car is in trouble)
+    if (c.passOn) {
+      const o = c.passOn, along = (o.x - c.x) * Math.cos(c.hp) + (o.y - c.y) * Math.sin(c.hp);
+      if (c.rec || this.rules.overtake !== true || this.tick > c.passUntil || o.out || along < -((c.length + o.length) / 2 + OVT_CLEAR)) { c.lastPassed = o; c.passOn = null; c.passTo = null; }
+    }
+    // (in turn: the car it is following goes first if it is passing or wants to)
+    const leader = c.tlBy, leaderFirst = leader !== null && (leader.passOn !== null || leader.fol > OVT_TICKS);
+    const starting = this.rules.overtake === true && !c.rec && !c.passOn && c.fol > OVT_TICKS && !leaderFirst && !this.cars.some((o) => o.passOn === c);
+    const overtaking = this.rules.overtake === true && !c.rec && (c.passOn !== null || starting);
     if (!overtaking) c.passTo = null;
     if (!c.rec && !c.ghost && (c.v > 0.5 || impatient || overtaking) && !p.lane[i] && !this.inPit(c)) {
       const nx = -Math.sin(c.hp), ny = Math.cos(c.hp), hx = Math.cos(c.hp), hy = Math.sin(c.hp);
@@ -887,7 +903,10 @@ export class Race {
         // (a pass already begun is kept while its gap is still there)
         if (overtaking && c.passTo !== null && free(c.passTo)) best = c.passTo;
         want = best ?? 0;
-        if (overtaking && want !== 0 && c.passTo !== want) { c.passTo = want; c.passUntil = this.tick + OVT_HOLD; }
+        if (overtaking && want !== 0) {
+          if (c.passTo !== want) c.passTo = want;
+          if (!c.passOn && c.tlBy) { c.passOn = c.tlBy; c.passUntil = this.tick + OVT_MAX; }
+        }
       }
     }
     // it moves across the road only as fast as it is rolling: no movement, no steering
