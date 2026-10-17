@@ -1,6 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Name tag in the pits.** While you are stopped in the box with the map showing, the name tag now stays on your car (it was left where it had been on screen before the view changed, in the middle of the map).
+
 ## 0.1.0-alpha.8
+
 - **Cars go round what blocks them.** A computer driver held up for a second and a half well below the speed its line wants, behind something far slower (a wreck, a crawling or stopped car), now steers round it as soon as there is room (even while crawling), and goes back to its line once past, instead of queueing behind it for the rest of the race. Nothing happens in the first six seconds, while the grid gets going.
 - **The pit stop on the gauges.** Over the whole stop the fuel gauge now fills steadily, and the tyre gauge drops to 0% in quarters (one tyre of four coming off at a time) and climbs back to 100% in quarters (one going back on at a time); a fuel-only emergency stop fills the tank and leaves the tyres alone. It is what the gauges show, the car and the race are as before.
 - **The "run dry" warning in the pits.** The warning shown while you edit your line in the pits judged the plan from the nearly empty tank you came in on, so it said you would run dry on the very lap you were about to leave on a full tank. It now judges from the tank the stop in progress gives you.

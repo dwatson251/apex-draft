@@ -2132,6 +2132,8 @@ export class Game {
       return;
     }
     const p = this.play;
+    // stopped in the pits with the map showing (no playback): the names still follow their cars as the view is zoomed and panned, so the tag sits on the car in its box
+    if (!p && this.race && this.inGame && !this.menuOpen && (this.pick || this.draw)) { this.updateNameLabels(this.race.tick, dt); return; }
     if (!p || !this.race || (this.menuOpen && this.inGame)) return; // the menu pauses the race
     const race = this.race;
     if (!p.final) this.stream(p);
