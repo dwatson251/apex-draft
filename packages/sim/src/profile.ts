@@ -1,6 +1,7 @@
 import { carStats, type CarConfig } from "./car.ts";
 import { quirksOf } from "./quirks.ts";
 import { terrainMul } from "./biomes.ts";
+import { BOOST_FX_ACCEL, BOOST_FX_TOP, FX_GROUND, isRamp } from "./fx.ts";
 import { GRADE_ACCEL, GRADE_BRAKE, GRADE_TOP, SURFACES } from "./landscape.ts";
 import { vehicleOf } from "./vehicles.ts";
 import { lapCurve, type Line } from "./line.ts";
@@ -38,6 +39,9 @@ export interface Profile {
   /** grip at each sample relative to tarmac (rough surface, banking); 1 on ordinary road */
   gripMul: Float64Array;
   ghost: Uint8Array;
+  /** 1 at the sample where a ramp launches a car, with the ramp's power in `jumpPower`; 0 elsewhere (a lap with no ramp has none of this) */
+  jump: Uint8Array;
+  jumpPower: Float64Array;
   /** time for a flying lap on this line, seconds */
   ideal: number;
   /** powerup segments whose pickup the line drives through */
@@ -162,6 +166,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   const topMul = new Float64Array(n).fill(1);
   const gripMul = new Float64Array(n).fill(1);
   const ghost = new Uint8Array(n);
+  const brakeFx = new Float64Array(n).fill(1);
   const pickups: number[] = [];
   for (const sgm of track.segments) {
     const pu = sgm.powerup;
@@ -179,8 +184,37 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     }
   }
 
+  // ramps, speed pads and patches of ice, sand, mud and water on part of a segment
+  const jump = new Uint8Array(n), jumpPower = new Float64Array(n);
+  if (track.allSegments.some((g) => g.fx)) {
+    const veh = vehicleOf(car.type);
+    const ability = Math.max(veh.terrain, q.rough ?? 0);
+    // where along its segment each sample lies, by the segment's own samples (first and last sample of the lap on it)
+    const firstAt = new Map<number, number>(), lastAt = new Map<number, number>();
+    for (let i = 0; i < n; i++) { const k = seg[i]!; if (!firstAt.has(k)) firstAt.set(k, i); lastAt.set(k, i); }
+    for (let i = 0; i < n; i++) {
+      const g = track.allSegments[seg[i]!];
+      if (!g?.fx) continue;
+      const f0 = firstAt.get(seg[i]!)!, f1 = Math.max(lastAt.get(seg[i]!)!, f0 + 1);
+      const t = (i - f0) / (f1 - f0);
+      for (const fx of g.fx) {
+        if (t < fx.t0 || t > fx.t1) continue;
+        if (fx.type === "boost") { topMul[i] = topMul[i]! * (1 + (BOOST_FX_TOP - 1) * (fx.power ?? 1)); accelMul[i] = accelMul[i]! * (1 + (BOOST_FX_ACCEL - 1) * (fx.power ?? 1)); }
+        else if (isRamp(fx.type)) {
+          // the car leaves the ground at the end of the ramp: the last sample inside the span
+          if (i === f0 + Math.min(f1 - f0, Math.floor(fx.t1 * (f1 - f0)))) { jump[i] = fx.type === "glide" ? 2 : 1; jumpPower[i] = fx.power ?? 1; }
+        } else {
+          const f = FX_GROUND[fx.type]!;
+          gripMul[i] = gripMul[i]! * terrainMul(f.grip, ability); accelMul[i] = accelMul[i]! * terrainMul(f.accel, ability);
+          topMul[i] = topMul[i]! * terrainMul(f.top, ability); brakeFx[i] = Math.min(brakeFx[i]!, terrainMul(f.brake, ability));
+        }
+      }
+    }
+  }
+
   // the ground: hills change how hard it is to speed up and to stop, a rough surface takes grip, a bank adds it
   const brakeMul = new Float64Array(n).fill(1);
+  for (let i = 0; i < n; i++) brakeMul[i] = brakeFx[i]!;
   if (track.allSegments.some((g) => g.elev || g.surface || g.bank)) {
     const veh = vehicleOf(car.type);
     const ability = Math.max(veh.terrain, q.rough ?? 0);
@@ -190,7 +224,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
       const g = track.allSegments[seg[i]!]!;
       if (g.surface) {
         const f = SURFACES[g.surface];
-        gripMul[i] = gripMul[i]! * terrainMul(f.grip, ability); accelMul[i] = accelMul[i]! * terrainMul(f.accel, ability); brakeMul[i] = terrainMul(f.brake, ability);
+        gripMul[i] = gripMul[i]! * terrainMul(f.grip, ability); accelMul[i] = accelMul[i]! * terrainMul(f.accel, ability); brakeMul[i] = brakeMul[i]! * terrainMul(f.brake, ability);
       }
       if (g.bank) gripMul[i] = gripMul[i]! * g.bank;
       if (g.elev) { z[i] = heightAt(g.center, g.elev, x[i]!, y[i]!); hilly = true; }
@@ -249,7 +283,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   for (let k = 0; k < n; k++) ideal += ds / Math.max((v[k]! + v[(k + 1) % n]!) / 2, 1);
   let pitFromS: number | undefined;
   if (pitIn) for (let i = 0; i < n; i++) if (lane[i] && i > n / 2) { pitFromS = i * ds; break; }
-  return { n, ds, length: total, x, y, h, seg, half, canon, vLim, accelMul, brakeMul, gripMul, ghost, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
+  return { n, ds, length: total, x, y, h, seg, half, canon, vLim, accelMul, brakeMul, gripMul, ghost, jump, jumpPower, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
 }
 
 /** Linear lookup into a per-sample array at arclength s (wrapping, unless the lap is open: then it stops at the ends). */

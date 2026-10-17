@@ -1,4 +1,5 @@
 import { landscape, type Surface } from "./landscape.ts";
+import type { Fx } from "./fx.ts";
 import { phraseToSeed, normalizePhrase } from "./seed.ts";
 import { Rng } from "./rng.ts";
 import { biomeForSeed, biomeOf, type BiomeId } from "./biomes.ts";
@@ -74,6 +75,8 @@ export interface Segment {
   bank?: number;
   /** the segment runs through a tunnel: roofed, and rain never reaches the road */
   tunnel?: boolean;
+  /** ramps, speed pads and patches of ice, sand, mud or water on part of the segment (see fx.ts); none when left out */
+  fx?: Fx[];
   /** the segment that follows this one when it is not the next in the ring: set on every segment of a shortcut */
   next?: number;
   /** segments that start from the same gate as this one: where the road forks, the two ways on from a junction cell */

@@ -12,6 +12,7 @@ import { WetField } from "./trackwet.ts";
 import type { Line } from "./line.ts";
 import { PIT_BAYS, PIT_BAY_GAP, pitPenalty, pitStopTime } from "./pit.ts";
 import { buildProfile, indexAt, sampleAt, type Profile } from "./profile.ts";
+import { AIR_DRAG, JUMP_MIN_V, LAND_LOSS, AIR_MAX, airTicks } from "./fx.ts";
 import { levelsOf, nearbySegments, trackLength, CELL, CAR_R, ROAD_HALF, type Track } from "./track.ts";
 
 export const TICK = 1 / 60;
@@ -365,6 +366,11 @@ export interface RaceCar {
   gtrace: number[];
   /** the level at every tick: positive on a bridge (which one), negative on the road under it, 0 anywhere else */
   ltrace: number[];
+  /** how high the car is above the road at every tick, 0 to 1: 0 on the ground, up to 1 at the top of a jump */
+  atrace: number[];
+  /** ticks left in the air after a ramp (0 on the ground), and how long the flight is in all */
+  air: number;
+  airT: number;
   /** fuel left, tank units, at every tick */
   ftrace: number[];
   /** tyre health 0 to 1 at every tick */
@@ -553,8 +559,8 @@ export class Race {
       const c: RaceCar = {
         entrant: e, slot, lap: slot === 0 ? 0 : -1,
         s: sNew, gridOff: at.off, v: spread ? 40 : 0, x: 0, y: 0, h: 0,
-        ghost: false, stuck: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
-        trace: [], prog: [], vtrace: [], gtrace: [], ltrace: [], ftrace: [], ttrace: [], ptrace: [],
+        ghost: false, stuck: 0, air: 0, airT: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
+        trace: [], prog: [], vtrace: [], gtrace: [], ltrace: [], atrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
         compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, wake: 0, tmtrace: [], ctrace: [], used: [],
@@ -605,6 +611,8 @@ export class Race {
 
   /** Whether one car is on a bridge and the other on the road under that same bridge: they pass through each other without a touch or a thought. */
   private apart(a: RaceCar, b: RaceCar): boolean {
+    // a car in the air passes over everything on the ground, and what is in the air passes over it
+    if (a.air > 0 || b.air > 0) return true;
     if (!this.levels) return false;
     const la = this.levelOf(a);
     return la !== 0 && la === -this.levelOf(b);
@@ -752,6 +760,7 @@ export class Race {
       c.vtrace.push(Math.round(c.v * 10) / 10);
       c.gtrace.push(c.ghost ? 1 : 0);
       c.ltrace.push(this.levelOf(c));
+      c.atrace.push(c.air > 0 ? Math.round(Math.sin(Math.PI * (1 - c.air / c.airT)) * 100) / 100 : 0);
       // (in the box the gauges show the stop as it happens, not the jump at the end of it)
       const shown = this.stopShown(c);
       c.ftrace.push(Math.round(shown.fuel * 10) / 10);
@@ -1246,6 +1255,28 @@ export class Race {
     }
   }
 
+  /**
+   * Ramps. A car going fast enough that crosses the end of a ramp leaves the ground for a time that grows with its speed, and lands with a
+   * little speed lost. A car below `JUMP_MIN_V` of its top speed, or one that is spinning, rides over it.
+   */
+  private flight(c: RaceCar, sBefore: number): void {
+    if (c.air > 0) {
+      if (--c.air === 0) { c.v *= 1 - LAND_LOSS * Math.min(1, c.airT / AIR_MAX); c.tlAt = -1e9; }
+      return;
+    }
+    const p = c.prof;
+    if (c.rec || c.finishTime !== null || c.dwell > 0 || c.s <= sBefore) return;
+    const i0 = Math.floor(sBefore / p.ds) + 1, i1 = Math.floor(c.s / p.ds);
+    for (let i = i0; i <= i1 && i0 <= i1; i++) {
+      const k = i % p.n;
+      if (!p.jump[k] || p.lane[k]) continue;
+      const vTop = this.stats(c).vTop;
+      if (c.v < JUMP_MIN_V * vTop) return;
+      c.air = c.airT = airTicks(p.jump[k] === 2 ? "glide" : "jump", c.v, vTop, p.jumpPower[k]);
+      return;
+    }
+  }
+
   /** How much traction a car has where it is: the surface, the tyre on it, how wet the road is and how worn the tyre. 1 is dry tarmac, fresh tyres. */
   private traction(c: RaceCar): number {
     const veh = vehicleOf(c.entrant.car.type);
@@ -1385,7 +1416,8 @@ export class Race {
       const stopS = stopping ? p.pitS! - (c.bay ?? PIT_BAYS - 1) * PIT_BAY_GAP : 0;
       // brake to stop exactly in the bay
       if (stopping) target = c.boxed ? 0 : Math.min(target, Math.sqrt(2 * st.brake * 0.7 * Math.max(0, stopS - c.s)));
-      if (!c.ghost) {
+      if (c.air > 0) { /* in the air: no steering round anyone, and nobody to brake for */ }
+      else if (!c.ghost) {
         this.dodge(c, p, racing);
         // on a clear road nobody is about to get in the way within a few ticks, so the look round is done every third tick; near anyone, every tick
         if (c.tlVal !== Infinity || this.tick - c.tlAt >= 3 || c.rec) { c.tlVal = this.trafficLimit(c, p, st.brake, racing, c.pushUntil > this.tick); c.tlAt = this.tick; }
@@ -1406,6 +1438,8 @@ export class Race {
         if (c.park !== 0 && Math.abs(c.off - c.park) < 2 && Math.abs(c.psi) < 0.3) target = 0;
       }
       let v = c.v > target ? Math.max(target, c.v - st.brake * p.brakeMul[i]! * TICK) : Math.min(target, c.v + st.accel * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * launchMul(c, st.vTop) * TICK);
+      // in the air there is no throttle and no brake: only the air itself slows the car
+      if (c.air > 0) v = c.v * (1 - AIR_DRAG);
       // a car pointing the wrong way slows down, and one that is sliding travels along the line only as far as its direction takes it
       let s = c.s + (c.rec ? v * Math.cos(c.phi) : v) * TICK;
       if (stopping && !c.boxed && c.bay !== undefined && stopS - s < 0.5 && v < 5) { s = stopS; v = 0; arrived.push(c); }
@@ -1426,7 +1460,9 @@ export class Race {
       const moved = n.s - c.s;
       c.dv = n.v - c.v;
       c.v = n.v;
+      const sBefore = c.s;
       c.s = n.s;
+      this.flight(c, sBefore);
       if (c.gridOff !== 0 && moved > 0) c.gridOff = Math.abs(c.gridOff) < 0.01 ? 0 : c.gridOff * Math.exp(-moved / 30);
       if (this.rules.realism && moved > 0) {
         const p = c.prof;
@@ -1572,7 +1608,7 @@ export class Race {
     let h = 0x811c9dc5;
     const mix = (n: number) => { h ^= Math.round(n * 100) | 0; h = Math.imul(h, 0x01000193) >>> 0; };
     mix(this.tick);
-    for (const c of this.cars) { mix(c.s); mix(c.v); mix(c.lap); mix(c.finishTime ?? -1); mix(c.fuel); mix(c.tyre * 100); mix(c.beta); mix(c.psi); mix(c.phi); }
+    for (const c of this.cars) { mix(c.air); mix(c.s); mix(c.v); mix(c.lap); mix(c.finishTime ?? -1); mix(c.fuel); mix(c.tyre * 100); mix(c.beta); mix(c.psi); mix(c.phi); }
     return h.toString(16);
   }
 }
