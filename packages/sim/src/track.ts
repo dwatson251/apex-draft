@@ -1,5 +1,6 @@
 import { landscape, type Surface } from "./landscape.ts";
 import type { Fx } from "./fx.ts";
+import { checkFx, funPieces } from "./features.ts";
 import { phraseToSeed, normalizePhrase } from "./seed.ts";
 import { Rng } from "./rng.ts";
 import { biomeForSeed, biomeOf, type BiomeId } from "./biomes.ts";
@@ -448,6 +449,8 @@ export interface TrackOptions {
   pieces?: boolean;
   /** false leaves out hills, rough surfaces, banking and tunnels (tests compare with and without) */
   landscape?: boolean;
+  /** false leaves the ramps, speed pads and patches off a `fun-` track (tests compare with and without) */
+  fx?: boolean;
 }
 
 /** Fun tracks are asked for by name: the phrase starts with `fun-`. */
@@ -473,6 +476,7 @@ export const vehicleChoicesForTrack = (t: Track): VehicleId[] => vehicleChoices(
 /** The same phrase (and options) always give the same track. */
 export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
   const t = generateLayout(phrase, opts);
+  if (t.fun && !t.circuit && opts.fx !== false) funPieces(t);
   return opts.landscape === false ? t : landscape(t);
 }
 
@@ -669,6 +673,7 @@ export function checkTrack(t: Track): string[] {
       if (k > 0 && k < ids.length - 1 && seen.has(key(s.cx, s.cy))) problems.push(`shortcut piece ${id} is on the ring`);
     });
   }
+  problems.push(...checkFx(t));
   if (n < 4 || (n % 2 && !t.free)) problems.push(`loop has ${n} cells`);
   const first = t.segments[0], last = t.segments.at(-1);
   if (first && last && (first.kind !== "straight" || last.kind !== "straight")) problems.push("the pit straight is not straight");

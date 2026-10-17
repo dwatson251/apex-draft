@@ -46,4 +46,12 @@ describe("name label declutter", () => {
     expect(declutterLabels(items, screen)).toEqual(declutterLabels([...items].reverse(), screen));
     expect(declutterLabels(items, screen).map((p) => p.id).sort()).toEqual(["a", "b", "me"]);
   });
+
+  it("keeps the names that are never dropped, lifting them clear of each other where it can", () => {
+    const r = by(declutterLabels([item("me", 300, 300, { always: true, priority: 0 }), item("next", 305, 300, { always: true, priority: 0.5 }), item("other", 302, 300, { priority: 2 })], screen));
+    expect(r.me!.text && r.me!.arrow).toBe(true);
+    expect(r.next!.text && r.next!.arrow).toBe(true);
+    expect(r.next!.lift).toBeGreaterThan(r.me!.lift);
+    expect(r.other!.text).toBe(false);
+  });
 });
