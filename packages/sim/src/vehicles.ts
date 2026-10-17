@@ -1,4 +1,5 @@
 import { Rng } from "./rng.ts";
+import { KART_ROSTER } from "./kartroster.ts";
 
 export type VehicleId = "kart" | "formula" | "rally" | "muscle" | "truck" | "tank"
   | "superbike" | "buggy" | "electric" | "dragster"
@@ -104,6 +105,9 @@ export const CIRCUIT_VEHICLES: Record<string, VehicleId> = {
   "silverstone": "formula", "monza": "formula", "circuit-de-barcelona-catalunya": "formula", "monaco": "formula",
 };
 
+/** The Mario Kart courses (kartroster.ts): they race karts, whatever else is offered beside them. */
+export const KART_CIRCUITS: ReadonlySet<string> = new Set(KART_ROSTER.map((r) => r.id));
+
 /** The machines for a track's race day. The same seed always gives the same answer. */
 export function vehicleForSeed(seed: number, domain: Domain = "land"): VehicleId {
   const rng = new Rng((seed ^ 0x7e41c1e5) >>> 0);
@@ -127,11 +131,13 @@ export const MAX_CHOICES = 4;
  * never offers a boat and a water track only boats. Always the same list for the same track.
  */
 export function vehicleChoices(seed: number, domain: Domain = "land", circuitId?: string): VehicleId[] {
-  const first = (circuitId && CIRCUIT_VEHICLES[circuitId]) || vehicleForSeed(seed, domain);
+  const kart = !!circuitId && KART_CIRCUITS.has(circuitId);
+  // a kart course offers a kart first and then three other classes drawn as on any other track (not just race cars)
+  const first = kart ? "kart" : (circuitId && CIRCUIT_VEHICLES[circuitId]) || vehicleForSeed(seed, domain);
   const rng = new Rng((seed ^ 0x3c1f9a57) >>> 0);
   rng.next();
   const out: VehicleId[] = [first];
-  if (circuitId && CIRCUIT_VEHICLES[circuitId]) {
+  if (!kart && circuitId && CIRCUIT_VEHICLES[circuitId]) {
     const rest = RACING_CLASSES.filter((id) => id !== first);
     while (out.length < MAX_CHOICES && rest.length) out.push(rest.splice(Math.floor(rng.next() * rest.length), 1)[0]!);
     return out;

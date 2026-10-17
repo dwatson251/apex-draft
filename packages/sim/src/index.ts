@@ -36,6 +36,7 @@ export * from "./tactics.ts";
 export * from "./quirks.ts";
 export * from "./landscape.ts";
 export * from "./fx.ts";
+export * from "./kartroster.ts";
 export * from "./daily.ts";
 export * from "./championship.ts";
 export * from "./challenges.ts";

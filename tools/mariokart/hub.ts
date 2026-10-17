@@ -14,7 +14,7 @@ const GAMES: [string, string][] = [
 ];
 
 const strip = (s: string): string => s.replace(/<[^>]+>/g, "").replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/&quot;/g, '"').trim();
-const slug = (s: string): string => s.toLowerCase().replace(/['’]/g, "").replace(/&/g, " ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const slug = (s: string): string => s.toLowerCase().replace(/[.'’]/g, "").replace(/&/g, " ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
 export interface Draft { id: string; name: string; game: string; cup: string; wikiUrl: string; href: string }
 

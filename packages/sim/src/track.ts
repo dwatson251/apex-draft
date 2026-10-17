@@ -4,7 +4,7 @@ import { checkFx, funPieces } from "./features.ts";
 import { phraseToSeed, normalizePhrase } from "./seed.ts";
 import { Rng } from "./rng.ts";
 import { biomeForSeed, biomeOf, type BiomeId } from "./biomes.ts";
-import { CIRCUIT_VEHICLES, vehicleChoices, vehicleForSeed, type VehicleId } from "./vehicles.ts";
+import { CIRCUIT_VEHICLES, KART_CIRCUITS, vehicleChoices, vehicleForSeed, type VehicleId } from "./vehicles.ts";
 import { applyWidths } from "./width.ts";
 import { funLayout } from "./fun.ts";
 import { MIN_CLEAR, makeBranches, minClearance } from "./branches.ts";
@@ -468,7 +468,7 @@ export function placeFor(phrase: string): { phrase: string; seed: number; fun: b
 }
 
 /** The machines for a track. */
-export const vehicleForTrack = (t: Track): VehicleId => (t.circuit && CIRCUIT_VEHICLES[t.circuit.id]) || vehicleForSeed(t.seed, biomeOf(t.biome).domain);
+export const vehicleForTrack = (t: Track): VehicleId => (t.circuit && KART_CIRCUITS.has(t.circuit.id) ? "kart" : t.circuit && CIRCUIT_VEHICLES[t.circuit.id]) || vehicleForSeed(t.seed, biomeOf(t.biome).domain);
 
 /** Every machine a track offers, its own first. */
 export const vehicleChoicesForTrack = (t: Track): VehicleId[] => vehicleChoices(t.seed, biomeOf(t.biome).domain, t.circuit?.id);

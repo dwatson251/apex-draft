@@ -37,6 +37,8 @@ export interface Settings {
   car: CarConfig;
   /** the machine chosen in race setup, when the track offers it (else the track's own) */
   vehicle?: VehicleId;
+  /** the phrase that machine was chosen for: a kart course ignores a machine chosen for any other */
+  vehiclePhrase?: string;
   muted?: boolean;
   musicOff?: boolean;
   /** tyre wear, fuel and pit stops */

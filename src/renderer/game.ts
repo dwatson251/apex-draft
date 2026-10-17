@@ -3,7 +3,7 @@ import { activateFocus, clearFocus, moveFocus } from "./input/focus.ts";
 import type { Application } from "pixi.js";
 import {
   BIOMES, CAR_BUDGET, CAR_R, CELL, KERB_ALLOW, halfAt, isDrivable, ROAD_HALF, MAX_AMENDS, pitPenalty, pitStopTime, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
-  circuitFor, completeLine, MAX_RACE_RIVALS, snapRivals, NAME_MAX, defaultCar, makeBots, roundLine, sanitiseName, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, linesFromWire, lineToWire, trackLength, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
+  circuitFor, KART_CIRCUITS, completeLine, MAX_RACE_RIVALS, snapRivals, NAME_MAX, defaultCar, makeBots, roundLine, sanitiseName, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, linesFromWire, lineToWire, trackLength, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
   exitsAfter, idAt, makeLine, nextOf, phraseToSeed, previewSegment, projectToGate, randomPhrase, rerollPhrase, setSegment, smooth, validateCar, validateLine, vehicleForTrack, vehicleChoicesForTrack, migrateBest, isVehicleId, placeFor,
   COMPOUNDS, COMPOUND_IDS, MAX_PIT_STOPS, forecast, forecastText, isCompound, raceDuration, weatherFor,
   PRACTICE_SECONDS, clampWear, finishSession, newWeekend, quickGridTime, sessionBest, sessionLaps, sessionRules, trialKey,
@@ -300,6 +300,7 @@ export class Game {
     const s = this.settings;
     s.laps = Math.min(50, Math.max(1, Math.round(Number(s.laps)) || 3));
     if (s.vehicle !== undefined && !isVehicleId(s.vehicle)) delete s.vehicle;
+    if (s.vehiclePhrase !== undefined && typeof s.vehiclePhrase !== "string") delete s.vehiclePhrase;
     // boxes and water are not offered any more
     s.obstacles = false;
     s.wearFuel = clampWear(s.wearFuel);
@@ -674,7 +675,7 @@ export class Game {
         else if (id === "wearFuel") s.wearFuel = clampWear(Number(v));
         else if (id === "wearTyre") s.wearTyre = clampWear(Number(v));
         else if (id === "realism") s.realism = v === "1";
-        else if (id === "vehicle" && isVehicleId(v)) s.vehicle = v;
+        else if (id === "vehicle" && isVehicleId(v)) { s.vehicle = v; s.vehiclePhrase = normalizePhrase(s.phrase); }
         this.normaliseSettings();
         this.persist();
         this.renderMenu();
@@ -967,6 +968,9 @@ export class Game {
     if (this.special?.kind === "challenge") { const c = challengeById(this.special.id); return c?.vehicle && choices.includes(c.vehicle) ? c.vehicle : choices[0]!; }
     if (this.special?.kind === "daily") return choices[0]!;
     const v = this.settings.vehicle;
+    // a kart course starts on a kart: a machine picked for some other track is not carried over, only one picked while this course was in setup
+    const phrase = normalizePhrase(this.settings.phrase);
+    if (KART_CIRCUITS.has(circuitFor(phrase)?.id ?? "") && this.settings.vehiclePhrase !== phrase) return choices[0]!;
     return v && choices.includes(v) ? v : choices[0]!;
   }
 
