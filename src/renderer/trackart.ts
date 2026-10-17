@@ -1,5 +1,6 @@
 import { Container, Graphics, Text } from "pixi.js";
-import { LOOKS } from "./look.ts";
+import { lookOf } from "./look.ts";
+import { fxArt } from "./fxart.ts";
 import { SURFACES } from "@apex/sim";
 import {
   PIT_BAYS, PIT_BAY_GAP, PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, ROAD_HALF, Rng, centreAt, halfIdx, halfAt, cross, distToSegment, dot, nearbySegments, nextOf, norm, laneCentre, pitPoint, sub,
@@ -60,7 +61,7 @@ function clearOfOtherRoad(track: Track, s: Segment, pts: number[], margin: numbe
 /** One segment: tarmac, markings, sausage kerbs, apex paint, gravel traps, grandstands, obstacles, pick-ups. */
 export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   const rng = new Rng(track.seed ^ (Math.imul(s.index + 1, 0x9e3779b1) >>> 0));
-  const look = LOOKS[track.biome];
+  const look = lookOf(track.biome, track.circuit?.theme);
   const root = new Container();
   const art: SegmentArt = { root, crowdA: [], crowdB: [], pulses: [] };
   if (s.kind === "bridge") art.deck = true;
@@ -133,6 +134,7 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   }
   root.addChild(road);
   groundArt(root, s, rng);
+  fxArt(root, s, rng);
   if (s.tunnel) art.roof = tunnelRoof(s);
 
   // a bridge: the deck is a slab above the road beneath, and under its own parapets (see bridgeDeck)
@@ -200,7 +202,7 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
     if (water) continue;
     const p = at(s, i, side * (hw(i) - 0.2)), q = at(s, i + 1, side * (hw(i + 1) - 0.2));
     kerbs.moveTo(p.x, p.y).lineTo(q.x, q.y).stroke({ width: 3.6, color: 0x2a1010, alpha: 0.35, cap: "round" });
-    kerbs.moveTo(p.x, p.y).lineTo(q.x, q.y).stroke({ width: 3, color: i % 2 ? PAL.kerbRed : PAL.kerbWhite, cap: "round" });
+    kerbs.moveTo(p.x, p.y).lineTo(q.x, q.y).stroke({ width: 3, color: i % 2 ? (look.kerbs?.[0] ?? PAL.kerbRed) : (look.kerbs?.[1] ?? PAL.kerbWhite), cap: "round" });
   }
   root.addChild(kerbs);
 

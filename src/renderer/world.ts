@@ -1,4 +1,5 @@
 import { Application, Container, Graphics, Rectangle, RenderTexture, Sprite } from "pixi.js";
+import { themeNight } from "./look.ts";
 import { CELL, VEHICLES, halfIdx, isNight, WET_LAT, WET_LONG, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
 import { buildCar, variantOf, type CarShape, type Livery } from "./cars.ts";
 import { LabelLayer, type LabelItem } from "./labels.ts";
@@ -365,7 +366,7 @@ export class WorldView {
     this.trackRef = track;
     const b = trackBounds(track);
     this.setBounds(b.w, b.h);
-    const ground = buildScenery(track.cols, track.rows, new Set(track.cellIndex.keys()), track.seed, track.biome);
+    const ground = buildScenery(track.cols, track.rows, new Set(track.cellIndex.keys()), track.seed, track.biome, track.circuit?.theme);
     this.groundLayer.addChild(ground.grass, ground.decor);
     this.decor = ground.decor;
     this.scenery = ground;
@@ -379,7 +380,7 @@ export class WorldView {
       if (art.roof) this.deckLayer.addChild(art.roof);
     }
     // after dark: a dim wash over the ground and lamps along the road (the cars bring their own light)
-    this.night = isNight(track.seed);
+    this.night = themeNight(track.circuit?.theme) ?? isNight(track.seed);
     if (this.night) {
       this.nightG.rect(-2200, -2200, b.w + 4400, b.h + 4400).fill({ color: 0x050a1c, alpha: 0.52 });
       this.edgeG.blendMode = "add"; this.lightG.blendMode = "add";
@@ -529,7 +530,7 @@ export class WorldView {
   }
 
   // ---------- cars ----------
-  setCar(id: string, type: VehicleId | undefined, x: number, y: number, h: number, color: number, ghost: boolean, isPlayer: boolean, braking: boolean, hidden = false, boat?: { v: number; beta: number }, steer = 0, onDeck = false): void {
+  setCar(id: string, type: VehicleId | undefined, x: number, y: number, h: number, color: number, ghost: boolean, isPlayer: boolean, braking: boolean, hidden = false, boat?: { v: number; beta: number }, steer = 0, onDeck = false, lift = 0): void {
     let c = this.cars.get(id);
     if (!c) {
       c = buildCar(type ?? "rally", color, isPlayer, variantOf(id), isPlayer ? this.livery : undefined);
@@ -537,12 +538,21 @@ export class WorldView {
       this.cars.set(id, c);
     }
     // on a bridge: over the deck. It is on the road like any other car (a lifted shadow made it look like it was flying), so only the layer changes
-    if (onDeck !== (c.root.parent === this.carsHigh)) (onDeck ? this.carsHigh : this.carsLayer).addChild(c.root);
+    // in the air after a ramp: over everything, bigger, with its shadow left behind on the road
+    const flying = lift > 0.04;
+    if ((onDeck || flying) !== (c.root.parent === this.carsHigh)) ((onDeck || flying) ? this.carsHigh : this.carsLayer).addChild(c.root);
     c.root.visible = !hidden;
     c.root.position.set(x, y);
     c.body.rotation = h;
-    c.shadow.position.set(1.6, 2.2);
+    c.body.scale.set(1 + 0.4 * lift);
+    c.body.position.set(-1.2 * lift, -5.5 * lift);
+    c.shadow.position.set(1.6 + 2.5 * lift, 2.2 + 6 * lift);
+    c.shadow.scale.set(1 - 0.18 * lift);
+    c.shadow.alpha = 1 - 0.45 * lift;
     c.shadow.rotation = h;
+    // down again: a puff of dust where it lands
+    if ((c.lift ?? 0) > 0.04 && !flying && !hidden) this.puff("dust", x, y, Math.cos(h) * 40, Math.sin(h) * 40);
+    c.lift = lift;
     c.brake.visible = braking;
     for (const w of c.steer) w.rotation = steer;
     c.root.alpha = ghost ? 0.4 : 1;

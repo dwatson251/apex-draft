@@ -532,6 +532,23 @@ export class CarAudio {
     window.setTimeout(() => bus.disconnect(), 1200);
   }
 
+  /** A car leaving a ramp (a rising rush of air) or coming down from it (a thump and a little dust). `gain` is how near the car is, 0 to 1. */
+  air(kind: "up" | "down", gain: number): void {
+    if (!this.ctx || !this.fx || gain <= 0.02) return;
+    const ctx = this.ctx, t = ctx.currentTime + 0.01;
+    const bus = ctx.createGain(); bus.gain.value = (kind === "up" ? 0.16 : 0.22) * gain; bus.connect(this.fx);
+    if (kind === "up") {
+      this.burst(bus, t, 0.55, 1400, 0.8, 0.7, 0.18);
+    } else {
+      const o = ctx.createOscillator(); o.type = "sine";
+      o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(34, t + 0.14);
+      const g = ctx.createGain(); g.gain.setValueAtTime(1, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.3);
+      this.burst(bus, t, 0.14, 900, 1.2, 0.6, 0.002);
+    }
+    window.setTimeout(() => bus.disconnect(), 1200);
+  }
+
   /** The pit crew on the radio: a click of static, three quick clipped shouts, then static. */
   goGoGo(): void {
     if (!this.ctx || !this.fx) return;

@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { VEHICLES, type Vehicle, type VehicleId } from "@apex/sim";
 
-export interface CarShape { root: Container; body: Container; shadow: Graphics; brake: Graphics; /** the front tyres, turned to match the steering */ steer: Graphics[]; /** boats only: foam trailing the stern, drawn in world axes */ wake?: Graphics }
+export interface CarShape { root: Container; body: Container; shadow: Graphics; brake: Graphics; /** the front tyres, turned to match the steering */ steer: Graphics[]; /** boats only: foam trailing the stern, drawn in world axes */ wake?: Graphics; /** how high above the road it was last drawn, 0 to 1 (for the landing) */ lift?: number }
 
 const DARK = 0x14161c;
 const shade = (c: number, k: number): number => {

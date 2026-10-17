@@ -1,6 +1,6 @@
 import { Container, Graphics } from "pixi.js";
 import { CELL, Rng, type BiomeId } from "@apex/sim";
-import { LOOKS, type Look } from "./look.ts";
+import { lookOf, type Look } from "./look.ts";
 import type { Sky } from "./sky.ts";
 
 /** How far past the grid the countryside goes, in cells. The camera never sees past it. */
@@ -52,9 +52,9 @@ export class Scenery {
   private runway = { x: 0, y0: 0, y1: 0 };
   private clock = 0;
 
-  constructor(readonly cols: number, readonly rows: number, roadCells: Set<string>, seed: number, readonly biome: BiomeId = "grass") {
+  constructor(readonly cols: number, readonly rows: number, roadCells: Set<string>, seed: number, readonly biome: BiomeId = "grass", theme?: string) {
     const W = cols * CELL, H = rows * CELL, M = MARGIN_CELLS * CELL;
-    const look = (this.look = LOOKS[biome]);
+    const look = (this.look = lookOf(biome, theme));
     const feat = new Rng(seed ^ 0xa1b0a1b0);
     const rng = new Rng(seed ^ 0x5eed5eed);
 
@@ -693,6 +693,6 @@ export class Scenery {
   }
 }
 
-export function buildScenery(cols: number, rows: number, roadCells: Set<string>, seed: number, biome: BiomeId = "grass"): Scenery {
-  return new Scenery(cols, rows, roadCells, seed, biome);
+export function buildScenery(cols: number, rows: number, roadCells: Set<string>, seed: number, biome: BiomeId = "grass", theme?: string): Scenery {
+  return new Scenery(cols, rows, roadCells, seed, biome, theme);
 }

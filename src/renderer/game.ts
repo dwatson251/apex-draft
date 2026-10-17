@@ -961,6 +961,9 @@ export class Game {
     this.on(el, "#back", () => { this.persist(); this.go(this.garageFrom); });
   }
 
+  /** which cars were in the air at the last frame, to sound the take-off and the landing once */
+  private airborne = new Map<string, boolean>();
+
   /** The machine for a track: the one chosen in setup if the track offers it, else its own (the first of its choices). */
   private pickVehicle(choices: VehicleId[]): VehicleId {
     // a Daily and a Championship race the machine they say; a Challenge the one it names, if the track has it
@@ -1892,7 +1895,7 @@ export class Game {
     for (const c of this.race!.cars) {
       const k = Math.min(Math.floor(tick), c.trace.length / 3 - 1), q = this.pose(c, tick);
       const m = this.motion(c, k);
-      this.view.setCar(c.entrant.id, c.entrant.car.type, q.x, q.y, q.h, this.colorOf(c.entrant.id), c.gtrace[k] === 1, c.entrant.id === ME, m.braking || c.ptrace[k] === 2, c.ptrace[k] === 3, { v: c.vtrace[k] ?? 0, beta: c.btrace[k] ?? 0 }, m.steer, (c.ltrace[k] ?? 0) > 0);
+      this.view.setCar(c.entrant.id, c.entrant.car.type, q.x, q.y, q.h, this.colorOf(c.entrant.id), c.gtrace[k] === 1, c.entrant.id === ME, m.braking || c.ptrace[k] === 2, c.ptrace[k] === 3, { v: c.vtrace[k] ?? 0, beta: c.btrace[k] ?? 0 }, m.steer, (c.ltrace[k] ?? 0) > 0, c.atrace[k] ?? 0);
     }
   }
 
@@ -2015,6 +2018,8 @@ export class Game {
   }
 
   // ---------- gamepad ----------
+      const up = (c.atrace[i] ?? 0) > 0.04, was = this.airborne.get(c.entrant.id) ?? false;
+      if (up !== was) { this.airborne.set(c.entrant.id, up); this.audio.air(up ? "up" : "down", vol); }
   private clickBar(id: string): void { const b = document.getElementById(`bar-${id}`) as HTMLButtonElement | null; if (b && !b.disabled) b.click(); }
 
   private uiScopes(): HTMLElement[] {
