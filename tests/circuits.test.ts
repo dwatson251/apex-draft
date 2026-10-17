@@ -60,7 +60,8 @@ describe("hidden circuits", () => {
     for (let i = 0; i < 300; i++) expect(generateTrack(randomPhrase(rng)).circuit).toBeUndefined();
   });
 
-  for (const c of CIRCUITS) {
+  // (the Mario Kart courses have their own, sampled, tests: tests/karttracks.test.ts)
+  for (const c of CIRCUITS.filter((x) => !x.kart)) {
     describe(c.name, () => {
       const t = generateTrack(c.id);
       it("starts a full grid of 32 and gets them all home", () => {

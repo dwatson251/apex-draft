@@ -1,10 +1,13 @@
 import { Rng } from "./rng.ts";
 import { SAMPLES } from "./pieces.ts";
 import { CELL, ROAD_HALF, normalsOf, placeFeatures, indexCells, type Gate, type Segment, type SegmentKind, type Track } from "./track.ts";
+import { isRamp, type FxType } from "./fx.ts";
+import { LANDING_SEGMENTS } from "./features.ts";
 import { makePit } from "./pit.ts";
 import { phraseToSeed } from "./seed.ts";
 import { dist, norm, perp, sub, v2, type Vec2 } from "./vec.ts";
 import type { Circuit } from "./circuits.ts";
+import { KART_INFO } from "./karts.ts";
 
 /**
  * A real circuit as a line of points rather than a loop of cells: the line is smoothed, and cut into segments of about
@@ -85,6 +88,25 @@ function touchedCells(s: Segment): [number, number][] {
   return [...out.values()];
 }
 
+/**
+ * Lay a course's pieces on its segments: a piece at a fraction of the lap becomes a span of each segment it crosses (fractions of that segment), and nothing
+ * stands in the road of a ramp's take-off and landing.
+ */
+function layFx(segments: Segment[], pieces: { at: number; len: number; type: FxType; power?: number }[]): void {
+  const n = segments.length;
+  for (const p of pieces) {
+    const a = p.at * n, b = (p.at + p.len) * n;
+    for (let k = Math.floor(a); k < Math.ceil(b) && k < n; k++) {
+      const t0 = Math.max(0, a - k), t1 = Math.min(1, b - k);
+      if (t1 - t0 < 0.02) continue;
+      const s = segments[k]!;
+      (s.fx ??= []).push({ t0: Math.round(t0 * 1000) / 1000, t1: Math.round(t1 * 1000) / 1000, type: p.type, ...(p.power !== undefined ? { power: p.power } : {}) });
+      s.obstacles = [];
+      if (isRamp(p.type)) for (let j = 1; j <= LANDING_SEGMENTS + (p.type === "glide" ? 1 : 0); j++) segments[(k + j) % n]!.obstacles = [];
+    }
+  }
+}
+
 export function buildFreeCircuit(c: Circuit, typed: string, opts: { obstacles?: boolean; biome?: Track["biome"] }): Track {
   const seed = phraseToSeed(c.id);
   const flat = c.free!;
@@ -99,6 +121,8 @@ export function buildFreeCircuit(c: Circuit, typed: string, opts: { obstacles?: 
     if (s.index === 0 || s.index === n - 1) s.kind = "straight";
     placeFeatures(s, rng, s.index === 0 || s.index === n - 1);
   }
+  const kart = c.kart ? KART_INFO.get(c.id) : undefined;
+  if (kart) layFx(segments, kart.fx);
   if (opts.obstacles === false) for (const s of segments) s.obstacles = [];
   const g = segments[0]!.entry;
   // the pit lane goes on the side of the start straight with no other road close beside it
@@ -129,6 +153,6 @@ export function buildFreeCircuit(c: Circuit, typed: string, opts: { obstacles?: 
   }
   return {
     phrase: typed, seed, cols: Math.ceil((maxX + 180) / CELL), rows: Math.ceil((maxY + 180) / CELL), segments, pit, obstacles: opts.obstacles !== false,
-    biome: opts.biome ?? c.biome, fun: false, free: true, circuit: { id: c.id, name: c.name, lengthKm: c.lengthKm, blurb: c.blurb }, ...index,
+    biome: opts.biome ?? c.biome, fun: false, free: true, circuit: { id: c.id, name: c.name, lengthKm: c.lengthKm, blurb: c.blurb, ...(kart ? { theme: kart.theme, laps: kart.laps } : {}) }, ...index,
   };
 }

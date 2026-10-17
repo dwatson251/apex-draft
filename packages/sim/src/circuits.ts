@@ -1,5 +1,7 @@
 import type { BiomeId } from "./biomes.ts";
 import { CIRCUIT_DATA } from "./circuitData.ts";
+import { KART_CIRCUIT_LIST } from "./karts.ts";
+import { KART_ROSTER } from "./kartroster.ts";
 
 /**
  * The hidden circuits. Most are real ones laid out from a mapped line (`FREE`, below; the data is OpenStreetMap, see
@@ -25,6 +27,8 @@ export interface Circuit {
   windows?: { at: number; piece: "uturn" | "sweeper" }[];
   /** a circuit laid out from a mapped line (x, y, x, y, ... in game units, the first point on the start line) rather than cells */
   free?: number[];
+  /** one of the Mario Kart courses (karts.ts): its pieces and look come from KART_INFO */
+  kart?: boolean;
 }
 
 interface Spec {
@@ -136,10 +140,14 @@ const freeCircuit = (f: FreeSpec): Circuit => {
   return { id: f.id, name: f.name, lengthKm: f.lengthKm, blurb: f.blurb, cols: 0, rows: 0, biome: f.biome, cells: [], start: 0, free };
 };
 
-export const CIRCUITS: Circuit[] = [...SPECS.map(build), ...FREE.map(freeCircuit)];
+export const CIRCUITS: Circuit[] = [...SPECS.map(build), ...FREE.map(freeCircuit), ...KART_CIRCUIT_LIST];
 const BY_PHRASE = new Map<string, Circuit>();
 SPECS.forEach((s, i) => { for (const p of [s.id, ...(s.aliases ?? [])]) BY_PHRASE.set(p, CIRCUITS[i]!); });
 FREE.forEach((f, i) => { for (const p of [f.id, ...(f.aliases ?? [])]) BY_PHRASE.set(p, CIRCUITS[SPECS.length + i]!); });
+for (const [i, c] of KART_CIRCUIT_LIST.entries()) {
+  const row = KART_ROSTER.find((r) => r.id === c.id)!;
+  for (const p of [c.id, ...row.aliases]) BY_PHRASE.set(p, CIRCUITS[SPECS.length + FREE.length + i]!);
+}
 
 /** The circuit a (normalised) phrase names, if any. Random phrases are four words and never match. */
 export const circuitFor = (phrase: string): Circuit | undefined => BY_PHRASE.get(phrase);

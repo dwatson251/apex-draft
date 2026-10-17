@@ -145,7 +145,7 @@ export interface Track {
   /** a real circuit laid out from a mapped line rather than a loop of cells: its segments are not tied to the grid */
   free?: boolean;
   /** a real circuit this track is a copy of, when the phrase named one */
-  circuit?: { id: string; name: string; lengthKm: number; blurb: string };
+  circuit?: { id: string; name: string; lengthKm: number; blurb: string; /** a Mario Kart course: its theme (see karts.ts) */ theme?: string; laps?: number };
   /** shortcuts; their segments have ids from segments.length up */
   branches: Branch[];
   /** every segment by id: the ring first, then the shortcuts */
