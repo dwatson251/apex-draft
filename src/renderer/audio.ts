@@ -14,6 +14,10 @@ interface Voice {
   noise: AudioBufferSourceNode;
   band: BiquadFilterNode;
   squeal: GainNode;
+  /** the rumble of a rough surface under the tyres */
+  rumble: { f: BiquadFilterNode; g: GainNode };
+  /** how this machine's tyres squeal: see SQUEAL */
+  sq: Squeal;
   pan: StereoPannerNode | null;
   out: GainNode;
   prof: Engine;
@@ -118,7 +122,20 @@ const ENGINES: Record<VehicleId, Engine> = {
     cut: 1500, cutSlope: 5, cutLift: 800, q: 1.6, drive: 0.8, lump: 0.1, lumpRate: 0.5, rasp: 0.5, raspHz: 1800, raspSlope: 4, whine: 0.05, level: 2.2, inertia: 1, shiftCut: 0 },
 };
 
+/** How a machine's tyres squeal: the pitch and sharpness of the note, how loud, and how far into the grip limit it begins (0 to 1). */
+interface Squeal { pitch: number; q: number; gain: number; onset: number }
+const SQUEAL_DEFAULT: Squeal = { pitch: 1, q: 7, gain: 1, onset: 0 };
+const SQUEAL: Partial<Record<VehicleId, Squeal>> = {
+  kart: { pitch: 1.5, q: 9, gain: 0.7, onset: 0.3 }, formula: { pitch: 1.25, q: 9, gain: 0.8, onset: 0.35 }, prototype: { pitch: 1.15, q: 8, gain: 0.8, onset: 0.35 },
+  gt3: { pitch: 1.05, q: 7, gain: 1, onset: 0.3 }, gt4: { pitch: 1, q: 7, gain: 1, onset: 0.28 }, touring: { pitch: 0.95, q: 6, gain: 1.1, onset: 0.25 },
+  muscle: { pitch: 0.85, q: 5, gain: 1.3, onset: 0.2 }, truck: { pitch: 0.7, q: 4, gain: 1.2, onset: 0.25 }, tank: { pitch: 0.4, q: 3, gain: 0.7, onset: 0.3 },
+  superbike: { pitch: 1.4, q: 10, gain: 0.8, onset: 0.4 }, rally: { pitch: 1, q: 6, gain: 1, onset: 0.25 }, buggy: { pitch: 0.9, q: 5, gain: 0.9, onset: 0.25 },
+  dragster: { pitch: 0.9, q: 5, gain: 1, onset: 0.3 }, electric: { pitch: 1.1, q: 8, gain: 0.9, onset: 0.3 },
+};
+
 export interface CarSound {
+  /** a rough surface under the car, if it is on one */
+  surface?: "gravel" | "dirt" | "cobbles";
   /** units/s */
   speed: number;
   /** the car's top speed, units/s: where the gears and the redline are set. Defaults to a mid-stat car. */
@@ -303,9 +320,14 @@ export class CarAudio {
     const rg = ctx.createGain(); rg.gain.value = 0;
     noise.connect(rb); rb.connect(rg); rg.connect(lump);
     // tyre squeal shares the noise buffer
-    const band = ctx.createBiquadFilter(); band.type = "bandpass"; band.Q.value = 7;
+    const sq = SQUEAL[veh.id] ?? SQUEAL_DEFAULT;
+    const band = ctx.createBiquadFilter(); band.type = "bandpass"; band.Q.value = sq.q;
     const squeal = ctx.createGain(); squeal.gain.value = 0;
     noise.connect(band); band.connect(squeal); squeal.connect(sink);
+    // the road: a low rumble of stones, which only plays on gravel, dirt and cobbles
+    const rf = ctx.createBiquadFilter(); rf.type = "lowpass"; rf.frequency.value = 400; rf.Q.value = 0.8;
+    const rumG = ctx.createGain(); rumG.gain.value = 0;
+    noise.connect(rf); rf.connect(rumG); rumG.connect(sink);
     let whine: Voice["whine"] = null;
     if (prof.whine > 0) {
       const o = ctx.createOscillator(); o.type = "sine";
@@ -317,7 +339,7 @@ export class CarAudio {
     lfo.start(); noise.start();
     const osc = [...parts.map((p) => p.o), lfo, ...(whine ? [whine.o] : [])];
     const g = GEARS[veh.id] ?? GEARS["rally"]!;
-    return { osc, parts, lfo, whine, rasp: { band: rb, g: rg }, filter, hum, noise, band, squeal, pan, out, prof,
+    return { osc, parts, lfo, whine, rasp: { band: rb, g: rg }, filter, hum, noise, band, squeal, rumble: { f: rf, g: rumG }, sq, pan, out, prof,
       box: new Gearbox(g.hi, g.idle, g.gap, g.up, g.down), ref: 110 * veh.top, shiftAt: -10, blip: false, pops: POPS[veh.id] ?? 0, last: -1, lastPop: -1, quietSince: -1 };
   }
 
@@ -369,8 +391,13 @@ export class CarAudio {
       v.band.frequency.setTargetAtTime(2200 + s.speed * 8 + s.slip * 900, t, 0.08);
       v.squeal.gain.setTargetAtTime((0.35 * clamp(s.speed / 120, 0, 1) * 0.03 + s.slip * 0.06) * (player ? 1 : 0.6) * s.vol, t, 0.08);
     } else {
-      v.band.frequency.setTargetAtTime(1500 + s.speed * 5 + s.slip * 500, t, 0.06);
-      v.squeal.gain.setTargetAtTime(s.slip * s.slip * (player ? 0.05 : 0.03) * s.vol, t, 0.04);
+      // (a machine starts to squeal only part of the way into its grip limit: the sharper ones later, the heavy ones sooner)
+      const sl = v.sq.onset > 0 ? clamp((s.slip - v.sq.onset) / (1 - v.sq.onset), 0, 1) : s.slip;
+      v.band.frequency.setTargetAtTime((1500 + s.speed * 5 + s.slip * 500) * v.sq.pitch, t, 0.06);
+      v.squeal.gain.setTargetAtTime(sl * sl * v.sq.gain * (player ? 0.05 : 0.03) * s.vol, t, 0.04);
+      const rough = s.surface === "gravel" ? 1 : s.surface === "dirt" ? 0.8 : s.surface === "cobbles" ? 0.6 : 0;
+      v.rumble.f.frequency.setTargetAtTime(s.surface === "cobbles" ? 220 + s.speed * 2 : 350 + s.speed * 4, t, 0.08);
+      v.rumble.g.gain.setTargetAtTime(rough * clamp(s.speed / 100, 0, 1) * (player ? 0.07 : 0.04) * s.vol, t, 0.06);
     }
     if (v.pan) v.pan.pan.setTargetAtTime(clamp(s.pan, -0.9, 0.9), t, 0.06);
   }
@@ -633,13 +660,29 @@ export class CarAudio {
     this.mixScene(true);
   }
 
+  /** How tense the race is, 0 to 1 (the last lap, a rival close behind): the drums come up and the music swells. */
+  setIntensity(x: number): void {
+    const v = clamp(x, 0, 1);
+    if (Math.abs(v - this.intensity) < 0.04) return;
+    this.intensity = v;
+    this.mixScene();
+  }
+  private intensity = 0;
+
+  /** A short flourish: a win, a goal met, the end of a round. */
+  stinger(kind: "win" | "goal" | "round"): void {
+    const notes = kind === "win" ? [523, 659, 784, 1047] : kind === "goal" ? [659, 880] : [392, 523];
+    notes.forEach((f, i) => this.beep(f, 0.16 + (i === notes.length - 1 ? 0.2 : 0), "triangle", 0.09, i * 0.13));
+  }
+
   /** Menus: bass and the lead under a low-pass. Racing (and the title screen): the drums join and the top opens up. */
   private mixScene(instant = false): void {
     const sc = this.scene, ctx = this.ctx;
     if (!sc || !ctx) return;
     const t = ctx.currentTime, k = instant ? 0.001 : 0.7, title = sc.biome === "title", r = this.racing || title; // the title plays in full
-    sc.out.gain.setTargetAtTime(title ? LOOP_LEVEL.title : r ? LOOP_LEVEL.race : LOOP_LEVEL.menu, t, k);
-    sc.gains.drums.gain.setTargetAtTime(r ? 1 : 0, t, k);
+    const swell = r && !title ? this.intensity : 0;
+    sc.out.gain.setTargetAtTime((title ? LOOP_LEVEL.title : r ? LOOP_LEVEL.race : LOOP_LEVEL.menu) * (1 + 0.35 * swell), t, k);
+    sc.gains.drums.gain.setTargetAtTime(r ? (title ? 1 : 0.55 + 0.45 * swell) : 0, t, k);
     sc.lp.frequency.setTargetAtTime(r ? 20000 : 1400, t, k);
   }
 

@@ -332,8 +332,185 @@ body.pad canvas { cursor: none; }
 .diff b { font: 900 24px/1.1 system-ui, "Segoe UI", sans-serif; } .diff i { font-style: normal; font-size: 20px; color: #ffd23f; letter-spacing: 2px; } .diff span { font: 600 13px/1.3 system-ui; opacity: 0.9; } .diff em { font: 700 12px/1.3 system-ui; font-style: normal; }
 .diff.d-easy { background: #2f8a42; } .diff.d-medium { background: #d19a35; color: #2a1a00; } .diff.d-hard { background: #e9453b; }
 .diff:hover { transform: translateY(-3px); filter: brightness(1.1); } .diff.current { border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35); }
-.diff.locked { opacity: 0.45; cursor: not-allowed; } .diff.locked:hover { transform: none; filter: none; }
+/* dimmed without `opacity` on the button itself, which would dim its tooltip too */
+.diff.locked { cursor: not-allowed; border-color: rgba(255, 255, 255, 0.15); } .diff.locked > * { opacity: 0.45; }
+.diff.locked.d-easy { background: #2f8a4259; } .diff.locked.d-medium { background: #d19a3559; } .diff.locked.d-hard { background: #e9453b59; } .diff.locked:hover { transform: none; filter: none; }
 .chip.diff-chip.d-easy { background: #2f8a42; } .chip.diff-chip.d-medium { background: #d19a35; color: #2a1a00; } .chip.diff-chip.d-hard { background: #e9453b; }
 .chip.stars { color: #ffd23f; letter-spacing: 2px; }
 .chip.podium { display: inline-flex; align-items: center; gap: 5px; }
 @media (max-width: 700px) { .diffs { grid-template-columns: 1fr; } .diff { min-height: 64px; } }
+/* the tooltip on a locked difficulty: on hover, or for a couple of seconds after a tap */
+.diff { position: relative; }
+.diff.locked::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translate(-50%, 4px); width: max-content; max-width: min(240px, 80vw); padding: 8px 12px; border-radius: 12px; background: #0b1020; color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); font: 700 13px/1.3 system-ui; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.12s, transform 0.12s; z-index: 5; }
+.diff.locked:hover::after, .diff.locked.tipping::after { opacity: 1; transform: translate(-50%, 0); }
+
+/* daily, championship, challenges */
+.h-teal { background: linear-gradient(145deg, rgba(90, 240, 215, 0.74), rgba(20, 160, 150, 0.64)); }
+.h-red { background: linear-gradient(145deg, rgba(255, 110, 110, 0.78), rgba(205, 35, 55, 0.66)); }
+.h-lime { background: linear-gradient(145deg, rgba(205, 245, 90, 0.76), rgba(120, 180, 25, 0.64)); }
+/* ten buttons: three across where there is room, so the title does not need a scroll */
+@media (min-width: 900px) and (min-height: 640px) { .home { grid-template-columns: repeat(3, 1fr); } #menu .panel.menu-panel.bubble { width: min(960px, calc(100% - 28px)); } }
+@media (max-height: 520px) and (min-width: 620px) { .home { grid-template-columns: repeat(3, 1fr); gap: 8px; } .hb { min-height: 56px; padding: 8px 14px; } .hb b { font-size: 17px; } .hb span { font-size: 11px; } }
+.bubble.wide { width: min(820px, calc(100% - 28px)) !important; }
+.chlist { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+.chrow { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; padding: 12px 16px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.28); background: rgba(40, 52, 90, 0.7); color: #fff; text-align: left; cursor: pointer; }
+.chrow b { font: 800 17px/1.1 system-ui; } .chrow span { font: 600 13px/1.25 system-ui; opacity: 0.9; } .chrow em { font: 600 12px/1.25 system-ui; font-style: normal; color: var(--dim); }
+.chrow .cstars { font-style: normal; color: #ffd23f; letter-spacing: 2px; position: absolute; top: 10px; right: 14px; }
+.chrow:hover { filter: brightness(1.12); }
+.chrow.locked { cursor: not-allowed; background: rgba(40, 52, 90, 0.35); } .chrow.locked > * { opacity: 0.5; }
+.chrow.locked::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translate(-50%, 4px); width: max-content; max-width: min(240px, 80vw); padding: 8px 12px; border-radius: 12px; background: #0b1020; color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); font: 700 13px/1.3 system-ui; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.12s, transform 0.12s; z-index: 5; }
+.chrow.locked:hover::after, .chrow.locked.tipping::after { opacity: 1; transform: translate(-50%, 0); }
+@media (max-width: 700px) { .chlist { grid-template-columns: 1fr; } }
+.chips.tactics { display: flex; gap: 6px; margin: 4px 0; } .chip.tac { cursor: pointer; border: 1px solid transparent; font: 800 13px/1.2 system-ui; } .chip.tac.on { background: var(--accent, #ffd23f); color: #1a1a1a; }
+@media (pointer: coarse) { .chip.tac { min-height: 40px; padding: 8px 14px; } }
+
+/* toasts */
+#toasts { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 20; }
+.toast { padding: 6px 16px; border-radius: 999px; background: rgba(11, 16, 32, 0.85); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; font: 800 14px/1.2 system-ui; animation: toastin 0.18s ease-out; }
+.toast.good { border-color: #5fe08a; color: #5fe08a; }
+@keyframes toastin { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* livery */
+.livery { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0; } .livery img { background: rgba(255, 255, 255, 0.06); border-radius: 12px; image-rendering: auto; object-fit: contain; }
+.swatches { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0; } .sw { width: 26px; height: 26px; min-height: 0; padding: 0; margin: 0; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); cursor: pointer; } .sw.on { border-color: #fff; box-shadow: 0 0 0 2px #5fa8ff; }
+@media (pointer: coarse) { .sw { width: 40px; height: 40px; } }
+
+/* ---------- the tile menus: large panels with line art, which fill with their colour when pointed at, focused or pressed ---------- */
+#menu .panel.menu-panel.bubble.tiles { width: min(1040px, calc(100% - 32px)); padding: 0; border: 0; border-radius: 0; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; overflow: auto; scrollbar-width: none; }
+.tiles .tilehead { display: flex; align-items: flex-end; gap: 18px; margin: 0 0 14px; }
+.tiles .tilehead h1.logo { font-size: 46px; text-align: left; } .tiles .tilehead .tagline { text-align: left; margin: 2px 0 0; }
+.tiles .tilehead h2 { font-size: 30px; margin: 0; letter-spacing: 1px; text-transform: uppercase; } .tiles .tilehead .back { margin: 0 4px 6px 0; border-radius: 0; }
+.tilegrid { display: grid; gap: 10px; }
+.tilegrid.home6 { grid-template-columns: repeat(4, 1fr); grid-auto-rows: 138px; }
+.tilegrid.home6 .tile.xl { grid-column: span 2; grid-row: span 2; } .tilegrid.home6 .tile.w2 { grid-column: span 2; }
+.tilegrid.group { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 250px; } .tilegrid.group.two { grid-template-columns: repeat(2, 1fr); }
+.tile { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 2px; margin: 0; padding: 14px 18px; text-align: left; color: #fff; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 0; -webkit-tap-highlight-color: transparent;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 40%, transparent), rgba(10, 14, 26, 0.6) 80%), rgba(10, 14, 26, 0.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  transition: background 0.16s, border-color 0.16s, transform 0.08s; }
+.tile .art { position: absolute; right: -4%; top: 6%; width: 58%; height: 88%; display: flex; align-items: center; justify-content: flex-end; opacity: 0.3; pointer-events: none; transition: opacity 0.16s, transform 0.2s; }
+.tile .art svg { height: 100%; width: auto; max-width: 100%; }
+.tile b { position: relative; font: 800 clamp(17px, 2vw, 26px)/1.1 system-ui, "Segoe UI", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+.tile .sub { position: relative; font: 600 13px/1.25 system-ui; opacity: 0.88; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
+.tile.xl b { font-size: clamp(26px, 3.4vw, 42px); } .tile.xl .art { width: 70%; height: 72%; top: 8%; }
+button.tile:focus-visible, button.tile.on, button.tile:active:not(:disabled) { background: var(--c); border-color: rgba(255, 255, 255, 0.85); }
+.tile:focus-visible .art, .tile.on .art, .tile:active .art { opacity: 0.55; transform: scale(1.06); }
+button.tile:active { transform: scale(0.985); }
+@media (hover: hover) { button.tile:hover:not(:disabled) { background: var(--c); border-color: rgba(255, 255, 255, 0.85); } .tile:hover .art { opacity: 0.55; transform: scale(1.06); } }
+body.pad .tile:focus { outline: 3px solid #ffcf3f; outline-offset: 2px; }
+@media (max-width: 900px) { .tilegrid.home6 { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 112px; } .tilegrid.home6 .tile.xl { grid-column: span 2; grid-row: span 1; } .tilegrid.group { grid-template-columns: 1fr; grid-auto-rows: 96px; } .tiles .tilehead h1.logo { font-size: 36px; } }
+@media (max-height: 520px) and (min-width: 620px) { .tilegrid.home6 { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 72px; } .tilegrid.home6 .tile.xl, .tilegrid.home6 .tile.w2 { grid-column: span 1; grid-row: span 1; } .tilegrid.group { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 120px; } .tilegrid.group.two { grid-template-columns: repeat(2, 1fr); } .tile { padding: 8px 12px; } .tile .sub { font-size: 11px; } .tile b { font-size: 15px; } .tiles .tilehead h1.logo { font-size: 30px; } .tiles .tilehead .tagline { display: none; } .tiles .tilehead { margin-bottom: 8px; } }
+/* the title sits straight on the track behind it, which can be light (snow): keep its small text readable */
+.tiles .tilehead .tagline, .tiles .tilehead .dim, .tiles .ver { color: #e8edf8; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7); }
+
+/* ---------- the garage, in the tile theme: square panels, each with its colour along the top ---------- */
+.garage { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gp { position: relative; padding: 14px 18px 16px; border: 1px solid rgba(255, 255, 255, 0.16); border-top: 3px solid var(--c, #5fa8ff); border-radius: 0; background: linear-gradient(160deg, color-mix(in srgb, var(--c, #5fa8ff) 16%, transparent), rgba(10, 14, 26, 0.72) 70%); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.gp h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 10px; font: 800 15px/1.2 system-ui; letter-spacing: 0.1em; text-transform: uppercase; }
+.gp h3 em, .gp .statrow em, .gp .savedrow em { font-style: normal; font-weight: 600; font-size: 12px; letter-spacing: 0.02em; text-transform: none; color: var(--dim); }
+.gp label { display: block; margin: 8px 0 4px; font: 700 11px/1 system-ui; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.gp.hero { grid-row: span 1; display: flex; flex-direction: column; justify-content: space-between; min-height: 240px; background: radial-gradient(ellipse at 50% 42%, color-mix(in srgb, var(--c) 45%, transparent), rgba(10, 14, 26, 0.78) 72%); }
+.gp.hero img { width: 100%; height: 170px; object-fit: contain; filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.5)); }
+.gp.hero .herocap { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gp.hero input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 0; background: rgba(5, 8, 18, 0.55); color: #fff; font: 800 16px/1.1 system-ui; letter-spacing: 0.04em; text-transform: uppercase; }
+.statrow { display: grid; grid-template-columns: 112px 34px 1fr 34px 22px; align-items: center; gap: 6px; margin: 6px 0; }
+.statrow b { font: 700 13px/1.1 system-ui; }
+.segs { display: flex; gap: 3px; height: 18px; } .segs i { flex: 1; background: rgba(255, 255, 255, 0.1); transform: skewX(-14deg); } .segs i.on { background: var(--c, #2fbf71); box-shadow: 0 0 8px color-mix(in srgb, var(--c, #2fbf71) 60%, transparent); }
+button.sq { margin: 0; padding: 0; min-width: 34px; height: 34px; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 0; background: rgba(255, 255, 255, 0.08); color: #fff; font: 800 18px/1 system-ui; cursor: pointer; }
+button.sq.text { width: auto; padding: 0 12px; font: 700 12px/1 system-ui; letter-spacing: 0.06em; text-transform: uppercase; }
+button.sq:hover:not(:disabled), button.sq.on { background: var(--c, #5fa8ff); border-color: rgba(255, 255, 255, 0.8); }
+.gp.paint button.sq:hover:not(:disabled), .gp.paint button.sq.on { background: rgba(255, 255, 255, 0.22); }
+.gactions { display: flex; gap: 8px; margin-top: 12px; } .gactions button { margin: 0; border-radius: 0; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; font-size: 12px; padding: 10px 14px; }
+.garage .swatches { gap: 4px; } .garage .sw { width: 30px; height: 30px; border-radius: 0; border: 1px solid rgba(255, 255, 255, 0.3); } .garage .sw.on { border-color: #fff; box-shadow: 0 0 0 2px var(--c), 0 0 0 4px #fff; }
+.paintrow { display: flex; gap: 22px; align-items: flex-end; flex-wrap: wrap; }
+.stripes { display: flex; gap: 6px; } button.sq.stripe { width: 76px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; }
+#livnum { width: 84px; padding: 9px 10px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 0; background: rgba(5, 8, 18, 0.55); color: #fff; font: 800 16px/1 system-ui; }
+.savedrow { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); } .savedrow span { flex: 1; font-weight: 700; font-size: 14px; }
+@media (max-width: 900px) { .garage { grid-template-columns: 1fr; } .gp.hero { min-height: 200px; } .gp.hero img { height: 130px; } .statrow { grid-template-columns: 92px 40px 1fr 40px 20px; } }
+@media (pointer: coarse) { button.sq { min-width: 40px; height: 40px; } .garage .sw { width: 40px; height: 40px; } }
+@media (max-height: 520px) and (min-width: 620px) { .garage { grid-template-columns: 1fr 1fr 1fr; } .gp.hero { min-height: 0; } .gp.hero img { height: 80px; } .gp { padding: 8px 10px; } .gp .gactions { margin-top: 6px; } }
+
+/* difficulty tiles: stars in the corner, and a locked one dimmed, with what opens it shown on hover or tap */
+.tile .tstars { position: absolute; top: 12px; left: 18px; font-style: normal; font-size: 16px; letter-spacing: 3px; color: #ffd23f; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+.tile.locked { cursor: not-allowed; background: rgba(10, 14, 26, 0.6); border-color: rgba(255, 255, 255, 0.1); }
+.tile.locked > b, .tile.locked > .sub, .tile.locked > .tstars { opacity: 0.45; } .tile.locked .art { opacity: 0.12; }
+button.tile.locked:hover:not(:disabled), button.tile.locked:active:not(:disabled), button.tile.locked:focus-visible { background: rgba(10, 14, 26, 0.6); border-color: rgba(255, 255, 255, 0.25); transform: none; }
+.tile.locked:hover .art { opacity: 0.12; transform: none; }
+.tile.locked::after { content: attr(data-tip); position: absolute; left: 18px; right: 18px; top: 50%; transform: translateY(-50%); padding: 10px 12px; background: #0b1020; border: 1px solid rgba(255, 255, 255, 0.4); color: #fff; font: 700 13px/1.3 system-ui; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.12s; }
+.tile.locked:hover::after, .tile.locked.tipping::after { opacity: 1; }
+
+/* =====================================================================================================================
+   The panel theme everywhere: square corners, flat translucent panels with a coloured edge, titles in capitals, and controls that
+   fill with colour when pointed at, focused or pressed. This block comes last so it wins over the rounded, bubbly rules above.
+   Round things that are round on purpose (start lights, tyre dots, the spinner) stay round.
+   ===================================================================================================================== */
+.panel, #menu .panel.menu-panel, .dialog, #hint, #tip, #loadingbox, #startlights, .toast, #tut, .best-box, .chrow, .lapstep, .slot, .stoprow, .tyrebtn, .chipbtn,
+button, button.big, #menubtn, #bar button.big, .chip, .pill, button.back, .sessions span, .field-copy, .opt, .dd-btn, .dd-list, .dd-opt, .stepper, .stepper button,
+.cchip, .keyrow kbd, input.fancy, select.fancy, .bubble input.fancy, .stoprow input[type=number], #tut .tut-skip, .slot .rm, .lapstep button, .bb-tube, .bb-ic { border-radius: 0; }
+
+/* menu panels that are not tile screens (setup, settings, pause, results, dialogs) */
+#menu .panel.menu-panel.bubble:not(.tiles), .dialog {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(10, 14, 26, 0.7) 55%), rgba(10, 14, 26, 0.62); border: 1px solid rgba(255, 255, 255, 0.16); border-top: 3px solid var(--accent);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); }
+.dialog { border-top-color: #ff9a5a; }
+.panel { border-top: 3px solid color-mix(in srgb, var(--accent) 70%, transparent); }
+.menu-panel h2, .dialog h2, .dialog h3 { text-transform: uppercase; letter-spacing: 0.08em; }
+.menu-panel label { text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; font-weight: 700; }
+.menu-panel .head { border-bottom: 1px solid rgba(255, 255, 255, 0.12); padding-bottom: 10px; margin-bottom: 12px; }
+
+/* buttons: flat, with a border that lights up, filling when pointed at, focused or pressed */
+button { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.22); text-transform: none; transition: background 0.14s, border-color 0.14s, transform 0.08s; }
+button:hover:not(:disabled), button:focus-visible:not(:disabled) { background: #3a4b82; border-color: rgba(255, 255, 255, 0.7); }
+button:active:not(:disabled) { background: #4a5fa8; transform: scale(0.985); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #1a1500; text-transform: uppercase; letter-spacing: 0.06em; }
+button.primary:hover:not(:disabled), button.primary:focus-visible:not(:disabled) { background: #ffe38a; border-color: #fff; }
+button.big { border: 1px solid rgba(255, 255, 255, 0.28); box-shadow: none; letter-spacing: 0.1em; }
+button.big:hover:not(:disabled) { transform: none; filter: brightness(1.18) saturate(1.1); border-color: #fff; }
+button.big:active:not(:disabled) { transform: scale(0.985); box-shadow: none; }
+button.back, .pill { letter-spacing: 0.06em; text-transform: uppercase; font-size: 12px; }
+#menubtn, #bar button.big { box-shadow: none; text-transform: uppercase; }
+
+/* the setup rows, dropdowns, switches, steppers and chips */
+.opt { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); border-left: 3px solid var(--accent); }
+.chip { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; padding: 5px 11px; }
+.chip.circuit { background: #d6283f; border-color: transparent; } .chip.fun { background: #7a5cf0; border-color: transparent; }
+.chip.biome-grass, .chip.biome-desert, .chip.biome-snow, .chip.biome-city, .chip.biome-moon { border-color: transparent; }
+.dd-btn { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.26); } .dd-btn:hover:not(:disabled) { background: #3a4b82; }
+.dd-list { background: rgba(10, 14, 26, 0.96); border: 1px solid rgba(255, 255, 255, 0.25); padding: 0; } .dd-opt { margin: 0; } .dd-opt:hover, .dd-opt.on { background: #3a4b82; }
+.stepper { background: rgba(5, 8, 18, 0.5); border: 1px solid rgba(255, 255, 255, 0.22); } .stepper button { background: rgba(255, 255, 255, 0.12); }
+.switch { border-radius: 0; background: rgba(5, 8, 18, 0.6); } .switch i { border-radius: 0; background: #d5dcf0; box-shadow: none; }
+input.fancy, .bubble input.fancy, select.fancy { background: rgba(5, 8, 18, 0.55); border: 1px solid rgba(255, 255, 255, 0.28); padding: 11px 14px; box-shadow: none; }
+input.fancy:focus, .bubble input.fancy:focus { border-color: var(--accent); outline: none; }
+.sessions span { background: rgba(255, 255, 255, 0.1); }
+.cchip, .keyrow kbd { background: rgba(5, 8, 18, 0.5); }
+.best-box { background: rgba(255, 228, 92, 0.1); border: 1px solid rgba(255, 228, 92, 0.4); border-left: 3px solid #ffe45c; }
+
+/* the pit strategy panel and the bar */
+.lapstep, .slot, .stoprow, .tyrebtn { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.18); }
+.tyrebtn:hover:not(:disabled) { background: #3a4b82; border-color: rgba(255, 255, 255, 0.7); }
+.slot { border-top: 3px solid var(--stop, #5f78c9); }
+
+/* gauges: square tubes and sockets */
+.bb-tube { border-width: 1px; background: rgba(8, 10, 18, 0.8); } .bb-ic { border-width: 1px; background: rgba(8, 10, 18, 0.85); }
+
+/* small floating things */
+#hint, #tip, .toast, #tut { background: rgba(10, 14, 26, 0.88); border: 1px solid rgba(255, 255, 255, 0.22); border-left: 3px solid var(--accent); } .toast.good { border-left-color: #5fe08a; }
+#loadingbox { border: 1px solid rgba(255, 255, 255, 0.25); border-left: 3px solid var(--accent); } #startlights { border-radius: 0; }
+
+/* the Challenges list takes the tile look: a colour bar down the left, filling when pointed at */
+.chrow { background: linear-gradient(135deg, rgba(122, 160, 255, 0.14), rgba(10, 14, 26, 0.6)); border: 1px solid rgba(255, 255, 255, 0.16); border-left: 4px solid #8cc63f; }
+button.chrow:hover:not(:disabled):not(.locked), button.chrow:focus-visible { background: #4b6a2a; border-color: rgba(255, 255, 255, 0.7); border-left-color: #b7f05a; }
+button.chrow.locked:hover { background: linear-gradient(135deg, rgba(122, 160, 255, 0.14), rgba(10, 14, 26, 0.6)); border-color: rgba(255, 255, 255, 0.16); border-left-color: #8cc63f; }
+.chrow.locked::after { border-radius: 0; }
+
+/* tables: a header rule and a coloured edge on your own row */
+.panel table th, .menu-panel table th { text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; }
+tr.me td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+
+@media (pointer: coarse) { button { min-height: 44px; } .tile, .sw, button.sq { min-height: 0; } }
+
+/* flat fills for the big buttons, and square corners on the menu panel itself (the bubble rule above is more specific than the block before) */
+#menu .panel.menu-panel.bubble:not(.tiles) { border-radius: 0; }
+button.big.yellow { background: #ffcf3f; } button.big.orange { background: #ff6a2b; } button.big.pink { background: #e0409a; } button.big.cyan { background: #35c4ee; }
+button.big.green { background: #2fbf71; } button.big.violet { background: #7a5cf0; } button.big.blue { background: #3f7dea; } button.big.grey { background: #4a5575; }
+button.big { background-color: #3a4b82; }

@@ -1,6 +1,6 @@
-import { Application, Container, Graphics, RenderTexture, Sprite } from "pixi.js";
-import { CELL, halfIdx, WET_LAT, WET_LONG, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
-import { buildCar, variantOf, type CarShape } from "./cars.ts";
+import { Application, Container, Graphics, Rectangle, RenderTexture, Sprite } from "pixi.js";
+import { CELL, VEHICLES, halfIdx, isNight, WET_LAT, WET_LONG, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
+import { buildCar, variantOf, type CarShape, type Livery } from "./cars.ts";
 import { LabelLayer, type LabelItem } from "./labels.ts";
 import { buildScenery, MARGIN_CELLS, type PlaneState, type Scenery } from "./scenery.ts";
 import { Sky } from "./sky.ts";
@@ -56,6 +56,16 @@ export class WorldView {
   private carsLayer = new Container();
   /** bridge decks, over the cars on the ground beneath them; the cars on the bridges themselves are in `carsHigh`, over the decks */
   private deckLayer = new Container();
+  /** a night track: the dark laid over everything on the ground, with lamps along the road and headlights on top (see setTrack) */
+  /** the player's paint, if they have chosen any */
+  livery: Livery | undefined;
+  private nightG = new Graphics();
+  /** dust, tyre smoke and spray */
+  private puffG = new Graphics();
+  private puffs: { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number; color: number; a: number }[] = [];
+  private edgeG = new Graphics();
+  private lightG = new Graphics();
+  private night = false;
   private carsHigh = new Container();
   private crew = new Graphics();
   private sparkG = new Graphics();
@@ -81,7 +91,7 @@ export class WorldView {
   private clock = 0;
 
   constructor(readonly app: Application) {
-    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.wetG, this.skidSprite, this.sky.shadows, this.carsLayer, this.deckLayer, this.highlight, this.lines, this.carsHigh, this.crew, this.sparkG, this.sky.air, this.cursorG);
+    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.wetG, this.skidSprite, this.sky.shadows, this.carsLayer, this.puffG, this.deckLayer, this.nightG, this.highlight, this.lines, this.carsHigh, this.edgeG, this.lightG, this.crew, this.sparkG, this.sky.air, this.cursorG);
     app.stage.addChild(this.root);
     app.stage.addChild(this.labelLayer.root);
     app.renderer.on("resize", () => this.applyCamera());
@@ -176,9 +186,10 @@ export class WorldView {
   }
 
   /** Fill the screen with this rectangle (the segment being edited). Calling it again glides to the new one. */
-  setFocus(r: { x: number; y: number; w: number; h: number }): void {
+  setFocus(r: { x: number; y: number; w: number; h: number }, recentre = false): void {
     const f = this.focusRect;
-    if (!f || f.x !== r.x || f.y !== r.y || f.w !== r.w || f.h !== r.h) this.focusPan = { x: 0, y: 0 };
+    // (a pan is kept while the same segment is edited, but a new one, or being asked to, starts centred)
+    if (recentre || !f || f.x !== r.x || f.y !== r.y || f.w !== r.w || f.h !== r.h) this.focusPan = { x: 0, y: 0 };
     this.mode = "focus";
     this.followPt = null;
     this.focusRect = r;
@@ -288,7 +299,34 @@ export class WorldView {
       if (q.life <= 0) { this.sparks.splice(i, 1); continue; }
       sg.circle(q.x, q.y, 0.9).fill({ color: q.life > 0.2 ? 0xfff2a8 : 0xff9a3c, alpha: Math.min(1, q.life * 4) });
     }
+    const pg = this.puffG.clear();
+    for (let i = this.puffs.length - 1; i >= 0; i--) {
+      const q = this.puffs[i]!;
+      q.life -= dt;
+      if (q.life <= 0) { this.puffs.splice(i, 1); continue; }
+      q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.94; q.vy *= 0.94;
+      const f = q.life / q.max;
+      pg.circle(q.x, q.y, q.r + (1 - f) * 1.8).fill({ color: q.color, alpha: q.a * f });
+    }
     this.sky.update(dt);
+    this.lightsStep();
+  }
+
+  /** Night only, and not while a segment is being drawn: the lamps along the road and every car's headlights. */
+  private lightsStep(): void {
+    const on = this.night && this.mode !== "focus";
+    this.nightG.visible = this.edgeG.visible = this.lightG.visible = on;
+    if (!on) return;
+    const g = this.lightG.clear();
+    for (const c of this.cars.values()) {
+      if (!c.root.visible) continue;
+      const h = c.body.rotation, fx = Math.cos(h), fy = Math.sin(h), px = -fy, py = fx;
+      const x = c.root.x + fx * 4, y = c.root.y + fy * 4;
+      for (const [len, spread, a] of [[40, 11, 0.07], [30, 7, 0.09], [20, 4, 0.12]] as const) {
+        g.poly([x + px * 1.4, y + py * 1.4, x + fx * len + px * spread, y + fy * len + py * spread, x + fx * len - px * spread, y + fy * len - py * spread, x - px * 1.4, y - py * 1.4]).fill({ color: 0xfff1c0, alpha: a });
+      }
+      g.circle(x, y, 7).fill({ color: 0xfff1c0, alpha: 0.12 });
+    }
   }
 
   // ---------- the course ----------
@@ -309,6 +347,8 @@ export class WorldView {
     this.wetG.clear();
     this.wetCells = [];
     this.wetShown = undefined;
+    this.nightG.clear(); this.edgeG.clear(); this.lightG.clear(); this.puffs.length = 0;
+    this.night = false;
   }
 
   private drawGrid(cols: number, rows: number, dark: boolean): void {
@@ -336,6 +376,23 @@ export class WorldView {
       const art = buildSegmentArt(track, s);
       this.arts.set(s.index, art);
       (art.deck ? this.deckLayer : this.segLayer).addChild(art.root);
+      if (art.roof) this.deckLayer.addChild(art.roof);
+    }
+    // after dark: a dim wash over the ground and lamps along the road (the cars bring their own light)
+    this.night = isNight(track.seed);
+    if (this.night) {
+      this.nightG.rect(-2200, -2200, b.w + 4400, b.h + 4400).fill({ color: 0x050a1c, alpha: 0.52 });
+      this.edgeG.blendMode = "add"; this.lightG.blendMode = "add";
+      const e = this.edgeG;
+      for (const seg of track.allSegments) {
+        for (let i = 0; i < seg.center.length; i += 2) {
+          for (const side of [-1, 1]) {
+            const hw = halfIdx(seg, i) + 1.2;
+            e.circle(seg.center[i]!.x + seg.normals[i]!.x * side * hw, seg.center[i]!.y + seg.normals[i]!.y * side * hw, 0.9).fill({ color: 0xffe7a0, alpha: 0.7 });
+            e.circle(seg.center[i]!.x + seg.normals[i]!.x * side * hw, seg.center[i]!.y + seg.normals[i]!.y * side * hw, 3.2).fill({ color: 0xffe7a0, alpha: 0.08 });
+          }
+        }
+      }
     }
     // one polygon for each bin of the wet field, worked out once
     const samples = track.segments[0]!.center.length;
@@ -416,6 +473,15 @@ export class WorldView {
 
   clearLines(): void { this.lines.clear(); }
 
+  /** A picture of a machine in a livery, as a data URL, for the Garage. */
+  async carImage(type: VehicleId, livery: Livery): Promise<string> {
+    const car = buildCar(type, livery.primary, false, 0, livery);
+    const v = VEHICLES[type], frame = new Rectangle(-v.length / 2 - 2, -v.width / 2 - 2, v.length + 4, v.width + 4);
+    const url = await this.app.renderer.extract.base64({ target: car.body, frame, resolution: 28, antialias: true });
+    car.root.destroy({ children: true });
+    return url;
+  }
+
   /**
    * Paint how wet the road is (and how much it has been driven) from a snapshot of the sim's wet field: dark, glossy
    * where it is wet, and lighter along the dry line the cars have worn. null clears it. Redrawn only when it changes.
@@ -428,7 +494,8 @@ export class WorldView {
     if (!snap) return;
     const cells = this.wetCells.length;
     for (let i = 0; i < cells; i++) {
-      const w = snap[i]! / 255, u = snap[cells + i]! / 255, pts = this.wetCells[i]!;
+      const w = snap[i]! / 255, u = snap[cells + i]! / 255, rub = (snap[2 * cells + i] ?? 0) / 255, pts = this.wetCells[i]!;
+      if (rub > 0.1 && w < 0.1) g.poly(pts).fill({ color: 0x000000, alpha: 0.12 * rub }); // rubbered in over the session
       if (w > 0.04) {
         g.poly(pts).fill({ color: 0x0b2038, alpha: 0.5 * w });
         // a sheen that shows where the water lies: strongest on bits nobody has driven
@@ -456,6 +523,7 @@ export class WorldView {
   }
 
   clearSkids(): void {
+    this.puffs.length = 0;
     if (!this.skidTex) return;
     this.app.renderer.render({ container: new Container(), target: this.skidTex, clear: true });
   }
@@ -464,7 +532,7 @@ export class WorldView {
   setCar(id: string, type: VehicleId | undefined, x: number, y: number, h: number, color: number, ghost: boolean, isPlayer: boolean, braking: boolean, hidden = false, boat?: { v: number; beta: number }, steer = 0, onDeck = false): void {
     let c = this.cars.get(id);
     if (!c) {
-      c = buildCar(type ?? "rally", color, isPlayer, variantOf(id));
+      c = buildCar(type ?? "rally", color, isPlayer, variantOf(id), isPlayer ? this.livery : undefined);
       this.carsLayer.addChild(c.root);
       this.cars.set(id, c);
     }
@@ -488,6 +556,15 @@ export class WorldView {
   }
 
   /** A shower of sparks where two cars touched. */
+  /** A puff of dust, tyre smoke or spray at a point, drifting back the way the car came from. */
+  puff(kind: "dust" | "smoke" | "spray", x: number, y: number, vx: number, vy: number, colour?: number): void {
+    const cap = matchMedia("(pointer: coarse)").matches ? 70 : 240;
+    if (this.puffs.length >= cap) return;
+    const color = colour ?? (kind === "dust" ? 0xb8a37c : kind === "smoke" ? 0xe8e8ec : 0xd8ecff);
+    const max = kind === "spray" ? 0.5 : kind === "smoke" ? 0.8 : 0.9;
+    this.puffs.push({ x, y, vx: -vx * 0.25 + (Math.random() - 0.5) * 14, vy: -vy * 0.25 + (Math.random() - 0.5) * 14, life: max, max, r: kind === "smoke" ? 0.9 : 0.7, color, a: kind === "spray" ? 0.3 : 0.38 });
+  }
+
   spark(x: number, y: number, strength: number): void {
     const n = Math.min(26, 6 + Math.round(strength / 3));
     for (let i = 0; i < n; i++) {

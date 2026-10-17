@@ -1,4 +1,5 @@
-import type { CarConfig, Compound, Difficulty, VehicleId } from "@apex/sim";
+import type { Livery } from "./cars.ts";
+import type { CarConfig, Compound, Difficulty, Tactic, VehicleId } from "@apex/sim";
 
 declare global {
   interface Window {
@@ -54,9 +55,13 @@ export interface Settings {
   mandatory?: Compound[];
   /** how hard the rivals drive in a Quick Race or Race Weekend */
   difficulty: Difficulty;
+  /** the player's paint: shown on their own car only */
+  livery?: Livery;
   tutorialDone?: boolean;
   /** pit stops queued: the end of lap `lap` (counting from 0), on this tyre */
-  pitPlan: { lap: number; tyre: Compound }[];
+  pitPlan: { lap: number; tyre: Compound; tactic?: Tactic }[];
+  /** how to drive the first stint (realism only); balanced if left out */
+  startTactic?: Tactic;
 }
 /** best finishing time per phrase+laps */
 export type Best = Record<string, number>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIELD_SIZES, LAP_UNITS, MAX_RIVALS, Race, SAFE_GAP, TYRE_WEAR_PER_UNIT, botLine, defaultCar, fuelPerLap, fuelPerUnit, generateTrack, makeBots, placeFor, snapRivals, trackLength } from "@apex/sim";
+import { FIELD_SIZES, contact, LAP_UNITS, MAX_RIVALS, Race, SAFE_GAP, TYRE_WEAR_PER_UNIT, botLine, defaultCar, fuelPerLap, fuelPerUnit, generateTrack, makeBots, placeFor, snapRivals, trackLength } from "@apex/sim";
 
 describe("field sizes", () => {
   it("are the round numbers of a real race, and rivals are one fewer", () => {
@@ -70,4 +70,45 @@ describe("tyres and fuel go by distance", () => {
     expect(fuelPerLap(car, 3, 2 * LAP_UNITS)).toBeCloseTo(2 * fuelPerLap(car, 3, LAP_UNITS), 3);
     expect(TYRE_WEAR_PER_UNIT * LAP_UNITS).toBeCloseTo(0.076, 9);
   });
+});
+
+describe("big fields keep to lanes and do not pile up", () => {
+  it("give every computer driver of a field of more than 32 the lane of its grid column, and leave smaller fields alone", () => {
+    const phrase = "quiet-fox-hugs-kites", t = generateTrack(phrase, { obstacles: false }), v = placeFor(phrase).vehicle;
+    const big = new Race(t, makeBots(t, v, 0, 63), 2, { realism: false });
+    const lanes = new Set(big.cars.map((c) => c.entrant.bot?.lane));
+    expect([...lanes].sort()).toEqual([-16 / 22, -5.4 / 22, 5.4 / 22, 16 / 22].sort());
+    const small = new Race(t, makeBots(t, v, 0, 15), 2, { realism: false });
+    expect(small.cars.every((c) => c.entrant.bot?.lane === undefined)).toBe(true);
+  });
+
+  it("start 128 cars without a hard hit or a spin in the first half minute", () => {
+    for (const [phrase, d] of [["quiet-fox-hugs-kites", "easy"], ["brave-owl-rides-melons", "medium"]] as const) {
+      const t = generateTrack(phrase, { obstacles: false });
+      const r = new Race(t, makeBots(t, placeFor(phrase).vehicle, 0, 127, d), 2, { realism: false, weather: false });
+      for (let i = 0; i < 30 * 60; i++) r.step();
+      expect(r.events.filter((e) => e.type === "bump" && (e.strength ?? 0) >= 12), phrase).toHaveLength(0);
+      expect(r.events.filter((e) => e.type === "spin"), phrase).toHaveLength(0);
+    }
+  }, 120000);
+});
+
+describe("cars are as big as they are drawn", () => {
+  it("never sit inside each other by more than a sliver, in a long machine or a short one", () => {
+    for (const vehicle of ["tank", "truck", "kart"] as const) {
+      const t = generateTrack("calm-owl-sleeps", { obstacles: false });
+      const r = new Race(t, makeBots(t, vehicle, 0, 23), 2, { realism: false, weather: false });
+      let worst = 0;
+      for (let i = 0; i < 25 * 60; i++) {
+        r.step();
+        if (i % 6) continue;
+        for (let a = 0; a < r.cars.length; a++) for (let b = a + 1; b < r.cars.length; b++) {
+          const A = r.cars[a]!, B = r.cars[b]!;
+          if (A.ghost || B.ghost) continue;
+          worst = Math.max(worst, contact(A, B)?.depth ?? 0);
+        }
+      }
+      expect(worst, vehicle).toBeLessThan(2.5);
+    }
+  }, 120000);
 });

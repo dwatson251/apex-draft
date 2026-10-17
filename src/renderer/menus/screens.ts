@@ -1,26 +1,41 @@
 import { podiumIcon, weatherPill } from "../hudicons.ts";
-import { DIFFICULTIES, DIFFICULTY_NAMES, FIELD_SIZES, MAX_WEAR_MULT, STARS, type Compound, type Difficulty } from "@apex/sim";
+import { CHALLENGES, DIFFICULTIES, DIFFICULTY_NAMES, FIELD_SIZES, MAX_WEAR_MULT, ROUNDS, STARS, TACTICS, TACTIC_INFO, goalText, maxStars, pointsFor, type Challenge, type Compound, type Difficulty, type Tactic } from "@apex/sim";
+import { TILE_ART, tile, type TileSpec } from "./tileart.ts";
 import { compoundChips, copyField, dropdown, esc, stepper, toggle, type Opt } from "./controls.ts";
 
 /** The menu screens as HTML. Pure functions of plain data: `Game` owns the state and wires the events. */
 
 export type Flow = "trial" | "quick" | "weekend";
 
-export function homeHtml(o: { version: string; quit: boolean; note: string }): string {
+export function homeHtml(o: { version: string; quit: boolean; note: string; challenges: string }): string {
+  const t = (spec: TileSpec) => tile(spec, esc);
   return `
-    <h1 class="logo">APEX <span>DRAFT</span></h1>
-    <p class="tagline">Draw the racing line. The car has to drive it.</p>
-    <div class="home">
-      <button class="hb h-yellow" id="h-trial"><b>Solo Time Trial</b><span>You, the track and the clock</span></button>
-      <button class="hb h-orange" id="h-quick"><b>Quick Race</b><span>Rivals, tyres and fuel</span></button>
-      <button class="hb h-pink" id="h-weekend"><b>Race Weekend</b><span>Practice, qualifier, race</span></button>
-      <button class="hb h-cyan" id="h-tutorial"><b>Tutorial</b><span>Learn on the oval</span></button>
-      <button class="hb h-green" id="h-garage"><b>Garage</b><span>Tune your car</span></button>
-      <button class="hb h-violet" id="h-settings"><b>Settings</b><span>Sound and controls</span></button>
-      ${o.quit ? '<button class="hb h-grey" id="h-quit"><b>Quit</b><span>Close the game</span></button>' : ""}
+    <header class="tilehead"><h1 class="logo">APEX <span>DRAFT</span></h1><p class="tagline">Draw the racing line. The car has to drive it.</p></header>
+    <div class="tilegrid home6">
+      ${t({ id: "h-race", art: "race", colour: "#ff6a2b", title: "Race", sub: "Quick Race, Race Weekend, Championship", size: "xl" })}
+      ${t({ id: "h-attack", art: "attack", colour: "#f2b705", title: "Time Attack", sub: "Solo Time Trial and the Daily", size: "w2" })}
+      ${t({ id: "h-challenges", art: "challenges", colour: "#8cc63f", title: "Challenges", sub: o.challenges })}
+      ${t({ id: "h-garage", art: "garage", colour: "#2fbf71", title: "Garage", sub: "Tune and paint your car" })}
+      ${t({ id: "h-tutorial", art: "tutorial", colour: "#1fa5d8", title: "Tutorial", sub: "Learn on the oval", size: "w2" })}
+      ${t({ id: "h-settings", art: "settings", colour: "#7a5cf0", title: "Settings", sub: "Sound and controls", size: "w2" })}
+      ${o.quit ? t({ id: "h-quit", art: "quit", colour: "#8a93a8", title: "Quit", sub: "Close the game" }) : ""}
     </div>
     ${o.note ? `<p class="bad note">${esc(o.note)}</p>` : ""}
     <p class="ver">v${esc(o.version)}</p>`;
+}
+
+/** A group of modes behind one tile on the home screen: Race (against rivals) or Time Attack (against the clock). */
+export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: string }): string {
+  const t = (spec: TileSpec) => tile(spec, esc);
+  const head = (title: string, sub: string) => `<header class="tilehead"><button class="back" id="back">← Back</button><div><h2>${title}</h2><p class="dim">${sub}</p></div></header>`;
+  return kind === "race"
+    ? `${head("Race", "Rivals on the track")}<div class="tilegrid group">
+        ${t({ id: "h-quick", art: "quick", colour: "#ff6a2b", title: "Quick Race", sub: "One race: rivals, tyres and fuel" })}
+        ${t({ id: "h-weekend", art: "weekend", colour: "#e0409a", title: "Race Weekend", sub: "Practice, qualifier, race" })}
+        ${t({ id: "h-champ", art: "champ", colour: "#d6283f", title: "Championship", sub: o.champ })}</div>`
+    : `${head("Time Attack", "You, the track and the clock")}<div class="tilegrid group two">
+        ${t({ id: "h-trial", art: "trial", colour: "#f2b705", title: "Solo Time Trial", sub: "Any track, as many tries as you like" })}
+        ${t({ id: "h-daily", art: "daily", colour: "#14b8a6", title: "Daily", sub: o.daily })}</div>`;
 }
 
 const DIFFICULTY_BLURB: Record<Difficulty, string> = {
@@ -32,14 +47,22 @@ const DIFFICULTY_BLURB: Record<Difficulty, string> = {
 export const starsText = (n: number, of = 3): string => "★".repeat(n) + "☆".repeat(of - n);
 
 /** The step before a Quick Race or Race Weekend's setup. A locked difficulty is dimmed and cannot be picked; `locks` says what opens it. */
+const DIFFICULTY_COLOUR: Record<Difficulty, string> = { easy: "#2fbf71", medium: "#f2b705", hard: "#e9453b" };
+
+/** The three difficulties as tiles: a locked one is dimmed and cannot be picked, and says what opens it (on hover, or when tapped). `prefix` names their ids. */
+export function difficultyTiles(prefix: string, current: Difficulty, locks: Record<Difficulty, string>): string {
+  return `<div class="tilegrid group">${DIFFICULTIES.map((d) => {
+    const lock = locks[d];
+    return `<button class="tile${d === current && !lock ? " on" : ""}${lock ? " locked" : ""}" id="${prefix}-${d}" style="--c:${DIFFICULTY_COLOUR[d]}" ${lock ? `aria-disabled="true" aria-label="${DIFFICULTY_NAMES[d]}, locked. ${esc(lock)}" data-tip="${esc(lock)}"` : ""}>
+      <span class="art">${TILE_ART[d]}</span><i class="tstars">${"★".repeat(STARS[d])}</i><b>${DIFFICULTY_NAMES[d]}</b><span class="sub">${DIFFICULTY_BLURB[d]}</span></button>`;
+  }).join("")}</div>`;
+}
+
+/** The step before a Quick Race or Race Weekend's setup. */
 export function difficultyHtml(o: { flow: Flow; current: Difficulty; locks: Record<Difficulty, string> }): string {
   return `
-    <div class="head"><button class="back" id="back">← Back</button><div><h2>${o.flow === "weekend" ? "Race Weekend" : "Quick Race"}</h2><p class="dim">How hard should the rivals drive?</p></div></div>
-    <div class="diffs">${DIFFICULTIES.map((d) => {
-      const lock = o.locks[d];
-      return `<button class="diff d-${d}${d === o.current && !lock ? " current" : ""}${lock ? " locked" : ""}" id="d-${d}" ${lock ? `aria-disabled="true" title="${esc(lock)}"` : ""}><b>${DIFFICULTY_NAMES[d]}</b><i>${starsText(STARS[d], 3).replace(/☆/g, "")}</i><span>${DIFFICULTY_BLURB[d]}</span>${lock ? `<em>🔒 ${esc(lock)}</em>` : ""}</button>`;
-    }).join("")}</div>
-    <p class="dim info" id="d-hint" aria-live="polite"></p>`;
+    <header class="tilehead"><button class="back" id="back">← Back</button><div><h2>${o.flow === "weekend" ? "Race Weekend" : "Quick Race"}</h2><p class="dim">How hard should the rivals drive?</p></div></header>
+    ${difficultyTiles("d", o.current, o.locks)}`;
 }
 
 export interface SetupData {
@@ -147,4 +170,44 @@ export function pauseHtml(o: { title: string; sub: string; finish?: boolean }): 
       <button class="big violet" id="p-settings">Settings</button>
       <button class="big grey" id="quit">Quit to menu</button>
     </div>`;
+}
+
+
+/** The Challenges list: each goal with its three tiers, the stars won so far, and one to start it. */
+export function challengesHtml(o: { stars: Record<string, number>; total: number }): string {
+  const star = (n: number) => `<i class="cstars">${starsText(n)}</i>`;
+  const row = (c: Challenge) => `<button class="chrow" id="ch-${c.id}"><b>${esc(c.title)}</b>${star(o.stars[c.id] ?? 0)}<span>${esc(c.blurb)}</span><em>${esc(goalText(c.goal))} · ${c.laps} lap${c.laps > 1 ? "s" : ""} · ${DIFFICULTY_NAMES[c.difficulty]}</em></button>`;
+  return `
+    <div class="head"><button class="back" id="back">← Back</button><div><h2>Challenges</h2><p class="dim">${o.total} of ${maxStars()} stars. They count apart from the stars a track earns.</p></div></div>
+    <div class="chlist">${CHALLENGES.map(row).join("")}</div>`;
+}
+
+export interface SeasonRow { name: string; points: number; wins: number; me: boolean }
+
+/** The Championship screen: starting a season, or where the season stands and the next round. */
+export function championshipHtml(o: {
+  season: { round: number; of: number; over: boolean; next: string | null; difficulty: Difficulty; vehicle: string; rows: SeasonRow[] } | null;
+  locks: Record<Difficulty, string>;
+  chosen: Difficulty;
+  vehicles: { value: string; label: string }[];
+  vehicle: string;
+}): string {
+  const table = (rows: SeasonRow[]) => `<table><tr><th>#</th><th>Driver</th><th class="num">Wins</th><th class="num">Points</th></tr>${rows.map((r, i) => `<tr class="${r.me ? "me" : ""}"><td>${i + 1}</td><td>${esc(r.name)}</td><td class="num">${r.wins}</td><td class="num">${r.points}</td></tr>`).join("")}</table>`;
+  const head = '<div class="head"><button class="back" id="back">← Back</button><div><h2>Championship</h2>';
+  if (o.season) {
+    const s = o.season;
+    return `${head}<p class="dim">${esc(s.vehicle)} · ${DIFFICULTY_NAMES[s.difficulty]} · ${s.over ? "season over" : `round ${s.round + 1} of ${s.of}`}</p></div></div>
+      ${s.over ? `<p class="good">Season complete. ${s.rows[0]?.me ? "You are the champion!" : `${esc(s.rows[0]?.name ?? "")} takes the title.`}</p>` : `<p>Next: <b>${esc(s.next ?? "")}</b></p>`}
+      ${s.rows.length ? table(s.rows) : '<p class="dim">No rounds raced yet. Points: ' + [1, 2, 3, 4, 5].map((p) => pointsFor(p)).join(" · ") + ' ...</p>'}
+      <div class="bigbtns">${s.over ? '<button class="big yellow wide" id="champ-new">New season</button>' : '<button class="big yellow wide" id="champ-go">' + (s.round === 0 ? "Start the season" : "Next round") + '</button><button class="big" id="champ-quit">Abandon</button>'}</div>`;
+  }
+  return `${head}<p class="dim">${ROUNDS} races on linked tracks: same machine, same rivals, points for the places. Each round is a qualifier, then the race.</p></div></div>
+    ${difficultyTiles("cd", o.chosen, o.locks)}
+    <label>Machine</label>${dropdown("champ-vehicle", o.vehicle, o.vehicles.map((v) => ({ value: v.value, label: v.label })), { label: "Machine" })}
+    <div class="bigbtns"><button class="big yellow wide" id="champ-start">Start a season</button></div>`;
+}
+
+/** The tactic chips (attack, balanced, defend) for the start of a race or a pit stop. */
+export function tacticChips(id: string, current: Tactic): string {
+  return `<div class="chips tactics" role="group" aria-label="Tactic">${TACTICS.map((t) => `<button class="chip tac${t === current ? " on" : ""}" data-tac="${id}:${t}" title="${esc(TACTIC_INFO[t].blurb)}">${TACTIC_INFO[t].name}</button>`).join("")}</div>`;
 }

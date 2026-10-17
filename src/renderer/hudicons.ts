@@ -36,6 +36,9 @@ export function weatherGrid(rain: [boolean, boolean, boolean], px = 75, now = -1
 }
 
 /** A tall pill that fills from the bottom, with an icon on top: no numbers. */
+/** A thermometer, for the tyre temperature. */
+export const TEMP_ICON = svg('<path d="M10 4a2 2 0 0 1 4 0v9.2a4 4 0 1 1-4 0z"/><path d="M12 9v7"/>', 20);
+
 export function bubble(id: string, icon: string, frac: number, color: string, low: boolean): string {
   const pct = Math.max(0, Math.min(1, frac));
   return `<div class="bubble-bar${low ? " low" : ""}" id="${id}" style="--fill:${(pct * 100).toFixed(1)}%;--col:${color}"><div class="bb-tube"><i></i></div><div class="bb-ic">${icon}</div></div>`;

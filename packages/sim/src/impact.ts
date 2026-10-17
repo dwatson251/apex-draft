@@ -20,6 +20,10 @@ export interface Body {
   /** distance along the lap */
   s: number;
   radius: number;
+  /** the car's real size and the way it is pointing as drawn: with all three, contact is between two rectangles and not two discs */
+  length?: number;
+  width?: number;
+  h?: number;
   mass: number;
   /** stopped in its pit box: very hard to shift */
   anchored: boolean;
@@ -57,15 +61,44 @@ function shove(c: Body, dx: number, dy: number): void {
   c.x += dx; c.y += dy;
 }
 
+export interface Contact { nx: number; ny: number; depth: number }
+
+/**
+ * Whether two cars touch, and how: the way out of each other that takes the least (the contact normal, pointing from `a` to `b`) and how
+ * far in they are. Two rectangles of the cars' own length and width (separating axis test) when both have a size, so a long car's nose and
+ * tail count and nobody drives through a bumper; otherwise two discs.
+ */
+export function contact(a: Body, b: Body): Contact | null {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  if (a.length === undefined || a.width === undefined || b.length === undefined || b.width === undefined) {
+    const reach = a.radius + b.radius, d2 = dx * dx + dy * dy;
+    if (d2 >= reach * reach) return null;
+    const d = Math.sqrt(d2);
+    return { nx: d > 1e-6 ? dx / d : -Math.sin(a.hp), ny: d > 1e-6 ? dy / d : Math.cos(a.hp), depth: reach - d };
+  }
+  const ha = a.h ?? a.hp, hb = b.h ?? b.hp;
+  const ca = Math.cos(ha), sa = Math.sin(ha), cb = Math.cos(hb), sb = Math.sin(hb);
+  const hla = a.length / 2, hwa = a.width / 2, hlb = b.length / 2, hwb = b.width / 2;
+  let best = Infinity, bx = 0, by = 0;
+  // the four axes: each car's length and each car's width
+  for (const [ax, ay] of [[ca, sa], [-sa, ca], [cb, sb], [-sb, cb]] as const) {
+    const ra = hla * Math.abs(ax * ca + ay * sa) + hwa * Math.abs(ax * -sa + ay * ca);
+    const rb = hlb * Math.abs(ax * cb + ay * sb) + hwb * Math.abs(ax * -sb + ay * cb);
+    const dist = dx * ax + dy * ay, overlap = ra + rb - Math.abs(dist);
+    if (overlap <= 0) return null;
+    if (overlap < best) { best = overlap; bx = dist < 0 ? -ax : ax; by = dist < 0 ? -ay : ay; }
+  }
+  return { nx: bx, ny: by, depth: best };
+}
+
 /**
  * Resolve a contact between two cars, changing both. Returns the strength of the hit (the impulse), or -1 when they
  * are not touching.
  */
 export function impact(a: Body, b: Body): number {
-  const dx = b.x - a.x, dy = b.y - a.y, reach = a.radius + b.radius;
-  if (dx * dx + dy * dy >= reach * reach) return -1;
-  const d = Math.hypot(dx, dy);
-  const nx = d > 1e-6 ? dx / d : -Math.sin(a.hp), ny = d > 1e-6 ? dy / d : Math.cos(a.hp);
+  const hit = contact(a, b);
+  if (!hit) return -1;
+  const { nx, ny } = hit;
   const ma = a.mass * (a.anchored ? 8 : 1), mb = b.mass * (b.anchored ? 8 : 1);
   const va = velocity(a), vb = velocity(b);
   const closing = (vb.x - va.x) * nx + (vb.y - va.y) * ny; // negative when they are coming together
@@ -89,7 +122,7 @@ export function impact(a: Body, b: Body): number {
     lastImpact.closing = -closing; lastImpact.alignA = alignA; lastImpact.alignB = alignB;
   }
   // and prise them apart, so they do not sit inside each other: the lighter car moves more
-  const push = Math.max(0, reach - d - 0.15) * 0.9;
+  const push = Math.max(0, hit.depth - 0.15) * 0.9;
   if (push > 0) {
     shove(a, (-nx * push * mb) / (ma + mb), (-ny * push * mb) / (ma + mb));
     shove(b, (nx * push * ma) / (ma + mb), (ny * push * ma) / (ma + mb));

@@ -1,4 +1,4 @@
-import { Container, Graphics } from "pixi.js";
+import { Container, Graphics, Text } from "pixi.js";
 import { VEHICLES, type Vehicle, type VehicleId } from "@apex/sim";
 
 export interface CarShape { root: Container; body: Container; shadow: Graphics; brake: Graphics; /** the front tyres, turned to match the steering */ steer: Graphics[]; /** boats only: foam trailing the stern, drawn in world axes */ wake?: Graphics }
@@ -13,7 +13,18 @@ const shade = (c: number, k: number): number => {
 export const variantOf = (id: string): number => { let h = 2166136261; for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619); return (h >>> 0) % 2; };
 
 /** Top-down drawing of each machine, nose pointing along +x, centred on the origin. */
-export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: boolean, variant = 0): CarShape {
+export interface Livery {
+  primary: number;
+  secondary: number;
+  /** 0 none, 1 one stripe down the middle, 2 two stripes, 3 a band along each side */
+  stripe: 0 | 1 | 2 | 3;
+  /** 1 to 99 painted on the car; 0 for none */
+  number: number;
+}
+export const LIVERY_COLORS = [0xffcf3f, 0xff7a2f, 0xe9453b, 0xe86bb5, 0x9a6bff, 0x4a8fe8, 0x4fe0ff, 0x5ad07a, 0xf1f1f1, 0x8a8f9a, 0x2b2f3a, 0x14161c] as const;
+export const DEFAULT_LIVERY: Livery = { primary: 0xffcf3f, secondary: 0x14161c, stripe: 0, number: 0 };
+
+export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: boolean, variant = 0, livery?: Livery): CarShape {
   const v = typeof vehicle === "string" ? VEHICLES[vehicle] : vehicle;
   const L = v.length, W = v.width, hl = L / 2, hw = W / 2;
   // every car gets the same outline, so the player's is the same model as the rest; the player is marked by a halo around it instead
@@ -292,6 +303,31 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
   const body = new Container();
   if (isPlayer) body.addChild(new Graphics().circle(0, 0, Math.hypot(hl, hw) + 1.5).fill({ color: 0xbfe0ff, alpha: 0.1 }).stroke({ width: 0.8, color: 0xbfe0ff, alpha: 0.4 })); // a circle round the whole vehicle, whatever its shape
   body.addChild(wheelsBelow, g, brake);
+  if (livery && v.domain !== "water") {
+    const d = new Graphics();
+    // stripes run over the bonnet and the boot and leave the cabin clear, so they never cut across the glass; side stripes run along the flanks
+    const bar = (x0: number, x1: number, y0: number, y1: number) => d.rect(x0 * hl, y0 * hw, (x1 - x0) * hl, (y1 - y0) * hw).fill({ color: livery.secondary, alpha: 0.95 });
+    const ends = (y0: number, y1: number) => { bar(0.5, 0.94, y0, y1); bar(-0.94, -0.52, y0, y1); };
+    if (livery.stripe === 1) ends(-0.16, 0.16);
+    else if (livery.stripe === 2) { ends(-0.32, -0.17); ends(0.17, 0.32); }
+    else if (livery.stripe === 3) { bar(-0.7, 0.7, -0.8, -0.66); bar(-0.7, 0.7, 0.66, 0.8); }
+    body.addChild(d);
+    if (livery.number > 0) {
+      // a round plate on the roof, in the stripe colour, with the number in whichever of black and white reads better on it
+      const lum = (((livery.secondary >> 16) & 255) * 0.299 + ((livery.secondary >> 8) & 255) * 0.587 + (livery.secondary & 255) * 0.114) / 255;
+      const r = Math.min(hw * 0.62, hl * 0.24);
+      const plate = new Graphics().circle(0, 0, r).fill(livery.secondary).stroke({ width: Math.max(0.2, r * 0.1), color: DARK });
+      // (drawn large and scaled down, so it stays sharp however far the camera is zoomed in)
+      const t = new Text({ text: String(livery.number), resolution: 4, style: { fontSize: 64, fill: lum > 0.55 ? 0x14161c : 0xffffff, fontWeight: "900", fontFamily: "system-ui, Segoe UI, sans-serif" } });
+      t.anchor.set(0.5);
+      t.scale.set((r * (livery.number > 9 ? 1.35 : 1.05)) / 64 * 1);
+      const badge = new Container();
+      badge.addChild(plate, t);
+      badge.rotation = Math.PI / 2;
+      badge.position.set(-hl * 0.06, 0);
+      body.addChild(badge);
+    }
+  }
   const shadow = new Graphics().roundRect(-hl, -hw, L, W, 1.5).fill({ color: 0x000000, alpha: 0.32 });
   const root = new Container();
   let wake: Graphics | undefined;

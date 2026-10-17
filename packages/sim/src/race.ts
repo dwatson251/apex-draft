@@ -4,7 +4,9 @@ import { vehicleOf, type Vehicle } from "./vehicles.ts";
 import { impact, lastImpact } from "./impact.ts";
 import { botLine } from "./bots.ts";
 import { Rng } from "./rng.ts";
-import { COMPOUNDS, spinRate, tyreGrip, wearRate, type Compound } from "./tyres.ts";
+import { COMPOUNDS, TEMP_START, spinRate, tempGrip, tyreGrip, wearRate, type Compound } from "./tyres.ts";
+import { TACTIC_INFO, type Tactic } from "./tactics.ts";
+import { cornerCap } from "./quirks.ts";
 import { rainAt, raceDuration, weatherFor, type Weather } from "./weather.ts";
 import { WetField } from "./trackwet.ts";
 import type { Line } from "./line.ts";
@@ -80,11 +82,24 @@ const wrap = (a: number): number => { while (a > Math.PI) a -= 2 * Math.PI; whil
 /** Hits gentler than this make no sound. */
 const BUMP_MIN = 6;
 /** Sitting close behind another car cuts the air: how far back the slipstream reaches, and what it is worth at best. */
+/** A follower keeps this many seconds of its own speed as extra gap, on top of the bumper space, so a queue ahead braking does not surprise it. */
+const FOLLOW_HEADWAY = 0.1;
 export const DRAFT_RANGE = 42;
 export const DRAFT_TOP = 0.08;
 export const DRAFT_ACCEL = 0.3;
+/** The other side of a slipstream: in a bend, the air a car ahead has churned costs the car behind up to this share of its cornering speed, and heats its tyres. */
+export const DIRTY_AIR = 0.05;
+export const DIRTY_HEAT = 0.25;
+/** Tyre temperature (0 to 1, see `tempGrip`): it settles toward a target set by the road, how hard the tyre is worked and the air behind another car, over about this many seconds. */
+export const TEMP_TAU = 8;
+export const TEMP_WORK = 0.5;
+/** Cooler air and rain take the road's baseline temperature down. */
+const AMBIENT: Record<string, number> = { grass: 0.4, desert: 0.62, snow: 0.18, city: 0.46, moon: 0.1, water: 0.35 };
 /** A car counts as being on my path when its centre is this close to it. */
 const LATERAL = 8;
+/** The size of car the gaps above were chosen for (a rally car, about). */
+const REF_LEN = 8;
+const REF_WID = 3.4;
 const PLAN_STEP = 3;
 const PATH_MAX = 400;
 const NEAR_CELL = 80;
@@ -93,6 +108,9 @@ const COLLIDE_REACH = 20;
 const GHOST_LINGER = 1200;
 /** How close two cars are predicted to be before the one with less right of way backs off. */
 const PREDICT_GAP = 10;
+/** A car that has been stuck creeps forward keeping this much bumper space, and this much sideways room, to the cars round it (see `trafficLimit`). */
+const CREEP_GAP = 1.5;
+const CREEP_SIDE = 0.7;
 /**
  * A car that has sat still this long, wanting to go, stops giving way for a while (it still keeps its distance to whatever is ahead of it),
  * so a ring of cars each waiting on the next cannot freeze a junction.
@@ -101,8 +119,8 @@ const DEADLOCK_TICKS = 120;
 /** How long it gives way for, once it has been let off. */
 const DEADLOCK_FREE_TICKS = 150;
 /**
- * Stuck still for this long, a car stops looking at the others at all for PUSH_TICKS and simply drives on, so a jam can never hold the race.
- * It stays solid: it shoves what is in its way and takes the knocks, so nobody gets through on the strength of a collision.
+ * Stuck still for this long, a car creeps for PUSH_TICKS: it keeps only the bumper space and sideways room the cars round it really take (see
+ * CREEP_GAP), so it can edge up through a jam without ever touching anybody (nothing passes through anything), and a jam can never hold the race.
  */
 const PUSH_AFTER_TICKS = 300;
 const PUSH_TICKS = 150;
@@ -171,6 +189,8 @@ export interface RaceRules {
   weather?: boolean;
   /** slipstream behind another car (default on, in every mode) */
   draft?: boolean;
+  /** rubber an earlier session of the weekend left on the road (see `Race.rubberOut`) */
+  rubber?: Uint8Array;
   /** how many times faster fuel burns and tyres wear than normal (1 to MAX_WEAR_MULT; default 1) */
   wearMult?: { fuel: number; tyre: number };
   /** compounds every car must run at some point; each one missing from a finisher costs PIT_PENALTY */
@@ -185,7 +205,7 @@ export const clampWear = (x: unknown): number => {
 };
 
 /** A pit stop planned in advance: drive in at the end of this lap and come out on this tyre. */
-export interface PitStop { lap: number; tyre?: Compound }
+export interface PitStop { lap: number; tyre?: Compound; /** how to drive the stint that follows (kept as it was if left out) */ tactic?: Tactic }
 /** The most stops that can be queued at once (stops already made do not count). */
 export const MAX_PIT_STOPS = 5;
 
@@ -214,6 +234,8 @@ export interface Entrant {
   pitPlan?: PitStop[];
   /** tyre on the grid; medium if left out */
   startTyre?: Compound;
+  /** how to drive the first stint; balanced if left out */
+  startTactic?: Tactic;
   /** the fastest lap this entrant has set on this track; the grid is ordered by the quicker of that and its ideal lap */
   bestLap?: number;
   /** a grid place picked by the caller (0 = pole); entrants without one fill the rest in qualifying order, after those that have one */
@@ -223,7 +245,7 @@ export interface Entrant {
   /** instead of the grid, start this fraction of a lap (0 to 1) behind the line already rolling, as in practice and qualifying where the field is spread round the track */
   startFrac?: number;
   /** how a bot draws its lines, so that it can redraw them as the road changes */
-  bot?: { seed: number; skill: number };
+  bot?: { seed: number; skill: number; /** the lane it keeps to in a big field: see `BotLineOpts.lane` */ lane?: number };
   /** drive at this fraction of the car's pace, 1 if left out: how a bot is made easier */
   pace?: number;
 }
@@ -340,11 +362,25 @@ export interface RaceCar {
   /** beta at every tick */
   btrace: number[];
   radius: number;
+  /** the machine's real size (units), and the radius of the circle round the whole car: for a quick look at who could be touching */
+  length: number;
+  width: number;
+  circ: number;
   mass: number;
   anchored: boolean;
   compound: Compound;
   /** the tyre it will take at its next stop */
   nextTyre: Compound | null;
+  /** the tactic for the stint after the coming stop, if the plan sets one */
+  nextTactic: Tactic | null;
+  /** how the car is driving the stint it is on */
+  tactic: Tactic;
+  /** tyre temperature, 0 to 1 */
+  temp: number;
+  /** how much of a slipstream the car was in on the last tick (also the dirty air it is driving through in a bend) */
+  wake: number;
+  /** tyre temperature once a second of ticks, for the interface */
+  tmtrace: number[];
   /** 0 soft, 1 medium, 2 wet, at every tick */
   ctrace: number[];
   /** every compound it has run so far */
@@ -404,7 +440,7 @@ export class Race {
     this.maxTime = Math.max(900, laps * 100 + 300);
     this.rng = new Rng((track.seed ^ 0x5b17) >>> 0);
     this.weather = rules.weather === false ? { showers: [] } : weatherFor(track.seed, raceDuration(track, entrants[0]?.car.type ?? "rally", laps), track.biome);
-    this.field = new WetField(track);
+    this.field = new WetField(track, rules.rubber);
     const ranked = entrants
       .map((e, i) => ({ e, i, ideal: e.gridTime ?? Math.min(this.profile(e, 0).ideal, e.bestLap ?? Infinity) }))
       .sort((a, b) => +(a.e.startFrac !== undefined) - +(b.e.startFrac !== undefined) || a.ideal - b.ideal || a.i - b.i);
@@ -422,12 +458,14 @@ export class Race {
       ranked.splice(0, ranked.length, ...out, ...free);
     }
     const gridCols = ranked.length > 32 ? 4 : 2;
-    ranked.forEach(({ e }, slot) => {
+    ranked.forEach(({ e: given }, slot) => {
+      const e = this.laned(given, slot, gridCols);
       const p0 = this.profile(e, 0);
       // two columns, staggered: the pole car on the line, its neighbour half a row back on the other side, and so on back.
       // A field of more than 32 uses four, so the grid is not longer than the lap
       const col = slot % gridCols, row = Math.floor(slot / gridCols);
-      let back = GRID_GAP * row + (gridCols === 2 ? (col & 1) * (GRID_GAP / 2) : GRID_COLS4[col]![1]);
+      const rowGap = Math.max(GRID_GAP, vehicleOf(e.car.type).length + 8);
+      let back = rowGap * row + (gridCols === 2 ? (col & 1) * (rowGap / 2) : GRID_COLS4[col]![1]);
       const lateral = gridCols === 2 ? (col & 1 ? -GRID_SIDE : GRID_SIDE) : GRID_COLS4[col]![0];
       // on a bend the columns bunch up: slide back until this car is clear of everybody already on the grid
       const spot = (b: number) => {
@@ -439,7 +477,7 @@ export class Race {
       const spread = e.startFrac !== undefined && slot > 0;
       for (let i = 0; slot > 0 && !spread && i < (gridCols === 4 ? 200 : 60); i++) {
         const q = spot(back);
-        if (this.cars.every((o) => Math.hypot(q.x - o.x, q.y - o.y) > SAFE_GAP + 2)) break;
+        if (this.cars.every((o) => Math.hypot(q.x - o.x, q.y - o.y) > SAFE_GAP + 2 + (vehicleOf(e.car.type).length + o.length) / 2 - REF_LEN)) break;
         back += 2;
       }
       const at = spread ? { s0: p0.length * (1 - Math.min(0.98, Math.max(0.02, e.startFrac!))), off: 0 } : spot(back);
@@ -451,8 +489,8 @@ export class Race {
         trace: [], prog: [], vtrace: [], gtrace: [], ltrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
-        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, ctrace: [], used: [],
-        hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, btrace: [], radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, mass: vehicleOf(e.car.type).mass, anchored: false,
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, tactic: e.startTactic ?? "balanced", temp: TEMP_START, wake: 0, tmtrace: [], ctrace: [], used: [],
+        hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, btrace: [], radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
       };
       c.used.push(c.compound);
       if (slot === 0) this.startLap(c);
@@ -461,6 +499,20 @@ export class Race {
     });
     this.record();
   }
+
+  /**
+   * In a field of more than 32 (four abreast on the grid) every computer driver keeps to the lane of its grid column for the whole lap: parallel
+   * lanes never cross, so the field does not merge into one file, which at 256 cars would be longer than the lap and could never move.
+   */
+  private laned(e: Entrant, slot: number, gridCols: number): Entrant {
+    if (gridCols !== 4 || !e.bot || e.isPlayer) return e;
+    const lane = GRID_COLS4[slot % 4]![0] / ROAD_HALF;
+    this.forget(e.id);
+    return { ...e, lines: [botLine(this.track, e.bot.seed, e.bot.skill, { lane })], bot: { ...e.bot, lane } };
+  }
+
+  /** The rubber on the road now, to hand to the next session of the weekend. */
+  rubberOut(): Uint8Array { return this.field.rubberSnapshot(); }
 
   get time(): number { return this.tick * TICK; }
 
@@ -471,6 +523,7 @@ export class Race {
   }
   private wetOf(c: RaceCar): number { const i = this.cellOf(c); return i < 0 ? 0 : this.field.wet[i]!; }
   private useOf(c: RaceCar): number { const i = this.cellOf(c); return i < 0 ? 0 : this.field.use[i]!; }
+  private rubberOf(c: RaceCar): number { const i = this.cellOf(c); return i < 0 ? 0 : this.field.rubber[i]!; }
 
   /** The bridges of the track, if it has any (see levelsOf). */
   private levels: Int16Array | null = null;
@@ -496,7 +549,7 @@ export class Race {
     return this.build(e, lap, false, false, 1, 1);
   }
 
-  private build(e: Entrant, lap: number, pitIn: boolean, pitOut: boolean, grip: number, accel: number, tyre?: Compound): Profile {
+  private build(e: Entrant, lap: number, pitIn: boolean, pitOut: boolean, grip: number, accel: number, tyre?: Compound, tactic?: Tactic): Profile {
     // the surface scales what the car can do
     const veh = vehicleOf(e.car.type);
     grip *= terrainMul(this.biome.grip, veh.terrain); accel *= terrainMul(this.biome.accel, veh.terrain);
@@ -506,11 +559,11 @@ export class Race {
     if (gen !== this.profGen) { this.profiles.clear(); this.profGen = gen; }
     let idx = Math.min(Math.max(lap, 0), e.lines.length - 1);
     while (idx > 0 && !e.lines[idx]) idx--; // laps with no line of their own drive the last one that was set
-    const k = `${e.id}:${idx}:${+pitIn}${+pitOut}:${Math.round(grip * 200)}:${Math.round(accel * 200)}:${tyre ?? "-"}`;
+    const k = `${e.id}:${idx}:${+pitIn}${+pitOut}:${Math.round(grip * 200)}:${Math.round(accel * 200)}:${tyre ?? "-"}:${tactic ?? "-"}`;
     let p = this.profiles.get(k);
     if (!p) {
       const field = this.field;
-      p = buildProfile(this.track, e.lines[idx]!, e.car, { pace: e.pace, pitIn, pitOut, grip, accel, brake: terrainMul(this.biome.brake, veh.terrain), gripAt: tyre ? (x, y) => field.gripAt(tyre, x, y) : undefined });
+      p = buildProfile(this.track, e.lines[idx]!, e.car, { pace: e.pace === undefined && !tactic ? undefined : (e.pace ?? 1) * (tactic ? TACTIC_INFO[tactic].pace : 1), pitIn, pitOut, grip, accel, brake: terrainMul(this.biome.brake, veh.terrain), gripAt: tyre ? (x, y) => field.gripAt(tyre, x, y) : undefined });
       this.profiles.set(k, p);
     }
     return p;
@@ -524,7 +577,7 @@ export class Race {
     for (const c of this.cars) {
       const e = c.entrant;
       if (!e.bot || e.isPlayer || !this.alive(c)) continue;
-      const line = botLine(this.track, e.bot.seed + from * 7919, e.bot.skill, { compound: c.compound, field: this.field });
+      const line = botLine(this.track, e.bot.seed + from * 7919, e.bot.skill, { compound: c.compound, field: this.field, ...(e.bot.lane !== undefined ? { lane: e.bot.lane } : {}) });
       for (let k = 0; k < count; k++) e.lines[from + k] = line;
       this.forget(e.id);
       c.needProf = true;
@@ -552,10 +605,10 @@ export class Race {
     if (!this.rules.realism) return false;
     if (c.limp) return true;
     if (lap >= this.laps - 1) return false;
-    c.nextTyre = null;
+    c.nextTyre = null; c.nextTactic = null;
     if (c.entrant.isPlayer || c.entrant.pit || c.entrant.pitPlan) {
       const plan = c.entrant.pitPlan?.find((p) => p.lap === lap);
-      if (plan) { c.nextTyre = plan.tyre ?? null; return true; }
+      if (plan) { c.nextTyre = plan.tyre ?? null; c.nextTactic = plan.tactic ?? null; return true; }
       return !!c.entrant.pit?.[lap];
     }
     const perLap = this.fuelPerLapOf(c);
@@ -582,7 +635,7 @@ export class Race {
     if (!refresh) { c.pitOut = c.pitIn; c.pitDone = false; c.dwell = 0; c.bay = undefined; c.boxed = false; c.ready = false; }
     c.pitIn = this.decidePit(c, lap);
     const real = this.rules.realism;
-    c.prof = this.build(c.entrant, lap, c.pitIn, c.pitOut, real ? 1 - TYRE_GRIP_LOSS * (1 - c.tyre) : 1, real ? 1 - FUEL_MASS_ACCEL * (c.fuel / TANK) : 1, real ? c.compound : undefined);
+    c.prof = this.build(c.entrant, lap, c.pitIn, c.pitOut, real ? (1 - TYRE_GRIP_LOSS * (1 - c.tyre)) * tempGrip(c.compound, c.temp) : 1, real ? 1 - FUEL_MASS_ACCEL * (c.fuel / TANK) : 1, real ? c.compound : undefined, real ? c.tactic : undefined);
   }
 
   /** Sideways shift from a car's own line that puts it in its grid column, `lateral` units to one side of the middle of the road. */
@@ -618,7 +671,7 @@ export class Race {
     c.h = c.rec ? c.hp + c.psi : c.hp + Math.max(-0.6, Math.min(0.6, Math.atan2(c.offV, Math.max(c.v, 15)))) * 0.7 + c.beta;
     const power = p.ghost[indexAt(p, c.s)] === 1;
     // A ghost only turns solid once nobody is inside it, so the power-up never ends with two cars overlapping.
-    const sitting = c.ghost && this.cars.some((o) => o !== c && this.alive(o) && Math.hypot(o.x - c.x, o.y - c.y) < SAFE_GAP + 2 && !this.apart(c, o));
+    const sitting = c.ghost && this.cars.some((o) => o !== c && this.alive(o) && Math.hypot(o.x - c.x, o.y - c.y) < this.gap(c, o) + 2 && !this.apart(c, o));
     c.powered = power;
     c.ghost = power || (sitting && c.ghostFor++ < GHOST_LINGER);
     if (!c.ghost) c.ghostFor = 0;
@@ -633,6 +686,7 @@ export class Race {
       c.ltrace.push(this.levelOf(c));
       c.ftrace.push(Math.round(c.fuel * 10) / 10);
       c.ttrace.push(Math.round(c.tyre * 1000) / 1000);
+      c.tmtrace.push(Math.round(c.temp * 100) / 100);
       c.ctrace.push(c.compound === "soft" ? 0 : c.compound === "medium" ? 1 : 2);
       c.btrace.push(Math.round(c.beta * 1000) / 1000);
       c.ptrace.push(c.out ? 3 : c.dwell > 0 ? 2 : c.prof.lane[indexAt(c.prof, c.s)] ? 1 : 0);
@@ -648,6 +702,13 @@ export class Race {
   private pos(c: RaceCar): number {
     return c.prof.canon ? sampleAt(c.prof, c.prof.canon, c.s) : c.s;
   }
+
+  /**
+   * The gaps the traffic logic keeps are set for a car of REF_LEN by REF_WID; a longer or wider machine (a truck, a tank) needs more, and a shorter one
+   * (a kart) a little less: the centre-to-centre gap that leaves the same bumper space, and the sideways clearance that leaves the same room.
+   */
+  private gap(a: { length: number }, b: { length: number }): number { return SAFE_GAP + (a.length + b.length) / 2 - REF_LEN; }
+  private side(a: { width: number }, b: { width: number }): number { return (a.width + b.width) / 2 - REF_WID; }
 
   /** Who has right of way: further round the race first, the better grid slot on a tie. */
   private prio(c: RaceCar): number { return c.lap * 1e5 + this.pos(c) - c.slot * 1e-3; }
@@ -696,7 +757,8 @@ export class Race {
         const dx = o.x - c.x, dy = o.y - c.y, along = dx * hx + dy * hy;
         if (along < -SAFE_GAP / 2 || along > DODGE_REACH || Math.abs(dx) + Math.abs(dy) > DODGE_REACH * 1.5) continue;
         const lat = dx * nx + dy * ny + own; // how far the obstacle sits from my line
-        if (lat - DODGE_GAP < lim && lat + DODGE_GAP > -lim) blocked.push([lat - DODGE_GAP, lat + DODGE_GAP]);
+        const dg = DODGE_GAP + this.side(c, o);
+          if (lat - dg < lim && lat + dg > -lim) blocked.push([lat - dg, lat + dg]);
       }
       if (blocked.length) {
         const free = (a: number) => Math.abs(a) <= lim + 1e-6 && blocked.every(([lo, hi]) => a <= lo || a >= hi);
@@ -760,12 +822,12 @@ export class Race {
    * crossing or merging are given way to if they are further round the race, unless this car is wrecked and has to clear the road, or has
    * waited so long it has been let off (it still follows whatever is directly ahead of it).
    */
-  private trafficLimit(c: RaceCar, p: Profile, brake: number, racing: RaceCar[]): number {
+  private trafficLimit(c: RaceCar, p: Profile, brake: number, racing: RaceCar[], creep = false): number {
     let limit = Infinity;
     if (this.inPit(c)) return limit; // free to come in
     const yields = !c.rec && c.freeUntil <= this.tick;
     const b = brake * 0.6;
-    const reach = (c.v * c.v) / (2 * b) + SAFE_GAP + 20;
+    const reach = (c.v * c.v) / (2 * b) + SAFE_GAP + Math.max(0, c.length - REF_LEN) + 20;
     const mine = this.prio(c);
     if (yields && this.hasCross) limit = Math.min(limit, this.boxLimit(c, p, b, reach, racing));
     // my own path, worked out once for every car it is checked against
@@ -793,18 +855,21 @@ export class Race {
         }
       }
       let hit = -1;
+      // (a car that has been stuck "creeps": it keeps only the bumper space and sideways room the two cars really need, so it can edge up through a jam without touching)
+      const sideX = creep ? (c.width + o.width) / 2 + CREEP_SIDE - LATERAL : this.side(c, o), sg = creep ? (c.length + o.length) / 2 + CREEP_GAP : this.gap(c, o);
+      const predictGap = creep ? LATERAL + sideX : PREDICT_GAP + sideX;
       for (let k = 0; k < steps; k++) {
         const d = k * PLAN_STEP, px = this.pathX[k]!, py = this.pathY[k]!;
         let q = (px - o.x) * (px - o.x) + (py - o.y) * (py - o.y);
-        if (q < LATERAL * LATERAL) { hit = d; break; }
+        if (q < (LATERAL + sideX) * (LATERAL + sideX)) { hit = d; break; }
         // where it will be is on its own line, `o.v * d / speed` further along and (at most) as far off that line as it is now: when my
         // point is further than that from where it is, the prediction cannot bring it within PREDICT_GAP, so it is not worked out
-        const slack = PREDICT_GAP + (o.v * d) / speed + Math.abs(o.off + o.gridOff) + 2;
+        const slack = predictGap + (o.v * d) / speed + Math.abs(o.off + o.gridOff) + 2;
         if (q > slack * slack) continue;
         const ahead = o.s + (o.v * d) / speed;
         const ex = px - sampleAt(po, po.x, ahead), ey = py - sampleAt(po, po.y, ahead);
         q = ex * ex + ey * ey;
-        if (d > 0 && q < PREDICT_GAP * PREDICT_GAP) { hit = d; break; }
+        if (d > 0 && q < predictGap * predictGap) { hit = d; break; }
       }
       if (hit < 0) continue;
       // "ahead" is measured along the average of the two headings, so both cars agree on who is in front
@@ -820,7 +885,7 @@ export class Race {
       // Only a car clearly ahead is followed. Alongside, or crossing, the car further round the race has right of
       // way, which is a strict order and so can never leave two cars each waiting for the other. A car behind me
       // is its own driver's problem. A wreck has right of way over nobody, but everybody gives way to it.
-      const room = Math.sqrt(2 * b * Math.max(0, Math.min(hit, Math.hypot(dx, dy)) - SAFE_GAP));
+      const room = Math.sqrt(2 * b * Math.max(0, Math.min(hit, Math.hypot(dx, dy)) - sg - FOLLOW_HEADWAY * c.v));
       // (a recovering car gives way to nobody, not even to another wreck, so two of them cannot each wait for the other)
       const theirs = !c.rec && (o.rec || (yields && this.prio(o) > mine));
       if (cos > 0.3) {
@@ -945,7 +1010,7 @@ export class Race {
     // (there are no tyres on the water to let go)
     // on slicks in the wet the grip can simply go: a low chance, in a bend, of letting go altogether
     if (!water && this.rules.realism && this.rules.weather !== false && kap > 0.008 && c.v > 25) {
-      const g = tyreGrip(c.compound, this.wetOf(c), this.useOf(c));
+      const g = tyreGrip(c.compound, this.wetOf(c), this.useOf(c), this.rubberOf(c));
       const rate = spinRate(g);
       if (rate > 0 && this.rng.next() < rate * TICK) {
         const dir = this.rng.next() < 0.5 ? -1 : 1;
@@ -962,8 +1027,8 @@ export class Race {
     if (!this.rules.realism) return 1;
     const wear = 1 - TYRE_GRIP_LOSS * (1 - c.tyre);
     const cell = this.cellOf(c);
-    const road = cell < 0 ? tyreGrip(c.compound, 0, 0) : tyreGrip(c.compound, this.field.wet[cell]!, this.field.use[cell]!);
-    return Math.min(1, wear * road);
+    const road = cell < 0 ? tyreGrip(c.compound, 0, 0) : tyreGrip(c.compound, this.field.wet[cell]!, this.field.use[cell]!, this.field.rubber[cell]!);
+    return Math.min(1, wear * road * tempGrip(c.compound, c.temp));
   }
 
   /**
@@ -977,10 +1042,10 @@ export class Race {
     if (dh > Math.PI) dh -= 2 * Math.PI; else if (dh < -Math.PI) dh += 2 * Math.PI;
     const dir = Math.sign(dh);
     // how hard the bend asks, against the grip the tyres have now (worn, or wrong for the road, the path is slower but the tyres are nearer their limit)
-    const grip = this.gripLevel(c);
-    const demand = (p.kap[i]! * c.v * c.v) / Math.max(this.stats(c).aLat * grip, 1);
+    const grip = this.gripLevel(c), gm = p.gripMul[i]!;
+    const demand = (p.kap[i]! * c.v * c.v) / Math.max(cornerCap(c.entrant.car.type, this.stats(c).aLat * grip * gm, c.v), 1);
     // from nothing at 60% of the grip to the vehicle's own peak slip angle at all of it, and a wider angle on poor tyres
-    const widen = Math.min(SLIP_WIDEN_MAX, 1 + SLIP_PER_LOST_GRIP * (1 - grip));
+    const widen = Math.min(SLIP_WIDEN_MAX, 1 + SLIP_PER_LOST_GRIP * (1 - grip * Math.min(1, gm)));
     const want = dir * ((veh.slipDeg * Math.PI) / 180) * widen * Math.min(1, Math.max(0, (demand - 0.6) / 0.4));
     const recover = 2 + 2.5 * (1 - slip);
     const rate = Math.abs(want) > Math.abs(c.beta) && Math.sign(want) === Math.sign(c.beta || want) ? BETA_RISE : recover;
@@ -1004,7 +1069,7 @@ export class Race {
       const cand = this.near(A.x, A.y, 2 * COLLIDE_REACH).filter((B) => order.get(B)! > i).sort((a, b) => order.get(a)! - order.get(b)!);
       for (const B of cand) {
         if (A.ghost || B.ghost || A.finishTime !== null || B.finishTime !== null || this.inPit(A) || this.inPit(B) || this.apart(A, B)) continue;
-        const reach = A.radius + B.radius;
+        const reach = A.circ + B.circ;
         if ((A.x - B.x) ** 2 + (A.y - B.y) ** 2 >= reach * reach) continue;
         A.anchored = A.dwell > 0; B.anchored = B.dwell > 0;
         A.grip = this.traction(A); B.grip = this.traction(B);
@@ -1035,7 +1100,8 @@ export class Race {
   private traction(c: RaceCar): number {
     const veh = vehicleOf(c.entrant.car.type);
     let g = terrainMul(this.biome.grip, veh.terrain);
-    if (this.rules.realism) g *= tyreGrip(c.compound, this.wetOf(c), this.useOf(c)) * (1 - TYRE_GRIP_LOSS * (1 - c.tyre));
+    g *= c.prof.gripMul[indexAt(c.prof, c.s)]!;
+    if (this.rules.realism) g *= tyreGrip(c.compound, this.wetOf(c), this.useOf(c), this.rubberOf(c)) * (1 - TYRE_GRIP_LOSS * (1 - c.tyre)) * tempGrip(c.compound, c.temp);
     return g;
   }
 
@@ -1074,6 +1140,11 @@ export class Race {
     return near * speed * speed;
   }
 
+  /** What a tyre's temperature settles at with nothing asking anything of it: the road, cooled by rain. */
+  private ambient(): number {
+    return Math.max(0, (AMBIENT[this.biome.id] ?? 0.4) - 0.15 * Math.min(1, this.rain * 2));
+  }
+
   /** The car's stats on this surface. */
   private stats(c: RaceCar) {
     const st = carStats(c.entrant.car);
@@ -1088,8 +1159,9 @@ export class Race {
   private finishStop(c: RaceCar): void {
     c.fuel = TANK;
     if (c.emergency) { c.emergencies++; c.emergency = false; } // fuel only: the tyres stay as they are
-    else { c.tyre = 1; if (c.nextTyre) c.compound = c.nextTyre; if (!c.used.includes(c.compound)) c.used.push(c.compound); }
-    c.nextTyre = null;
+    else { c.tyre = 1; c.temp = this.ambient(); if (c.nextTyre) c.compound = c.nextTyre; if (!c.used.includes(c.compound)) c.used.push(c.compound); }
+    if (c.nextTactic) c.tactic = c.nextTactic;
+    c.nextTyre = null; c.nextTactic = null;
     c.limp = false;
     c.pits++;
     c.pitDone = true;
@@ -1151,6 +1223,12 @@ export class Race {
       // in a slipstream: a little more top speed (only where the car is at its top speed, not in a bend) and quicker acceleration
       const dr = this.draft(c, racing);
       if (dr > 0 && target >= st.vTop * 0.97) target *= 1 + DRAFT_TOP * dr;
+      // ... and in a bend the same air is churned: the less the road is straight, the more the car behind loses
+      else if (dr > 0) {
+        const demand = (sampleAt(p, p.kap, c.s) * c.v * c.v) / cornerCap(c.entrant.car.type, st.aLat, c.v);
+        target *= 1 - DIRTY_AIR * dr * Math.min(1, Math.max(0, (demand - 0.4) / 0.5));
+      }
+      c.wake = dr;
       if (c.limp) target = Math.min(target, LIMP_SPEED);
       const stopping = c.pitIn && !c.pitDone && p.pitS !== undefined;
       if (stopping && c.bay === undefined && p.pitS! - c.s <= BAY_PICK) c.bay = this.freeBay(c);
@@ -1160,14 +1238,14 @@ export class Race {
       if (!c.ghost) {
         this.dodge(c, p, racing);
         // on a clear road nobody is about to get in the way within a few ticks, so the look round is done every third tick; near anyone, every tick
-        if (c.tlVal !== Infinity || this.tick - c.tlAt >= 3 || c.rec) { c.tlVal = this.trafficLimit(c, p, st.brake, racing); c.tlAt = this.tick; }
-        if (c.pushUntil <= this.tick) target = Math.min(target, c.tlVal);
+        if (c.tlVal !== Infinity || this.tick - c.tlAt >= 3 || c.rec) { c.tlVal = this.trafficLimit(c, p, st.brake, racing, c.pushUntil > this.tick); c.tlAt = this.tick; }
+        target = Math.min(target, c.tlVal);
       }
       else if (c.ghost && !c.powered) {
         // lingering: get out from inside whoever is still there, by dropping back from a car ahead
         const hx = Math.cos(c.h), hy = Math.sin(c.h);
         for (const o of racing) {
-          if (o === c || o.ghost || Math.hypot(o.x - c.x, o.y - c.y) >= SAFE_GAP + 2 || this.apart(c, o)) continue;
+          if (o === c || o.ghost || Math.hypot(o.x - c.x, o.y - c.y) >= this.gap(c, o) + 2 || this.apart(c, o)) continue;
           if ((o.x - c.x) * hx + (o.y - c.y) * hy > 0) target = Math.min(target, Math.max(0, o.v - 14));
         }
       }
@@ -1177,7 +1255,7 @@ export class Race {
         // at the side of the road, waiting for the pack to go by
         if (c.park !== 0 && Math.abs(c.off - c.park) < 2 && Math.abs(c.psi) < 0.3) target = 0;
       }
-      let v = c.v > target ? Math.max(target, c.v - st.brake * TICK) : Math.min(target, c.v + st.accel * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * launchMul(c, st.vTop) * TICK);
+      let v = c.v > target ? Math.max(target, c.v - st.brake * p.brakeMul[i]! * TICK) : Math.min(target, c.v + st.accel * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * launchMul(c, st.vTop) * TICK);
       // a car pointing the wrong way slows down, and one that is sliding travels along the line only as far as its direction takes it
       let s = c.s + (c.rec ? v * Math.cos(c.phi) : v) * TICK;
       if (stopping && !c.boxed && c.bay !== undefined && stopS - s < 0.5 && v < 5) { s = stopS; v = 0; arrived.push(c); }
@@ -1188,7 +1266,7 @@ export class Race {
       const p = c.prof;
       if (!c.boxed && c.dwell === 0 && n.v < 1 && c.v < 1 && sampleAt(p, p.vLim, c.s) > 5) {
         if (++c.stuck > DEADLOCK_TICKS && c.freeUntil <= this.tick) c.freeUntil = this.tick + DEADLOCK_FREE_TICKS;
-        if (c.stuck > PUSH_AFTER_TICKS) { c.pushUntil = this.tick + PUSH_TICKS; c.stuck = 0; }
+        if (c.stuck > PUSH_AFTER_TICKS) { c.pushUntil = this.tick + PUSH_TICKS; c.stuck = 0; c.tlAt = -1e9; }
       } else c.stuck = 0;
     }
     this.tick++;
@@ -1201,10 +1279,14 @@ export class Race {
       if (c.gridOff !== 0 && moved > 0) c.gridOff = Math.abs(c.gridOff) < 0.01 ? 0 : c.gridOff * Math.exp(-moved / 30);
       if (this.rules.realism && moved > 0) {
         const p = c.prof;
-        c.fuel = Math.max(0, c.fuel - moved * c.perUnit * this.biome.fuel * clampWear(this.rules.wearMult?.fuel));
+        c.fuel = Math.max(0, c.fuel - moved * c.perUnit * TACTIC_INFO[c.tactic].fuel * this.biome.fuel * clampWear(this.rules.wearMult?.fuel));
         const st = this.stats(c);
-        const load = Math.min(1.2, (p.kap[indexAt(p, c.s)]! * c.v * c.v) / st.aLat);
-        c.tyre = Math.max(0, c.tyre - moved * TYRE_WEAR_PER_UNIT * raceScale(this.laps * this.lapLen).wearScale * c.wearMul * this.biome.wear * clampWear(this.rules.wearMult?.tyre) * wearRate(c.compound, this.wetOf(c)) * (0.4 + 1.2 * load * load) / 0.6);
+        const load = Math.min(1.2, (p.kap[indexAt(p, c.s)]! * c.v * c.v) / cornerCap(c.entrant.car.type, st.aLat, c.v));
+        const tac = TACTIC_INFO[c.tactic];
+        c.tyre = Math.max(0, c.tyre - moved * TYRE_WEAR_PER_UNIT * raceScale(this.laps * this.lapLen).wearScale * c.wearMul * tac.wear * this.biome.wear * clampWear(this.rules.wearMult?.tyre) * wearRate(c.compound, this.wetOf(c)) * (0.4 + 1.2 * load * load) / 0.6);
+        // the tyre warms with the work it does and with the dirty air it drives through, and settles toward that over a few seconds
+        const goal = this.ambient() + (TEMP_WORK * load * load + DIRTY_HEAT * c.wake) * tac.heat;
+        c.temp += (goal - c.temp) * Math.min(1, TICK / TEMP_TAU);
       }
       this.settle(c);
       let p = c.prof;

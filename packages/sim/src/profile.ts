@@ -1,4 +1,8 @@
 import { carStats, type CarConfig } from "./car.ts";
+import { quirksOf } from "./quirks.ts";
+import { terrainMul } from "./biomes.ts";
+import { GRADE_ACCEL, GRADE_BRAKE, GRADE_TOP, SURFACES } from "./landscape.ts";
+import { vehicleOf } from "./vehicles.ts";
 import { lapCurve, type Line } from "./line.ts";
 import { PIT_SPEED } from "./pit.ts";
 import { applyPit } from "./pitpath.ts";
@@ -29,6 +33,10 @@ export interface Profile {
   /** speed limit after braking for what is ahead */
   vLim: Float64Array;
   accelMul: Float64Array;
+  /** braking at each sample relative to the car's own (hills, rough surface); 1 on the flat and on tarmac */
+  brakeMul: Float64Array;
+  /** grip at each sample relative to tarmac (rough surface, banking); 1 on ordinary road */
+  gripMul: Float64Array;
   ghost: Uint8Array;
   /** time for a flying lap on this line, seconds */
   ideal: number;
@@ -69,6 +77,7 @@ const PINCH_SPEED = 5.2;
 
 export function buildProfile(track: Track, line: Line, car: CarConfig, opts: ProfileOpts = {}): Profile {
   const st = carStats(car);
+  const q = quirksOf(car.type);
   st.aLat *= opts.grip ?? 1;
   st.brake *= opts.brake ?? 1;
   const pace = opts.pace ?? 1;
@@ -166,6 +175,32 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     }
   }
 
+  // the ground: hills change how hard it is to speed up and to stop, a rough surface takes grip, a bank adds it
+  const brakeMul = new Float64Array(n).fill(1);
+  if (track.allSegments.some((g) => g.elev || g.surface || g.bank)) {
+    const veh = vehicleOf(car.type);
+    const ability = Math.max(veh.terrain, q.rough ?? 0);
+    const z = new Float64Array(n);
+    let hilly = false;
+    for (let i = 0; i < n; i++) {
+      const g = track.allSegments[seg[i]!]!;
+      if (g.surface) {
+        const f = SURFACES[g.surface];
+        gripMul[i] = gripMul[i]! * terrainMul(f.grip, ability); accelMul[i] = accelMul[i]! * terrainMul(f.accel, ability); brakeMul[i] = terrainMul(f.brake, ability);
+      }
+      if (g.bank) gripMul[i] = gripMul[i]! * g.bank;
+      if (g.elev) { z[i] = heightAt(g.center, g.elev, x[i]!, y[i]!); hilly = true; }
+    }
+    if (hilly) {
+      for (let i = 0; i < n; i++) {
+        const slope = (z[(i + 3) % n]! - z[(i + n - 3) % n]!) / (6 * ds);
+        topMul[i] = topMul[i]! * Math.min(1.06, Math.max(0.92, 1 - GRADE_TOP * slope));
+        accelMul[i] = accelMul[i]! * Math.min(1.3, Math.max(0.6, 1 - GRADE_ACCEL * slope));
+        brakeMul[i] = brakeMul[i]! * Math.min(1.3, Math.max(0.6, 1 + GRADE_BRAKE * slope));
+      }
+    }
+  }
+
   // speed limits: top speed and cornering grip, then braking ahead of slow parts (twice round, it is a loop)
   const vLim = new Float64Array(n);
   const kap = new Float64Array(n);
@@ -182,7 +217,9 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     const kk = wrapBreak && (i < 4 || i >= n - 4) ? 0 : kappa;
     kap[i] = kk;
     const here = opts.gripAt ? opts.gripAt(x[i]!, y[i]!) : 1;
-    vLim[i] = Math.min(st.vTop * topMul[i]!, Math.sqrt((st.aLat * gripMul[i]! * here) / Math.max(kk, 1e-4)));
+    // (with downforce the cornering force grows with the square of the speed, so v² · kap = grip + df · v², which solves directly)
+    const bend = Math.max(kk - (q.downforce ?? 0), 1e-4);
+    vLim[i] = Math.min(st.vTop * topMul[i]!, Math.sqrt((st.aLat * (1 + (q.lean ?? 0)) * gripMul[i]! * here) / bend));
     // a bottleneck is taken carefully
     if (half[i]! < PINCH_FREE) vLim[i] = Math.min(vLim[i]!, PINCH_SPEED * half[i]!);
     if (lane[i]) vLim[i] = Math.min(vLim[i]!, PIT_SPEED);
@@ -190,7 +227,10 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   for (let pass = 0; pass < 2; pass++) {
     for (let k = n - 1; k >= 0; k--) {
       const nxt = vLim[(k + 1) % n]!;
-      vLim[k] = Math.min(vLim[k]!, Math.sqrt(nxt * nxt + 2 * st.brake * ds));
+      // (braking into a bend that is already at the limit costs a heavy machine some of its braking: its weight is on the wrong wheels)
+      const brake0 = st.brake * brakeMul[k]!;
+      const brake = q.shift ? brake0 * (1 - q.shift * Math.min(1, (kap[(k + 1) % n]! * nxt * nxt) / (st.aLat * (1 + (q.lean ?? 0)) * (gripMul[(k + 1) % n]!) + (q.downforce ?? 0) * nxt * nxt))) : brake0;
+      vLim[k] = Math.min(vLim[k]!, Math.sqrt(nxt * nxt + 2 * brake * ds));
     }
   }
   // flying-lap time with the acceleration limit
@@ -205,7 +245,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   for (let k = 0; k < n; k++) ideal += ds / Math.max((v[k]! + v[(k + 1) % n]!) / 2, 1);
   let pitFromS: number | undefined;
   if (pitIn) for (let i = 0; i < n; i++) if (lane[i] && i > n / 2) { pitFromS = i * ds; break; }
-  return { n, ds, length: total, x, y, h, seg, half, canon, vLim, accelMul, ghost, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
+  return { n, ds, length: total, x, y, h, seg, half, canon, vLim, accelMul, brakeMul, gripMul, ghost, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
 }
 
 /** Linear lookup into a per-sample array at arclength s (wrapping, unless the lap is open: then it stops at the ends). */
@@ -225,4 +265,23 @@ export function sampleAt(p: Profile, arr: Float64Array, s: number): number {
 export function indexAt(p: Profile, s: number): number {
   if (p.open) return Math.min(p.n - 1, Math.max(0, Math.floor(s / p.ds + 0.5)));
   return Math.floor((((s % p.length) + p.length) % p.length) / p.ds + 0.5) % p.n;
+}
+
+
+/** Height at a point near a segment's centreline: the nearest bit of the centreline, eased between its two neighbouring centre points. */
+function heightAt(center: { x: number; y: number }[], elev: number[], x: number, y: number): number {
+  let k = 0, bd = Infinity;
+  for (let i = 0; i < center.length; i++) {
+    const d = (center[i]!.x - x) ** 2 + (center[i]!.y - y) ** 2;
+    if (d < bd) { bd = d; k = i; }
+  }
+  const side = (j: number): number => {
+    if (j < 0 || j >= center.length) return NaN;
+    const a = center[k]!, b = center[j]!, ex = b.x - a.x, ey = b.y - a.y, len2 = ex * ex + ey * ey;
+    return len2 < 1e-9 ? 0 : ((x - a.x) * ex + (y - a.y) * ey) / len2;
+  };
+  const tp = side(k + 1), tm = side(k - 1);
+  if (tp >= 0 && tp <= 1) return elev[k]! + (elev[k + 1]! - elev[k]!) * tp;
+  if (tm >= 0 && tm <= 1) return elev[k]! + (elev[k - 1]! - elev[k]!) * tm;
+  return elev[k]!;
 }

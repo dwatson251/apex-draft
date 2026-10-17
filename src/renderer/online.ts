@@ -1,4 +1,4 @@
-import { defaultName, isComplete, linesFromWire, lineToWire, normalizePhrase, sanitiseName, validateLine, type CarConfig, type Compound, type Line, type Track } from "@apex/sim";
+import { defaultName, isComplete, linesFromWire, lineToWire, normalizePhrase, sanitiseName, validateLine, type CarConfig, type Compound, type Line, type Tactic, type Track } from "@apex/sim";
 import { load, save } from "./store.ts";
 
 /**
@@ -122,16 +122,26 @@ export class Online {
   // ---------- uploads ----------
   /** Send the player's line to be timed and ranked. Fire and forget. */
   uploadLine(phrase: string, vehicle: string, car: CarConfig, line: Line): void {
-    void (async () => {
+    this.upload = (async () => {
       if (!(await this.ensureRegistered())) return;
       await this.call("POST", "/lines", { phrase: normalizePhrase(phrase), vehicle, car, lines: [lineToWire(line)] });
     })();
+  }
+  private upload: Promise<void> = Promise.resolve();
+
+  /** The Daily board for a day: the top times and the player's own place, once their latest line has been sent. Null if the server cannot be reached. */
+  async daily(date: string): Promise<{ top: { name: string; time: number; me: boolean }[]; rank: number | null; total: number } | null> {
+    await this.upload.catch(() => {});
+    if (!(await this.ensureRegistered())) return null;
+    const r = await this.call("GET", `/daily?date=${encodeURIComponent(date)}`);
+    if (!r || !Array.isArray(r.top)) return null;
+    return { top: r.top.slice(0, 20).map((x: { name?: unknown; time?: unknown; me?: unknown }) => ({ name: sanitiseName(x.name) || "Driver", time: Number(x.time), me: !!x.me })), rank: typeof r.rank === "number" ? r.rank : null, total: Number(r.total) || 0 };
   }
 
   /** Send a finished race to be replayed on the server. Fire and forget. */
   uploadRace(r: {
     kind: "quick" | "weekend"; phrase: string; vehicle: string; car: CarConfig; laps: number; rivals: number; realism: boolean; lines: Line[];
-    wearFuel?: number; wearTyre?: number; mandatory?: Compound[]; startTyre?: Compound; pitPlan?: { lap: number; tyre?: Compound }[]; ghostIds: string[];
+    wearFuel?: number; wearTyre?: number; mandatory?: Compound[]; startTyre?: Compound; startTactic?: Tactic; pitPlan?: { lap: number; tyre?: Compound; tactic?: Tactic }[]; ghostIds: string[];
   }): void {
     // the distinct lines, and which each lap used (an amended lap has a different line from there on)
     const distinct: Line[] = [], lapLine: number[] = [];
@@ -145,7 +155,7 @@ export class Online {
       if (!(await this.ensureRegistered())) return;
       await this.call("POST", "/results", {
         kind: r.kind, phrase: normalizePhrase(r.phrase), vehicle: r.vehicle, car: r.car, lines: distinct.map(lineToWire), lapLine, laps: r.laps, rivals: r.rivals, realism: r.realism,
-        wearFuel: r.wearFuel, wearTyre: r.wearTyre, mandatory: r.mandatory, startTyre: r.startTyre, pitPlan: r.pitPlan, ghostIds: r.ghostIds,
+        wearFuel: r.wearFuel, wearTyre: r.wearTyre, mandatory: r.mandatory, startTyre: r.startTyre, startTactic: r.startTactic, pitPlan: r.pitPlan, ghostIds: r.ghostIds,
       });
     })();
   }

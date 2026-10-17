@@ -54,6 +54,25 @@
   acceleration. `RaceRules.draft = false` switches it off (tests only). The traffic logic still stops a follower closing
   inside the safe gap, so drafting helps it keep up and close in, and does not by itself pass cars.
 
+- **Dirty air.** The same `dr` also costs the car behind in a bend: its target speed is cut by `DIRTY_AIR` (5%) times `dr` times how hard
+  the bend asks of the car (from the profile's curvature), and its tyres run hotter.
+
+## Tyre temperature, tactics and rubber
+- A tyre's temperature (0 to 1) settles toward `ambient + work * load² + DIRTY_HEAT * wake` (times the tactic's heat), over `TEMP_TAU`
+  seconds. Each compound has a window; outside it `tempGrip` costs up to `TEMP_GRIP_LOSS` (8%). It starts at `TEMP_START` and
+  resets to the road's temperature on new tyres. Realism only. Wear is not changed by temperature.
+- A tactic (`tactics.ts`) sets pace, wear, heat and fuel for a stint; it changes only at the start and at a pit stop (`Entrant.startTactic`,
+  `PitStop.tactic`).
+- `WetField` has a third channel, rubber: each pass over a dry bin lays some (`RUBBER_GAIN`), rain washes it off, and up to `RUBBER_GRIP`
+  (4%) extra dry grip comes of it. A weekend carries it from one session to the next.
+
+## Hills, surfaces, banking, tunnels, night
+- `landscape.ts` adds optional per-segment data after a track is built, from its own random stream: `elev` (hills; gate heights come from the
+  ring's two lowest waves, so the loop closes), `surface`, `bank`, `tunnel`. A missing field is flat tarmac in the open. The profile turns
+  them into per-sample `accelMul`, `brakeMul`, `gripMul` and a top-speed factor; the live path reads the same arrays.
+- `quirks.ts` holds per-machine downforce (`v² · kap = grip + df · v²`, solved in closed form), lean, weight transfer and rough-surface ability.
+- `isNight(seed)` is for the renderer only.
+
 ## Collisions
 - Cars still try not to touch (`trafficLimit`), and when they do, `impact.ts` decides what happens: an impulse along the
   line between the two centres, shared by mass (`vehicles.ts` has a mass per class). Each car also has a sideways offset
@@ -62,7 +81,16 @@
   sideways and costs both a lot of speed (the striker's impulse is along its own heading, so it keeps its line).
 - A car carrying more speed than the bend allows (after being shoved into a braking zone) is pulled outward by the grip it
   lacks and runs wide. The same mechanism makes a slick-shod car spin in the wet.
-- `tests/collision.test.ts` tests the rules on hand-built geometry, then inside a race.
+- Contact is between two **rectangles** of each machine's own length and width, pointing the way the car is drawn (separating axis test in
+  `contact`, `impact.ts`); the response is along the shortest way out. A body with no size falls back to a disc (hand-built tests).
+- The gaps the traffic logic keeps (`SAFE_GAP`, `LATERAL`, `PREDICT_GAP`) are set for a car of `REF_LEN` by `REF_WID` and grow or shrink with the
+  length and width of the two cars (`gap`, `side`), and the grid's row spacing grows with the car's length. A follower also keeps `FOLLOW_HEADWAY`
+  (0.1 s of its speed) of extra gap.
+- **Big fields.** In a field of more than 32 (four abreast) every computer driver keeps to the lane of its grid column all the way round
+  (`BotLineOpts.lane`: a fixed share of the road's width): 256 cars in single file are longer than a lap and could never move, so lanes never
+  merge. A car that has been stuck for `PUSH_AFTER_TICKS` *creeps* for a while (`CREEP_GAP`, `CREEP_SIDE`): it keeps only the bumper space and
+  sideways room the two cars physically need, so a jam clears without anyone passing through or shoving anyone.
+- `tests/collision.test.ts` tests the rules on hand-built geometry, then inside a race; `tests/fieldsize.test.ts` starts 128 cars and checks the lanes.
 
 ## Tyres, weather and a drying track
 - `tyres.ts`: soft, medium and wet compounds, `tyreGrip(compound, wet, use)` and `wearRate`. `weather.ts`: showers laid out

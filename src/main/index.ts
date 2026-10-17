@@ -22,7 +22,7 @@ const dataDir = () => {
 };
 
 /** Only keys we know about may reach the disk, and only as plain file names. */
-const KEYS = new Set(["settings", "cars", "best", "records", "identity"]);
+const KEYS = new Set(["settings", "cars", "best", "records", "lines", "daily", "championship", "challenges", "identity"]);
 const fileFor = (key: string) => join(dataDir(), `${key}.json`);
 
 function trusted(e: IpcMainInvokeEvent): boolean {

@@ -116,7 +116,7 @@ describe("a wet track", () => {
     const f = new WetField(t);
     for (const p of onLine(60)) expect(f.cellAt(p.x, p.y)).toBeGreaterThanOrEqual(0);
     expect(f.cellAt(-500, -500)).toBe(-1);
-    expect(f.snapshot().length).toBe(f.cells * 2);
+    expect(f.snapshot().length).toBe(f.cells * 3);
     expect(randomPhrase(new Rng(1)).length).toBeGreaterThan(5);
   });
 });

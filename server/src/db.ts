@@ -90,6 +90,14 @@ export class Db {
       WHERE e.track_key = ? AND e.vehicle = ? AND e.sim_version = ? AND e.player_id != ? ORDER BY e.time ASC LIMIT ?`).all(trackKey, vehicle, SIM_VERSION, exclude ?? "", limit) as unknown as EntryRow[];
   }
 
+  /** The top of a track's board in a machine, with this player's own place whether or not they are in it. */
+  dailyBoard(trackKey: string, vehicle: string, playerId: string, limit: number): { top: { name: string; time: number; me: boolean }[]; rank: number | null; total: number } {
+    const rows = this.sql.prepare(`SELECT e.player_id, p.name, e.time FROM entries e JOIN players p ON p.id = e.player_id
+      WHERE e.track_key = ? AND e.vehicle = ? AND e.sim_version = ? ORDER BY e.time ASC`).all(trackKey, vehicle, SIM_VERSION) as unknown as { player_id: string; name: string; time: number }[];
+    const at = rows.findIndex((r) => r.player_id === playerId);
+    return { top: rows.slice(0, limit).map((r) => ({ name: r.name, time: r.time, me: r.player_id === playerId })), rank: at < 0 ? null : at + 1, total: rows.length };
+  }
+
   // ---------- ghosts for a replay ----------
   /** The entries of these players on a track in a machine (current ruleset), for the ids a result names. */
   entriesFor(trackKey: string, vehicle: string, ids: string[]): EntryRow[] {

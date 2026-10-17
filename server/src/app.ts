@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { gzipSync } from "node:zlib";
-import { MAX_RACE_LAPS, MAX_RACE_RIVALS, SIM_VERSION, circuitFor, defaultName, isComplete, isVehicleId, normalizePhrase, placeFor, sanitiseName, validateLine, cachedTrack, type Line, type TrialResult } from "@apex/sim";
+import { dailyDate, dailyPhrase, isDateKey, withinDays, MAX_RACE_LAPS, MAX_RACE_RIVALS, SIM_VERSION, circuitFor, defaultName, isComplete, isVehicleId, normalizePhrase, placeFor, sanitiseName, validateLine, cachedTrack, type Line, type TrialResult } from "@apex/sim";
 import { Db, type EntryRow, type TrackInfo } from "./db.ts";
 import { pickAround } from "./ghosts.ts";
 import type { Runner } from "./pool.ts";
@@ -126,6 +126,16 @@ export function createApp(cfg: AppConfig): Server {
       return send(req, res, 200, { ok: true, track: t.key, time: r.time, best: out.best, improved: out.improved, rank: out.rank });
     }
 
+    if (api === "/daily" && req.method === "GET") {
+      if (!limiter.take(`dy:${me.id}`, 10, 60, 60_000)) throw new HttpError(429, "slow down");
+      const today = dailyDate(new Date());
+      const date = url.searchParams.get("date") ?? today;
+      if (!isDateKey(date) || !withinDays(date, today)) throw new HttpError(400, "that day is not open");
+      // the day's track is a function of the date, the same one the game works out; its board is the ordinary board for that track and machine
+      const phrase = dailyPhrase(date), vehicle = placeFor(phrase).vehicle, t = trackInfo(phrase);
+      return send(req, res, 200, { date, phrase, vehicle, simVersion: SIM_VERSION, ...db.dailyBoard(t.key, vehicle, me.id, 20) });
+    }
+
     if (api === "/ghosts" && req.method === "GET") {
       if (!limiter.take(`gh:${me.id}`, 10, 60, 60_000)) throw new HttpError(429, "slow down");
       const phrase = url.searchParams.get("phrase") ?? "", vehicle = url.searchParams.get("vehicle") ?? "";
@@ -158,7 +168,7 @@ export function createApp(cfg: AppConfig): Server {
       for (const l of parsed.lines) if (!isComplete(track, l) || !validateLine(track, l).ok) throw new HttpError(422, "a line does not go all the way round or leaves the road");
       const id = db.addResult(me.id, t.key, kind, b["vehicle"], {
         car: b["car"], lines: b["lines"], lapLine, laps, rivals, realism: !!b["realism"], wearFuel: b["wearFuel"], wearTyre: b["wearTyre"], mandatory: b["mandatory"],
-        startTyre: b["startTyre"], pitPlan: b["pitPlan"], ghostIds: Array.isArray(b["ghostIds"]) ? b["ghostIds"].slice(0, 31) : [],
+        startTyre: b["startTyre"], startTactic: b["startTactic"], pitPlan: b["pitPlan"], ghostIds: Array.isArray(b["ghostIds"]) ? b["ghostIds"].slice(0, 31) : [],
       });
       return send(req, res, 202, { ok: true, id });
     }

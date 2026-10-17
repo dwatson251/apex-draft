@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { impact, type Body } from "@apex/sim";
+import { contact, impact, type Body } from "@apex/sim";
 
 const car = (o: Partial<Body>): Body => ({ x: 0, y: 0, hp: 0, v: 0, off: 0, offV: 0, s: 100, radius: 3.5, mass: 1, anchored: false, ...o });
 
@@ -164,7 +164,7 @@ describe("in a race", () => {
     const { r, run } = lab(2, [{ s: 40, v: 60, off: -2.5, offV: 2 }, { s: 40, v: 60, off: 2.5, offV: -2 }]);
     run(0.1);
     const [a, b] = r.cars as [typeof r.cars[0], typeof r.cars[0]];
-    expect(Math.abs(a.off - b.off)).toBeGreaterThan(5);     // pushed apart, not sitting inside each other
+    expect(Math.abs(a.off - b.off)).toBeGreaterThan(3.4);   // pushed apart by more than a car is wide, not sitting inside each other
     expect(Math.sign(a.offV)).toBe(-Math.sign(b.offV));
   });
 
@@ -222,5 +222,34 @@ describe("recovering from a hit", () => {
     expect(backed).toBe(true);
     expect(c.rec).toBe(false);
     expect(Math.abs(c.off)).toBeLessThan(1.5);
+  });
+});
+
+describe("touching means the car's own size", () => {
+  const sized = (o: Partial<Body>): Body => car({ length: 8, width: 3.2, h: 0, radius: 2.8, ...o });
+  it("counts a nose and a tail: two cars 8 long, 7 apart nose to tail, are in each other", () => {
+    expect(contact(sized({ x: 0 }), sized({ x: 7 }))).not.toBeNull();
+    expect(contact(sized({ x: 0 }), sized({ x: 8.2 }))).toBeNull(); // the old discs (5.6) would have called 7 clear
+  });
+  it("counts their width: side by side, 3 apart touches, 3.4 does not", () => {
+    expect(contact(sized({ x: 0, y: 0 }), sized({ x: 0, y: 3 }))).not.toBeNull();
+    expect(contact(sized({ x: 0, y: 0 }), sized({ x: 0, y: 3.4 }))).toBeNull();
+  });
+  it("follows the way each car points, and pushes along the shortest way out", () => {
+    const hit = contact(sized({ x: 0 }), sized({ x: 7.2, y: 0.3 }))!;
+    expect(Math.abs(hit.nx)).toBeGreaterThan(0.99); // a nose-to-tail touch pushes along the cars
+    expect(hit.depth).toBeCloseTo(0.8, 1);
+    const crossed = contact(sized({ x: 0 }), sized({ x: 4, y: 0, h: Math.PI / 2 }))!; // a T-bone: the striker's nose into the other's flank
+    expect(crossed).not.toBeNull();
+    expect(contact(sized({ x: 0 }), sized({ x: 9.2, y: 0, h: Math.PI / 2 }))).toBeNull();
+  });
+  it("separates two overlapping cars by their depth and no more", () => {
+    const a = sized({ x: 0, v: 10 }), b = sized({ x: 7, v: 0 });
+    impact(a, b);
+    expect(contact(a, b)?.depth ?? 0).toBeLessThan(0.6);
+  });
+  it("still treats a body with no size as a disc", () => {
+    expect(contact(car({ x: 0 }), car({ x: 6.5 }))).not.toBeNull();
+    expect(contact(car({ x: 0 }), car({ x: 7.5 }))).toBeNull();
   });
 });

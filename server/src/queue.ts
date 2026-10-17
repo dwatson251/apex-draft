@@ -24,7 +24,7 @@ export async function processOne(db: Db, run: Runner): Promise<boolean> {
     const input: RaceInput = {
       phrase: job.track_key, vehicle: job.vehicle, car: parsed.car, lines: parsed.lines, lapLine: q["lapLine"], laps: q["laps"], realism: !!q["realism"],
       wearFuel: q["wearFuel"], wearTyre: q["wearTyre"], mandatory: Array.isArray(q["mandatory"]) ? q["mandatory"].filter(isCompound) as Compound[] : [],
-      startTyre: q["startTyre"], pitPlan: Array.isArray(q["pitPlan"]) ? q["pitPlan"] : [],
+      startTyre: q["startTyre"], startTactic: q["startTactic"], pitPlan: Array.isArray(q["pitPlan"]) ? q["pitPlan"] : [],
       ghosts, rivals: q["rivals"], playerTime: db.playerTime(job.track_key, job.vehicle, job.player_id),
     };
     const r = await run({ kind: "race", input });

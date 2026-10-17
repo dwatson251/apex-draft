@@ -1,3 +1,4 @@
+import { landscape, type Surface } from "./landscape.ts";
 import { phraseToSeed, normalizePhrase } from "./seed.ts";
 import { Rng } from "./rng.ts";
 import { biomeForSeed, biomeOf, type BiomeId } from "./biomes.ts";
@@ -65,6 +66,14 @@ export interface Segment {
   powerup?: Powerup;
   /** half the road width at each centre point; ROAD_HALF all the way when left out (only `fun-` tracks narrow and widen) */
   half?: number[];
+  /** height of the road at each centre point, in world units (a hill: see landscape.ts); flat when left out */
+  elev?: number[];
+  /** rough surface laid on the whole segment; tarmac when left out */
+  surface?: Surface;
+  /** grip multiplier of a banked corner above 1; flat when left out */
+  bank?: number;
+  /** the segment runs through a tunnel: roofed, and rain never reaches the road */
+  tunnel?: boolean;
   /** the segment that follows this one when it is not the next in the ring: set on every segment of a shortcut */
   next?: number;
   /** segments that start from the same gate as this one: where the road forks, the two ways on from a junction cell */
@@ -434,6 +443,8 @@ export interface TrackOptions {
   biome?: BiomeId;
   /** false leaves out kinks, chicanes and the wide arcs (tests compare with and without) */
   pieces?: boolean;
+  /** false leaves out hills, rough surfaces, banking and tunnels (tests compare with and without) */
+  landscape?: boolean;
 }
 
 /** Fun tracks are asked for by name: the phrase starts with `fun-`. */
@@ -458,6 +469,11 @@ export const vehicleChoicesForTrack = (t: Track): VehicleId[] => vehicleChoices(
 
 /** The same phrase (and options) always give the same track. */
 export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
+  const t = generateLayout(phrase, opts);
+  return opts.landscape === false ? t : landscape(t);
+}
+
+function generateLayout(phrase: string, opts: TrackOptions): Track {
   const norm_ = normalizePhrase(phrase);
   const named = circuitFor(norm_);
   if (named) return buildCircuit(named, norm_, opts);

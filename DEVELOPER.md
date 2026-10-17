@@ -96,6 +96,8 @@ phrase ──► generateTrack ──► Track (segments, biome, vehicle, weathe
 | `pit.ts`, `pitpath.ts` | The pit lane geometry, bays and speed limit, and the open-ended laps that go in and out of it |
 | `bots.ts` | The AI: a line for each rival and their strategy decisions (`Race.replanBots` redraws at each edit stop) |
 | `vehicles.ts`, `biomes.ts` | Tables of multipliers picked from the seed |
+| `difficulty.ts`, `daily.ts`, `championship.ts`, `challenges.ts` | The pure rules of difficulty and stars, the Daily (UTC date to phrase), the Championship (rounds, points, table) and Challenges (goals, tiers, passes) |
+| `landscape.ts`, `quirks.ts`, `tactics.ts` | Hills, rough surfaces, banking, tunnels and night added after a track is built; the per-machine quirks (downforce, lean, weight transfer, rough-surface ability); the tactics |
 | `session.ts` | Pure session logic: trial, practice, qualifying and race laps, times, the weekend state machine, grids from times |
 | `share.ts` | The URL hash: phrase, settings, car and the drawn segments as base64url. Nothing about a race |
 
@@ -142,7 +144,7 @@ Notes:
 The renderer is sandboxed (`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`) and runs under a strict
 CSP. The IPC surface is deliberately tiny, and each handler checks that the sender is the app itself (`trusted`):
 
-- `store:get` / `store:set`: only `settings`, `cars` and `best` are valid keys, and they are written as plain files in the
+- `store:get` / `store:set`: only `settings`, `cars`, `best`, `records`, `lines`, `daily`, `championship`, `challenges` and `identity` are valid keys, and they are written as plain files in the
   user data folder (override it with `APEX_DRAFT_DATA`).
 - `app:version`, `app:quit`.
 
@@ -162,6 +164,7 @@ CI runs exactly those two. The unit tests cover the sim, since it is pure and fa
 | `sim.test.ts` | Seeds, 1000 closed-loop tracks, bot lines, determinism, and that traffic never deadlocks |
 | `collision.test.ts` | Impact rules on hand-built geometry, then inside a race |
 | `draft.test.ts` | The slipstream |
+| `strategy.test.ts`, `landscape.test.ts`, `modes.test.ts`, `difficulty.test.ts` | Tyre temperature, tactics, dirty air and the machine quirks; hills, surfaces, banking and tunnels; the Daily, Championship and Challenges; difficulty and records |
 | `grid.test.ts` | The staggered 32-car grid and its order |
 | `pit.test.ts`, `pitlane.test.ts`, `tyrelife.test.ts` | Pit stops, the lane and bays, tyre life and wear |
 | `weather.test.ts` | Showers, the forecast and the drying field |

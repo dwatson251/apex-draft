@@ -29,6 +29,7 @@ hash of it and shows a different, derived id on profiles.
 | `POST /players` `{name}` | Register (idempotent). The first name sticks; use `PUT /me` to change it. |
 | `GET /me`, `PUT /me` `{name}` | Your public id and name. Names are cleaned (hidden characters out, 20 characters). |
 | `POST /lines` `{phrase, vehicle, car, lines[]}` | Check the line (on the road, car within budget, machine offered on that track), time it, keep it if it is the player's best. Returns `{time, best, improved, rank}`. Lines are in the line-file format (`[x, y]` points to 0.01). |
+| `GET /daily?date=` | The Daily for a UTC day within a day of the server's: its phrase and machine, the top 20 times and your own place on that track's board. |
 | `GET /ghosts?phrase=&vehicle=&limit=&time=` | Up to `limit` (max 31) other players' lines: half just faster than `time`, half just slower, nearest first; the median if `time` is left out. |
 
 | `POST /results` `{kind: quick or weekend, phrase, vehicle, car, lines[], lapLine[], laps, rivals, realism, ghostIds[], ...}` | Queue a finished race. The server replays the **whole race** (the player's lines against the named ghosts' stored lines plus the computer-driven rivals, which are the same on every machine) and records the finishing place. Answers 202; the result shows on the player's profile once it has run. |

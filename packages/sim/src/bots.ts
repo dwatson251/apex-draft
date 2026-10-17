@@ -52,6 +52,11 @@ export interface BotLineOpts {
   /** the tyre the car is on, and the state of the road: the line then leans toward the grippiest bit of road */
   compound?: Compound;
   field?: WetField;
+  /**
+   * Drive a lane instead of the racing line: a fixed share of the road's width from its middle (-1 is the one edge, 1 the other), the same all the
+   * way round, so a big field keeps to parallel lanes and never has to merge into one file (256 cars in single file are longer than a lap).
+   */
+  lane?: number;
 }
 
 /** How much of the pull is toward least curvature rather than the shortest path: 0.6 laps quickest on most tracks. */
@@ -160,6 +165,18 @@ export function botLine(track: Track, seed: number, skill: number, opts: BotLine
       w.l = Math.min(w.hi, Math.max(w.lo, w.l + f * amount));
     }
   };
+  if (opts.lane !== undefined) {
+    // a lane: the same share of the road's width all the way round, with the least wander of the driver's
+    const lane = Math.max(-1, Math.min(1, opts.lane));
+    for (const w of wps) w.l = (w.lo + w.hi) / 2 + (lane * (w.hi - w.lo)) / 2;
+    const saved = wps.map((w) => w.l);
+    for (const wob of [(1 - skill) * WANDER_MAX * 0.12, 0]) {
+      wps.forEach((w, k) => { w.l = saved[k]!; });
+      wander(wob);
+      const line = emit(true) ?? emit(false);
+      if (line) return line;
+    }
+  }
   const amount = (1 - skill) * WANDER_MAX;
   const initial = wps.map((w) => w.l);
   const fresh = () => wps.forEach((w, k) => { w.l = initial[k]!; });

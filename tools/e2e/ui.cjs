@@ -32,11 +32,11 @@ const OUT = process.env.SHOTS || "";
 
   // ---------------- the title ----------------
   const home = async (url) => { await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(url); await page.waitForSelector(".home"); };
-  const setup = async (id, diff = "#d-easy") => { await page.click(id); if (id !== "#h-trial") { await page.waitForSelector(diff); await page.click(diff); } await page.waitForSelector("#go"); };
+  const setup = async (id, diff = "#d-easy") => { await page.click(id === "#h-trial" ? "#h-attack" : "#h-race"); await page.click(id); if (id !== "#h-trial") { await page.waitForSelector(diff); await page.click(diff); } await page.waitForSelector("#go"); };
   await home(BASE + "?t=1"); await settle(2500);
   ok("the title has a real track behind it, blurred, with bots going round", await G(() => window.__game.track.segments.length > 8 && document.querySelector("canvas").classList.contains("blurred") && window.__game.ambient.race.cars.length === 6));
   ok("the Menu button is hidden on the title", (await G(() => getComputedStyle(document.getElementById("menubtn")).display)) === "none");
-  ok("the home screen has the six choices (no Quit outside Electron)", JSON.stringify(await page.$$eval(".hb b", (e) => e.map((x) => x.textContent))) === JSON.stringify(["Solo Time Trial", "Quick Race", "Race Weekend", "Tutorial", "Garage", "Settings"]));
+  ok("the home screen has the six choices (no Quit outside Electron)", JSON.stringify(await page.$$eval(".hb b", (e) => e.map((x) => x.textContent))) === JSON.stringify(["Race", "Time Attack", "Challenges", "Garage", "Tutorial", "Settings"]));
   await setup("#h-quick");
   const p0 = await G(() => window.__game.settings.phrase);
   await page.click("#rand"); await settle(1500);

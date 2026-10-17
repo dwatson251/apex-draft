@@ -1,4 +1,5 @@
 import { botLine } from "./bots.ts";
+import { isTactic, type Tactic } from "./tactics.ts";
 import { RIVAL_PACE, SKILL_RANGE, type Difficulty } from "./difficulty.ts";
 import { STATS, defaultCar, validateCar, type CarConfig } from "./car.ts";
 import { isComplete, validateLine, type Line } from "./line.ts";
@@ -34,7 +35,8 @@ export function cachedTrack(phrase: string): Track {
 
 // ---------- rivals ----------
 /** The computer-driven rivals for slots `from` up to `to`, the same ones on every machine: drawn from the track, never from a clock. */
-export function makeBots(track: Track, vehicle: VehicleId, from: number, to: number, difficulty: Difficulty = "hard"): Entrant[] {
+export function makeBots(track: Track, vehicle: VehicleId, from: number, to: number, difficulty: Difficulty = "hard", roster?: number): Entrant[] {
+  if (roster !== undefined) return rosterBots(track, vehicle, from, to, difficulty, roster);
   const rng = new Rng(track.seed ^ 0xa5a5a5a5);
   const names = [...RIVAL_NAMES];
   const out: Entrant[] = [];
@@ -49,6 +51,32 @@ export function makeBots(track: Track, vehicle: VehicleId, from: number, to: num
     const skill = lo + (hi - lo) * rng.next();
     const seed = rng.int(2 ** 30);
     out.push({ id: `bot${i}`, name: names.splice(rng.int(names.length), 1)[0] ?? `Bot ${i}`, car, lines: [botLine(track, seed, skill)], bot: { seed, skill }, ...(RIVAL_PACE[difficulty] < 1 ? { pace: RIVAL_PACE[difficulty] * (0.97 + 0.06 * rng.next()) } : {}) });
+  }
+  return out;
+}
+
+/**
+ * The same rivals on every track: a roster seed fixes each one's name, car and skill by its place in the field (the line it
+ * draws is still its own for each track). A championship uses one so that the season table follows the same drivers.
+ */
+function rosterBots(track: Track, vehicle: VehicleId, from: number, to: number, difficulty: Difficulty, roster: number): Entrant[] {
+  const names = new Rng((roster ^ 0x7e57ab1e) >>> 0);
+  const order = [...RIVAL_NAMES];
+  for (let i = order.length - 1; i > 0; i--) { const j = names.int(i + 1); [order[i], order[j]] = [order[j]!, order[i]!]; }
+  const out: Entrant[] = [];
+  for (let i = from; i < to; i++) {
+    const rng = new Rng((roster ^ Math.imul(i + 1, 0x9e3779b1)) >>> 0);
+    const car: CarConfig = { name: "Bot", accel: 6, top: 6, grip: 6, brake: 6, type: vehicle };
+    for (let k = 0; k < 8; k++) {
+      const a = rng.pick(STATS.filter((x) => car[x] > 3));
+      const b = rng.pick(STATS.filter((x) => car[x] < 9 && x !== a));
+      car[a]--; car[b]++;
+    }
+    const [lo, hi] = SKILL_RANGE[difficulty];
+    const skill = lo + (hi - lo) * rng.next();
+    const seed = new Rng((track.seed ^ roster ^ Math.imul(i + 1, 0x85ebca6b)) >>> 0).int(2 ** 30);
+    const pace = RIVAL_PACE[difficulty] < 1 ? RIVAL_PACE[difficulty] * (0.97 + 0.06 * rng.next()) : undefined;
+    out.push({ id: `bot${i}`, name: order[i % order.length] ?? `Bot ${i}`, car, lines: [botLine(track, seed, skill)], bot: { seed, skill }, ...(pace !== undefined ? { pace } : {}) });
   }
   return out;
 }
@@ -100,7 +128,8 @@ export interface RaceInput {
   wearTyre?: number;
   mandatory?: Compound[];
   startTyre?: Compound;
-  pitPlan?: { lap: number; tyre?: Compound }[];
+  startTactic?: Tactic;
+  pitPlan?: { lap: number; tyre?: Compound; tactic?: Tactic }[];
   ghosts: GhostRival[];
   /** rivals in all (ghosts included); the rest are computer-driven */
   rivals: number;
@@ -130,12 +159,12 @@ export function runRace(i: RaceInput): RaceOutcome {
     if (!isComplete(track, l)) return { ok: false, error: "a line does not go all the way round" };
     if (!validateLine(track, l).ok) return { ok: false, error: "a line leaves the road" };
   }
-  const plan = (i.pitPlan ?? []).slice(0, MAX_PIT_STOPS).filter((p) => Number.isInteger(p.lap) && p.lap >= 1 && p.lap <= i.laps && (p.tyre === undefined || isCompound(p.tyre)));
+  const plan = (i.pitPlan ?? []).slice(0, MAX_PIT_STOPS).filter((p) => Number.isInteger(p.lap) && p.lap >= 1 && p.lap <= i.laps && (p.tyre === undefined || isCompound(p.tyre)) && (p.tactic === undefined || isTactic(p.tactic)));
   const vehicle = i.vehicle;
   const me: Entrant = {
     id: "me", name: "Driver", car: { ...i.car, name: String(i.car.name).slice(0, 40), type: vehicle },
     lines: i.lapLine.map((k) => i.lines[k]!), isPlayer: true,
-    pitPlan: i.realism ? plan : [], startTyre: i.startTyre && isCompound(i.startTyre) ? i.startTyre : "medium",
+    pitPlan: i.realism ? plan : [], startTyre: i.startTyre && isCompound(i.startTyre) ? i.startTyre : "medium", ...(i.startTactic && isTactic(i.startTactic) ? { startTactic: i.startTactic } : {}),
     gridTime: i.playerTime ?? Infinity,
   };
   const ghosts: Entrant[] = i.ghosts.slice(0, i.rivals).map((g, n) => ({ id: `ghost:${g.id}`, name: g.name, car: { ...g.car, type: vehicle }, lines: [g.line], gridTime: g.time, bestLap: g.time }));
@@ -150,4 +179,21 @@ export function runRace(i: RaceInput): RaceOutcome {
   }));
   const player = standings.find((s) => s.isPlayer);
   return player ? { ok: true, phrase, vehicle, standings, player } : { ok: false, error: "the player did not race" };
+}
+
+// ---------- a reference time for pace goals ----------
+const REFERENCE = new Map<string, number>();
+
+/** How long a good, clean driver (a skill-0.8 line in the standard car, alone) takes over `laps` laps: the yardstick for a challenge's pace goal. */
+export function referenceTime(phrase: string, vehicle: VehicleId, laps: number): number {
+  const key = `${normalizePhrase(phrase)}:${vehicle}:${laps}`;
+  const hit = REFERENCE.get(key);
+  if (hit !== undefined) return hit;
+  const track = cachedTrack(phrase);
+  const car: CarConfig = { ...defaultCar(), type: vehicle };
+  const race = new Race(track, [{ id: "ref", name: "Reference", car, lines: [botLine(track, 0x7e4, 0.8)], gridSlot: 0 }], laps, { realism: false, weather: false });
+  race.runToEnd();
+  const t = race.results()[0]?.finishTime ?? Infinity;
+  REFERENCE.set(key, t);
+  return t;
 }

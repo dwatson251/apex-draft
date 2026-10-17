@@ -77,6 +77,8 @@ export interface Weekend {
   qualifying?: number;
   /** the grid the race starts from, car id -> place */
   grid?: Record<string, number>;
+  /** the rubber the sessions so far have laid on the road, for the next one to start with */
+  rubber?: Uint8Array;
 }
 
 export const newWeekend = (): Weekend => ({ phase: "practice" });

@@ -1,5 +1,6 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { LOOKS } from "./look.ts";
+import { SURFACES } from "@apex/sim";
 import {
   PIT_BAYS, PIT_BAY_GAP, PIT_BOX_A, PIT_ENTRY_A, PIT_EXIT_A, PIT_HALF, PIT_LANE_FROM, PIT_LANE_TO, PIT_LAT, ROAD_HALF, Rng, centreAt, halfIdx, halfAt, cross, distToSegment, dot, nearbySegments, nextOf, norm, laneCentre, pitPoint, sub,
   type Segment, type Track, type Vec2,
@@ -32,6 +33,8 @@ export interface SegmentArt {
   root: Container;
   /** a bridge: drawn above the cars on the road beneath it (and under the ones on it) */
   deck?: boolean;
+  /** a tunnel: the roof, drawn over the cars inside (it is see-through enough to follow them) */
+  roof?: Container;
   /** the two frames of the crowd; they swap a few times a second */
   crowdA: Graphics[];
   crowdB: Graphics[];
@@ -129,6 +132,8 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
     road.poly([...pt(-gh, 0), ...pt(gh, 0), ...pt(gh, push), ...pt(-gh, push)]).fill(look.asphalt);
   }
   root.addChild(road);
+  groundArt(root, s, rng);
+  if (s.tunnel) art.roof = tunnelRoof(s);
 
   // a bridge: the deck is a slab above the road beneath, and under its own parapets (see bridgeDeck)
   if (s.kind === "bridge") bridgeDeck(root, s);
@@ -475,5 +480,78 @@ function pitArt(track: Track, head: boolean): Container {
     gar.circle(p.x, p.y, 0.7).fill(0x3a3d46);
   }
   c.addChild(gar);
+  return c;
+}
+
+/**
+ * What the ground adds to a segment's tarmac: a rough surface laid over it, the shading of a hill (lower ground darker, the grade
+ * lit from the top left) and the stripes of a banked corner. A plain flat segment draws nothing.
+ */
+function groundArt(root: Container, s: Segment, rng: Rng): void {
+  const n = s.center.length - 1;
+  const hw = (i: number): number => halfIdx(s, i);
+  if (s.surface) {
+    const f = SURFACES[s.surface];
+    const g = new Graphics();
+    strip(g, s, 0, n, (i) => -hw(i) + 1, (i) => hw(i) - 1).fill({ color: f.color, alpha: 0.9 });
+    const stones = s.surface === "cobbles" ? 220 : 140;
+    for (let k = 0; k < stones; k++) {
+      const t = rng.next(), c = centreAt(s, t), h = halfAt(s, t), l = rng.range(-h + 1.5, h - 1.5);
+      const x = c.p.x + c.n.x * l, y = c.p.y + c.n.y * l;
+      if (s.surface === "cobbles") g.roundRect(x - 0.9, y - 0.6, 1.8, 1.2, 0.3).stroke({ width: 0.3, color: 0x2e2a28, alpha: 0.6 });
+      else g.circle(x, y, rng.range(0.3, 0.9)).fill({ color: s.surface === "gravel" ? 0xcfcac0 : 0x6d5236, alpha: 0.6 });
+    }
+    root.addChild(g);
+  }
+  if (s.elev) {
+    const g = new Graphics();
+    let lo = Infinity, hi = -Infinity;
+    for (const h of s.elev) { lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    for (let i = 0; i < n; i++) {
+      const h = (s.elev[i]! + s.elev[i + 1]!) / 2, up = s.elev[i + 1]! - s.elev[i]!;
+      // higher ground is lighter; a climb is shaded to the side the light does not reach, a descent catches it
+      const low = Math.min(1, Math.max(0, (6 - h) / 12));
+      strip(g, s, i, i + 1, (j) => -hw(j), hw).fill({ color: low > 0.5 ? 0x000000 : 0xffffff, alpha: Math.abs(low - 0.5) * 0.16 + Math.min(0.1, Math.abs(up) * 0.35) });
+    }
+    root.addChild(g);
+  }
+  if (s.bank) {
+    const g = new Graphics();
+    // the banking leans toward the outside of the corner: stripes across the outer half, closer together on the steeper part
+    let total = 0;
+    for (let i = 1; i < n; i++) {
+      const d0 = sub(s.center[i]!, s.center[i - 1]!), d1 = sub(s.center[i + 1]!, s.center[i]!);
+      total += Math.atan2(cross(d0, d1), dot(d0, d1));
+    }
+    const out = total > 0 ? -1 : 1;
+    for (let i = 1; i < n; i += 2) {
+      strip(g, s, i, Math.min(n, i + 1), (j) => out * (hw(j) * 0.1), (j) => out * (hw(j) - 1)).fill({ color: 0x000000, alpha: 0.1 });
+    }
+    for (let i = 2; i < n - 1; i += 4) {
+      const a = at(s, i, out * hw(i) * 0.15), b = at(s, i, out * (hw(i) - 1.5));
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y);
+    }
+    g.stroke({ width: 0.6, color: 0xffffff, alpha: 0.4 });
+    root.addChild(g);
+  }
+}
+
+/** The roof of a tunnel: a darkened slab over the road with ribs across it and a dark portal at each end. Partly see-through, so the cars inside can be followed. */
+function tunnelRoof(s: Segment): Container {
+  const n = s.center.length - 1;
+  const hw = (i: number): number => halfIdx(s, i);
+  const g = new Graphics();
+  strip(g, s, 0, n, (i) => -(hw(i) + 3), (i) => hw(i) + 3).fill({ color: 0x15171d, alpha: 0.58 });
+  for (let i = 2; i < n - 1; i += 3) {
+    const a = at(s, i, -(hw(i) + 3)), b = at(s, i, hw(i) + 3);
+    g.moveTo(a.x, a.y).lineTo(b.x, b.y);
+  }
+  g.stroke({ width: 0.7, color: 0x000000, alpha: 0.35 });
+  for (const i of [0, n]) {
+    const a = at(s, i, -(hw(i) + 3)), b = at(s, i, hw(i) + 3);
+    g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 3.2, color: 0x2a2c33, alpha: 0.95, cap: "butt" });
+  }
+  const c = new Container();
+  c.addChild(g);
   return c;
 }

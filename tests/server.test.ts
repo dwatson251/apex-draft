@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { botLine, defaultCar, generateTrack, placeFor, sanitiseName, defaultName, parseLineFile, serializeLineFile, timeTrial, NAME_MAX, VEHICLE_IDS, type Line } from "@apex/sim";
+import { botLine, dailyDate, dailyPhrase, defaultCar, generateTrack, placeFor, sanitiseName, defaultName, parseLineFile, serializeLineFile, timeTrial, NAME_MAX, VEHICLE_IDS, type Line } from "@apex/sim";
 import { pickAround } from "../server/src/ghosts.ts";
 import { Db } from "../server/src/db.ts";
 import { createApp, trackInfo } from "../server/src/app.ts";
@@ -191,6 +191,28 @@ describe("the server", () => {
     expect(renderPage(db2, "/players/zzzzzzzzzzzz")).toBeNull();
     db2.close();
   }, 30_000);
+
+  it("serves the Daily: the day's own track, its board, and nothing for a day that is not open", async () => {
+    const today = dailyDate(new Date());
+    const day = await (await call("/api/v1/daily", { key: secret })).json() as { date: string; phrase: string; vehicle: string; top: unknown[]; rank: number | null };
+    expect(day.date).toBe(today);
+    expect(day.phrase).toBe(dailyPhrase(today));
+    expect(day.vehicle).toBe(placeFor(day.phrase).vehicle);
+    expect(day.rank).toBeNull();
+    expect((await call("/api/v1/daily?date=2000-01-01", { key: secret })).status).toBe(400);
+    expect((await call("/api/v1/daily?date=tomorrow", { key: secret })).status).toBe(400);
+    expect((await call("/api/v1/daily")).status).toBe(401);
+    // two times on it: the board is fastest first and each player sees their own place
+    const me = await (await call("/api/v1/me", { key: secret })).json() as { id: string }, rival = await (await call("/api/v1/me", { key: other })).json() as { id: string };
+    const t = trackInfo(day.phrase);
+    db.submit(t, rival.id, day.vehicle, defaultCar(), { start: { x: 0, y: 0 }, segs: [] } as never, 50, [50]);
+    db.submit(t, me.id, day.vehicle, defaultCar(), { start: { x: 0, y: 0 }, segs: [] } as never, 60, [60]);
+    const board = await (await call("/api/v1/daily", { key: secret })).json() as { top: { time: number; me: boolean }[]; rank: number; total: number };
+    expect(board.top.map((x) => x.time)).toEqual([50, 60]);
+    expect(board.top[1]!.me).toBe(true);
+    expect(board.rank).toBe(2);
+    expect(board.total).toBe(2);
+  });
 
   it("answers health checks and preflight", async () => {
     expect((await (await call("/healthz")).json() as { ok: boolean }).ok).toBe(true);
