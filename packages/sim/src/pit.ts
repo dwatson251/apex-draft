@@ -15,6 +15,21 @@ export const PIT_BOX_A = -3;
 /** Every car that pulls in gets its own bay: the first in is nearest the line, the next one sits this far behind it, and so on. */
 export const PIT_BAY_GAP = 11;
 export const PIT_BAYS = 4;
+
+/**
+ * The first lap (0-based) on which a car would run dry, if it has `fuel` at the start of lap `next`, uses `perLap` a lap, and refuels to `tank` at the end
+ * of each lap in `stops`; null if it gets home. `fuel` is what the car will have when it sets off: after a stop in the pits, a full tank (the stop it
+ * is in the middle of refuels it, so it is not the tank it came in with), not what was left when it pulled in.
+ */
+export function firstDryLap(perLap: number, laps: number, next: number, fuel: number, stops: readonly number[], tank: number): number | null {
+  let left = fuel;
+  for (let lap = next; lap < laps; lap++) {
+    if (left < perLap * 1.03) return lap;
+    left -= perLap;
+    if (stops.includes(lap)) left = tank;
+  }
+  return null;
+}
 /** speed limit between a = -38 and a = +38, units/s */
 export const PIT_SPEED = 40;
 export const PIT_LIMIT_A = 38;

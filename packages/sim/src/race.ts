@@ -20,7 +20,7 @@ export const GRID_GAP = 16;
 /** How far either side of the middle of the road the two columns of the grid sit. */
 export const GRID_SIDE = 8;
 /** The four columns of a grid of more than 32: how far to the side of the middle of the road each sits, and how far back it starts within its row. */
-const GRID_COLS4: [number, number][] = [[16, 0], [-16, 8], [5.4, 8], [-5.4, 0]];
+const GRID_COLS4: [number, number][] = [[17, 0], [-17, 8], [5.7, 8], [-5.7, 0]];
 /** Centre-to-centre gap the cars try to keep to whatever is ahead on their path, units. */
 export const SAFE_GAP = 11;
 /** Rough centre-to-centre distance at which two cars touch (it really depends on the two vehicles). */
@@ -74,6 +74,8 @@ const REC_HINGE = 0.33;
 const REC_CRAWL = 8;
 const REC_CRAWL_GAIN = 50;
 const REC_KICK = 6;
+/** A hit has to be at least this hard (impulse) to throw a car into the spin-and-recover routine: a lighter touch only shoves it, and a pack of cars pinned against each other in that routine is what used to freeze a big field. */
+const REC_FORCE = 20;
 /** After backing up, a car that points the wrong way drives forward this long, swinging its nose round, before it may reverse again. */
 const TURN_ROUND_S = 3;
 /** Reversing speed, units/s. */
@@ -83,7 +85,18 @@ const wrap = (a: number): number => { while (a > Math.PI) a -= 2 * Math.PI; whil
 const BUMP_MIN = 6;
 /** Sitting close behind another car cuts the air: how far back the slipstream reaches, and what it is worth at best. */
 /** A follower keeps this many seconds of its own speed as extra gap, on top of the bumper space, so a queue ahead braking does not surprise it. */
-const FOLLOW_HEADWAY = 0.1;
+/** The following gap kept (centre to centre, for a car of REF_LEN) is SAFE_GAP less this: the pack is tighter than the gap the grid is laid out with. */
+/**
+ * How much room cars take (RaceRules.room): 0 is the way the racing is tuned; 1 and 2 are tighter, for trying. Each is the sideways room beyond the
+ * bodies two cars going the same way need, how much shorter than SAFE_GAP they follow, the headway (seconds of speed) they keep, and the room a car
+ * needs to take a gap in overtaking.
+ */
+export const ROOM_LEVELS = [
+  { side: 2.6, cut: 2.0, head: 0.1, pass: 2.2 },
+  { side: 1.4, cut: 2.2, head: 0.08, pass: 1.2 },
+  // (the tightest: bodies almost touching side by side, a buffer of about half a unit between them)
+  { side: 0.6, cut: 3.0, head: 0.05, pass: 0.6 },
+] as const;
 export const DRAFT_RANGE = 42;
 export const DRAFT_TOP = 0.08;
 export const DRAFT_ACCEL = 0.3;
@@ -112,6 +125,10 @@ const PREDICT_GAP = 10;
 const CREEP_GAP = 1.5;
 const CREEP_SIDE = 0.7;
 /**
+ * The sideways room (beyond the bodies) two cars going the same way need to run side by side: far less than the room kept to a car on a crossing path,
+ * so a car goes past one in the next lane, or through a gap between two, instead of dropping in behind the pack.
+ */
+/**
  * A car that has sat still this long, wanting to go, stops giving way for a while (it still keeps its distance to whatever is ahead of it),
  * so a ring of cars each waiting on the next cannot freeze a junction.
  */
@@ -130,6 +147,30 @@ const OBSTACLE_TICKS = 60;
 const DODGE_GAP = 11.5;
 const DODGE_REACH = 110;
 const DODGE_BLEND = 40;
+/** Held up this long (ticks), a car goes round a far slower one: how slow (the share of its own line speed), and how it can steer while crawling. */
+const HELD_TICKS = 90;
+/** Nobody is held up at the start: the grid takes a few seconds to get going. */
+const HELD_GRACE = 360;
+const SLOW_SHARE = 0.4;
+const SLOW_REACH = 45;
+/**
+ * Overtaking (RaceRules.overtake): held this many ticks behind a car that is slower by at least OVT_GAIN, a car looks for a gap between the cars round it
+ * (every car going its way within OVT_AHEAD in front and OVT_BEHIND behind counts, with the room of their bodies and OVT_MARGIN) and commits to it for
+ * OVT_HOLD ticks, so it does not change its mind each tick; it goes back to its line once it is through.
+ */
+const OVT_TICKS = 18;
+const OVT_GAIN = 6;
+const OVT_SHARE = 0.9;
+const OVT_AHEAD = 90;
+const OVT_BEHIND = 14;
+const OVT_HOLD = 90;
+/** How far ahead of the car in front its speed limit is read, for a follower to brake with it. */
+/** A follower looks ahead of the car in front by this many seconds of its speed (and at least ANTICIPATE_MIN units): the braking zone it is heading for. */
+const ANTICIPATE_SECS = 0.9;
+const ANTICIPATE_MIN = 25;
+/** ...and not speeding up by more than this per tick (about 1.2 units/s²): a car pulling away from the grid is not in the way. */
+const SLOW_STEADY = 0.02;
+const HELD_STEER = 14;
 /** A car does not drive into a crossing unless the road beyond it is clear this far, so nobody sits in the box blocking the cross traffic. */
 const BOX_CLEAR = SAFE_GAP + 10;
 /** A wrecked car with traffic coming up behind it pulls to the side of the road, and waits at most this long for the pack to pass. */
@@ -189,6 +230,10 @@ export interface RaceRules {
   weather?: boolean;
   /** slipstream behind another car (default on, in every mode) */
   draft?: boolean;
+  /** how much room cars take: 0 (default), 1 tighter, 2 the tightest (see ROOM_LEVELS) */
+  room?: 0 | 1 | 2;
+  /** computer drivers (and the player's line) actively take a gap to go past a slower car, instead of following it (experimental; default off) */
+  overtake?: boolean;
   /** rubber an earlier session of the weekend left on the road (see `Race.rubberOut`) */
   rubber?: Uint8Array;
   /** how many times faster fuel burns and tyres wear than normal (1 to MAX_WEAR_MULT; default 1) */
@@ -373,6 +418,21 @@ export interface RaceCar {
   nextTyre: Compound | null;
   /** the tactic for the stint after the coming stop, if the plan sets one */
   nextTactic: Tactic | null;
+  /** ticks it has been held up well below the speed its line wants, by traffic: after a while it goes round what is in the way (see `dodge`) */
+  held: number;
+  /** ticks the car has been held to well under its line speed by a slower car ahead; the lateral offset it has committed to for a pass, and until when (see `dodge`) */
+  fol: number;
+  passTo: number | null;
+  passUntil: number;
+  /** the fuel and tyre the car came into its box with, and how long the stop takes in ticks: for the gauges to show the stop as it happens (see `stopShown`) */
+  stopFuel: number;
+  stopTyre: number;
+  stopTotal: number;
+  /** the change in speed over the last tick: a car still accelerating away is not "slow", whatever its speed */
+  dv: number;
+  /** what is limiting the car now, for diagnosis: the car, and why (1 following, 2 alongside and owed way, 3 crossing and owed way) */
+  tlBy: RaceCar | null;
+  tlWhy: number;
   /** how the car is driving the stint it is on */
   tactic: Tactic;
   /** tyre temperature, 0 to 1 */
@@ -489,7 +549,7 @@ export class Race {
         trace: [], prog: [], vtrace: [], gtrace: [], ltrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
-        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, tactic: e.startTactic ?? "balanced", temp: TEMP_START, wake: 0, tmtrace: [], ctrace: [], used: [],
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, wake: 0, tmtrace: [], ctrace: [], used: [],
         hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, btrace: [], radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
       };
       c.used.push(c.compound);
@@ -506,7 +566,7 @@ export class Race {
    */
   private laned(e: Entrant, slot: number, gridCols: number): Entrant {
     if (gridCols !== 4 || !e.bot || e.isPlayer) return e;
-    const lane = GRID_COLS4[slot % 4]![0] / ROAD_HALF;
+    const lane = GRID_COLS4[slot % 4]![0];
     this.forget(e.id);
     return { ...e, lines: [botLine(this.track, e.bot.seed, e.bot.skill, { lane })], bot: { ...e.bot, lane } };
   }
@@ -684,13 +744,30 @@ export class Race {
       c.vtrace.push(Math.round(c.v * 10) / 10);
       c.gtrace.push(c.ghost ? 1 : 0);
       c.ltrace.push(this.levelOf(c));
-      c.ftrace.push(Math.round(c.fuel * 10) / 10);
-      c.ttrace.push(Math.round(c.tyre * 1000) / 1000);
+      // (in the box the gauges show the stop as it happens, not the jump at the end of it)
+      const shown = this.stopShown(c);
+      c.ftrace.push(Math.round(shown.fuel * 10) / 10);
+      c.ttrace.push(Math.round(shown.tyre * 1000) / 1000);
       c.tmtrace.push(Math.round(c.temp * 100) / 100);
       c.ctrace.push(c.compound === "soft" ? 0 : c.compound === "medium" ? 1 : 2);
       c.btrace.push(Math.round(c.beta * 1000) / 1000);
       c.ptrace.push(c.out ? 3 : c.dwell > 0 ? 2 : c.prof.lane[indexAt(c.prof, c.s)] ? 1 : 0);
     }
+  }
+
+  /**
+   * The fuel and tyre the gauges show for a car: its own, except in its box, where over the whole stop the tank fills steadily and, if the tyres are being
+   * changed, one tyre of four comes off at a time (100%, 75, 50, 25, 0) and goes back on a quarter at a time (25, 50, 75, 100), eight equal steps. A fuel-only
+   * (emergency) stop leaves the tyres as they are. The race itself is not affected: the car is standing still, and refuels at the end.
+   */
+  private stopShown(c: RaceCar): { fuel: number; tyre: number } {
+    if (!c.boxed || c.stopTotal <= 0) return { fuel: c.fuel, tyre: c.tyre };
+    const p = Math.min(1, Math.max(0, 1 - c.dwell / c.stopTotal));
+    const fuel = c.stopFuel + (TANK - c.stopFuel) * p;
+    if (c.emergency) return { fuel, tyre: c.tyre };
+    const k = Math.min(8, Math.floor(p * 8));
+    const tyre = k < 4 ? c.stopTyre * (1 - (k + 1) / 4) : (k - 3) / 4;
+    return { fuel, tyre };
   }
 
   /** Progress used for ordering: whole laps first, then distance in the lap. */
@@ -700,15 +777,29 @@ export class Race {
 
   /** Distance round the lap for ranking: along its own line, or, where the track has shortcuts, round the ring whichever way it went. */
   private pos(c: RaceCar): number {
-    return c.prof.canon ? sampleAt(c.prof, c.prof.canon, c.s) : c.s;
+    return sampleAt(c.prof, c.prof.canon, c.s);
   }
 
   /**
    * The gaps the traffic logic keeps are set for a car of REF_LEN by REF_WID; a longer or wider machine (a truck, a tank) needs more, and a shorter one
    * (a kart) a little less: the centre-to-centre gap that leaves the same bumper space, and the sideways clearance that leaves the same room.
    */
-  private gap(a: { length: number }, b: { length: number }): number { return SAFE_GAP + (a.length + b.length) / 2 - REF_LEN; }
+  private gap(a: { length: number }, b: { length: number }): number { return SAFE_GAP - this.tune.cut + (a.length + b.length) / 2 - REF_LEN; }
+  private get tune(): typeof ROOM_LEVELS[number] { return ROOM_LEVELS[this.rules.room ?? 0] ?? ROOM_LEVELS[0]; }
   private side(a: { width: number }, b: { width: number }): number { return (a.width + b.width) / 2 - REF_WID; }
+
+  /**
+   * The speed to follow a car at: the lower of the speed it has and the speeds its line will hold it to over the stretch just ahead of it, which grows
+   * with its speed (a braking zone is where cars are bunched and braking late is what runs into the car in front). A car that is about to brake is
+   * followed as if it already were, so a follower can run close on a straight and still be slowing when the car in front starts to.
+   */
+  private leaderSpeed(o: RaceCar): number {
+    const p = o.prof;
+    let v = o.v;
+    const reach = Math.min(110, ANTICIPATE_MIN + ANTICIPATE_SECS * o.v);
+    for (const x of [8, 18, 32, 50, 75, 110]) { if (x > reach) break; v = Math.min(v, sampleAt(p, p.vLim, o.s + x)); }
+    return v;
+  }
 
   /** Who has right of way: further round the race first, the better grid slot on a tie. */
   private prio(c: RaceCar): number { return c.lap * 1e5 + this.pos(c) - c.slot * 1e-3; }
@@ -726,8 +817,11 @@ export class Race {
   /** Let the car that has been in longest go, once its service is done, if the lane is clear of the last one. */
   private releaseCars(): void {
     if (this.tick - this.lastRelease < RELEASE_TICKS) return;
+    // The car at the front goes first: the lowest bay, and within a bay (in a big field they pile up in the last one) the cars that are in it and done
+    // before one still driving in, which cannot get in until the ones in front have gone and so must never hold them up.
+    const rank = (o: RaceCar): number => o.bay! * 4 + (o.boxed ? (o.ready ? 0 : 1) : 2);
     let head: RaceCar | undefined;
-    for (const o of this.cars) if (this.inPit(o) && (!head || o.bay! < head.bay!)) head = o;
+    for (const o of this.cars) if (this.inPit(o) && (!head || rank(o) < rank(head))) head = o;
     if (head && head.boxed && head.ready) {
       head.boxed = false; head.ready = false;
       this.lastRelease = this.tick;
@@ -748,13 +842,34 @@ export class Race {
   private dodge(c: RaceCar, p: Profile, racing: RaceCar[]): void {
     let want = 0;
     const i = indexAt(p, c.s);
-    if (!c.rec && !c.ghost && c.v > 0.5 && !p.lane[i] && !this.inPit(c)) {
+    // held up: traffic is keeping the car well below what its line asks. Held long enough it stops waiting and goes round whatever is far slower than
+    // it, stopped or crawling, as soon as there is room, and goes back to its line when the road is clear (the aim returns to 0 below)
+    const lineSpeed = sampleAt(p, p.vLim, c.s);
+    c.held = c.tlVal !== Infinity && c.v < 0.5 * lineSpeed && !c.rec && this.tick > HELD_GRACE ? c.held + 1 : Math.max(0, c.held - 2);
+    const impatient = c.held > HELD_TICKS;
+    c.fol = this.rules.overtake === true && c.tlWhy === 1 && c.tlBy !== null && c.tlVal < OVT_SHARE * lineSpeed && c.v > 8 && !c.rec && lineSpeed - c.tlBy.v > OVT_GAIN ? c.fol + 1 : Math.max(0, c.fol - 2);
+    const overtaking = this.rules.overtake === true && !c.rec && (c.fol > OVT_TICKS || (c.passTo !== null && this.tick < c.passUntil));
+    if (!overtaking) c.passTo = null;
+    if (!c.rec && !c.ghost && (c.v > 0.5 || impatient || overtaking) && !p.lane[i] && !this.inPit(c)) {
       const nx = -Math.sin(c.hp), ny = Math.cos(c.hp), hx = Math.cos(c.hp), hy = Math.sin(c.hp);
       const lim = Math.max(0, p.half[i]! - CAR_R - 3), own = c.off + c.gridOff;
       const blocked: [number, number][] = [];
       for (const o of this.near(c.x, c.y, DODGE_REACH * 1.5)) {
-        if (o === c || !this.blocking(o) || this.apart(c, o)) continue;
+        if (o === c || this.apart(c, o)) continue;
+        // a car far slower than this one's line wants counts as in the way too, once this one has been held up for a while
+        // (only one that is slow of its own accord, and close: a car in a queue is waiting for the one in front of it, so the cars of a queue go round the
+        // head of it one after another, in turn, and not all at once)
+        const slow = impatient && !o.ghost && o.dwell === 0 && !this.inPit(o) && Math.cos(o.h - c.hp) > 0.5 && o.v < SLOW_SHARE * lineSpeed
+          && o.tlVal === Infinity && o.dv < SLOW_STEADY && (o.x - c.x) * hx + (o.y - c.y) * hy < SLOW_REACH;
+        const near = overtaking && !o.ghost && o.dwell === 0 && !this.inPit(o) && Math.cos(o.h - c.hp) > 0.5;
+        if (!slow && !near && !this.blocking(o)) continue;
         const dx = o.x - c.x, dy = o.y - c.y, along = dx * hx + dy * hy;
+        if (near && !slow && !this.blocking(o)) {
+          if (along < -OVT_BEHIND || along > OVT_AHEAD) continue;
+          const lat = dx * nx + dy * ny + own, dgp = (c.width + o.width) / 2 + this.tune.pass;
+          if (lat - dgp < lim && lat + dgp > -lim) blocked.push([lat - dgp, lat + dgp]);
+          continue;
+        }
         if (along < -SAFE_GAP / 2 || along > DODGE_REACH || Math.abs(dx) + Math.abs(dy) > DODGE_REACH * 1.5) continue;
         const lat = dx * nx + dy * ny + own; // how far the obstacle sits from my line
         const dg = DODGE_GAP + this.side(c, o);
@@ -769,12 +884,16 @@ export class Race {
           const da = Math.abs(a - c.aim), db = best === null ? Infinity : Math.abs(best - c.aim);
           if (da < db - 1e-6 || (Math.abs(da - db) <= 1e-6 && Math.abs(a) < Math.abs(best!))) best = a;
         }
+        // (a pass already begun is kept while its gap is still there)
+        if (overtaking && c.passTo !== null && free(c.passTo)) best = c.passTo;
         want = best ?? 0;
+        if (overtaking && want !== 0 && c.passTo !== want) { c.passTo = want; c.passUntil = this.tick + OVT_HOLD; }
       }
     }
     // it moves across the road only as fast as it is rolling: no movement, no steering
     c.aimWant = want;
-    c.aim += (want - c.aim) * Math.min(1, (want !== 0 ? 8 : 1.5) * Math.min(1, c.v / 25) * TICK);
+    // (a car held up and crawling can still turn out: it steers as if it were rolling at HELD_STEER)
+    c.aim += (want - c.aim) * Math.min(1, (want !== 0 ? 8 : 1.5) * Math.min(1, Math.max(c.v, impatient ? HELD_STEER : 0) / 25) * TICK);
     if (Math.abs(c.aim) < 0.01) c.aim = 0;
   }
 
@@ -824,6 +943,7 @@ export class Race {
    */
   private trafficLimit(c: RaceCar, p: Profile, brake: number, racing: RaceCar[], creep = false): number {
     let limit = Infinity;
+    c.tlBy = null; c.tlWhy = 0;
     if (this.inPit(c)) return limit; // free to come in
     const yields = !c.rec && c.freeUntil <= this.tick;
     const b = brake * 0.6;
@@ -854,10 +974,14 @@ export class Race {
           this.pathX[k] = px; this.pathY[k] = py;
         }
       }
-      let hit = -1;
+      let hit = -1, hitAhead = NaN;
       // (a car that has been stuck "creeps": it keeps only the bumper space and sideways room the two cars really need, so it can edge up through a jam without touching)
-      const sideX = creep ? (c.width + o.width) / 2 + CREEP_SIDE - LATERAL : this.side(c, o), sg = creep ? (c.length + o.length) / 2 + CREEP_GAP : this.gap(c, o);
-      const predictGap = creep ? LATERAL + sideX : PREDICT_GAP + sideX;
+      // (so does a car in a big field, passing another in its own lane or the next, going the same way: they are meant to be side by side, so only the room
+      // the two bodies really take counts, and a neighbouring lane is not in the way)
+      const parallel = !c.rec && !o.rec && Math.cos(o.h - c.h) > 0.9;
+      const tight = creep || parallel;
+      const sideX = tight ? (c.width + o.width) / 2 + (creep ? CREEP_SIDE : this.tune.side) - LATERAL : this.side(c, o), sg = creep ? (c.length + o.length) / 2 + CREEP_GAP : this.gap(c, o);
+      const predictGap = tight ? LATERAL + sideX : PREDICT_GAP + sideX;
       for (let k = 0; k < steps; k++) {
         const d = k * PLAN_STEP, px = this.pathX[k]!, py = this.pathY[k]!;
         let q = (px - o.x) * (px - o.x) + (py - o.y) * (py - o.y);
@@ -869,7 +993,7 @@ export class Race {
         const ahead = o.s + (o.v * d) / speed;
         const ex = px - sampleAt(po, po.x, ahead), ey = py - sampleAt(po, po.y, ahead);
         q = ex * ex + ey * ey;
-        if (d > 0 && q < predictGap * predictGap) { hit = d; break; }
+        if (d > 0 && q < predictGap * predictGap) { hit = d; hitAhead = ahead; break; }
       }
       if (hit < 0) continue;
       // "ahead" is measured along the average of the two headings, so both cars agree on who is in front
@@ -881,18 +1005,23 @@ export class Race {
       const ax = sampleAt(p, p.x, c.s + hit + 1) - sampleAt(p, p.x, c.s + hit - 1);
       const ay = sampleAt(p, p.y, c.s + hit + 1) - sampleAt(p, p.y, c.s + hit - 1);
       // (at the very end of an open lap the path ahead has run out, so use the car's own heading)
-      const cos = Math.cos(o.h - (Math.hypot(ax, ay) > 1e-6 ? Math.atan2(ay, ax) : c.h));
+      // (the other car's heading is the way it will be pointing where our paths meet, on its own line, not the way it points now: in an S-bend two cars
+      // side by side point the same way, but a path that has turned on by the time it gets there does not, and the cars must not take each other for crossing)
+      let oh = o.h;
+      if (!o.rec && !Number.isNaN(hitAhead)) oh = Math.atan2(sampleAt(po, po.y, hitAhead + 1) - sampleAt(po, po.y, hitAhead - 1), sampleAt(po, po.x, hitAhead + 1) - sampleAt(po, po.x, hitAhead - 1));
+      const cos = Math.cos(oh - (Math.hypot(ax, ay) > 1e-6 ? Math.atan2(ay, ax) : c.h));
       // Only a car clearly ahead is followed. Alongside, or crossing, the car further round the race has right of
       // way, which is a strict order and so can never leave two cars each waiting for the other. A car behind me
       // is its own driver's problem. A wreck has right of way over nobody, but everybody gives way to it.
-      const room = Math.sqrt(2 * b * Math.max(0, Math.min(hit, Math.hypot(dx, dy)) - sg - FOLLOW_HEADWAY * c.v));
+      const room = Math.sqrt(2 * b * Math.max(0, Math.min(hit, Math.hypot(dx, dy)) - sg - this.tune.head * c.v));
       // (a recovering car gives way to nobody, not even to another wreck, so two of them cannot each wait for the other)
       const theirs = !c.rec && (o.rec || (yields && this.prio(o) > mine));
       if (cos > 0.3) {
-        if (along > 1.5) limit = Math.min(limit, o.v * cos + room);
-        else if (along > -1.5 && theirs) limit = Math.min(limit, o.v * cos + room);
+        // (a follower reads the speed the car ahead is about to be held to, not just the one it has: a corner is coming, and it will brake)
+        if (along > 1.5) { const l = this.leaderSpeed(o) * cos + room; if (l < limit) { limit = l; c.tlBy = o; c.tlWhy = 1; } }
+        else if (along > -1.5 && theirs) { const l = o.v * cos + room; if (l < limit) { limit = l; c.tlBy = o; c.tlWhy = 2; } }
       } else if (theirs) {
-        limit = Math.min(limit, room);
+        if (room < limit) { limit = room; c.tlBy = o; c.tlWhy = 3; }
       }
     }
     return limit;
@@ -1060,6 +1189,7 @@ export class Race {
   /** Cars that touch push each other about (see impact.ts). */
   private collide(racing: RaceCar[]): void {
     const touched = new Set<RaceCar>();
+    const force0 = new Map<RaceCar, number>();
     // the cars have moved since the start of the tick: sort them again, and look for a touch only between neighbours (in the same order as ever)
     this.buildNear(racing);
     const order = new Map<RaceCar, number>();
@@ -1076,6 +1206,7 @@ export class Race {
         const force = impact(A, B);
         if (force < 0) continue;
         touched.add(A); touched.add(B);
+        force0.set(A, Math.max(force0.get(A) ?? 0, force)); force0.set(B, Math.max(force0.get(B) ?? 0, force));
         this.knock(A, lastImpact.closing, lastImpact.alignA);
         this.knock(B, lastImpact.closing, lastImpact.alignB);
         if (force >= BUMP_MIN) {
@@ -1088,7 +1219,7 @@ export class Race {
     }
     for (const c of touched) {
       // knocked sideways: the car now points and travels off the line and must steer back (a tap does not count)
-      if (!c.rec && Math.abs(c.offV) > REC_KICK) this.startRecovery(c, Math.max(-1, Math.min(1, (c.offV / Math.max(c.v, 12)) * 0.9)) , Math.sign(c.offV) * Math.min(3, Math.abs(c.offV) / 12));
+      if (!c.rec && Math.abs(c.offV) > REC_KICK && (force0.get(c) ?? 0) >= REC_FORCE) this.startRecovery(c, Math.max(-1, Math.min(1, (c.offV / Math.max(c.v, 12)) * 0.9)) , Math.sign(c.offV) * Math.min(3, Math.abs(c.offV) / 12));
       const offMax = OFF_MAX * c.prof.half[indexAt(c.prof, c.s)]! / ROAD_HALF;
       c.off = Math.max(-offMax, Math.min(offMax, c.off));
       if (c.dwell > 0) c.v = 0;
@@ -1274,6 +1405,7 @@ export class Race {
     for (const c of racing) {
       const n = next.get(c)!;
       const moved = n.s - c.s;
+      c.dv = n.v - c.v;
       c.v = n.v;
       c.s = n.s;
       if (c.gridOff !== 0 && moved > 0) c.gridOff = Math.abs(c.gridOff) < 0.01 ? 0 : c.gridOff * Math.exp(-moved / 30);
@@ -1320,6 +1452,7 @@ export class Race {
     for (const c of arrived) {
       c.boxed = true;
       c.dwell = Math.round(pitStopTime(c.entrant.car.type) * 60 * (c.emergency ? EMERGENCY_FACTOR : 1));
+      c.stopFuel = c.fuel; c.stopTyre = c.tyre; c.stopTotal = c.dwell;
       this.emit(c.entrant.id, "pitStart");
     }
     for (const c of racing) if (c.dwell > 0 && !arrived.includes(c) && --c.dwell === 0) c.ready = true;

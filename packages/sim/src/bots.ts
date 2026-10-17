@@ -53,14 +53,19 @@ export interface BotLineOpts {
   compound?: Compound;
   field?: WetField;
   /**
-   * Drive a lane instead of the racing line: a fixed share of the road's width from its middle (-1 is the one edge, 1 the other), the same all the
-   * way round, so a big field keeps to parallel lanes and never has to merge into one file (256 cars in single file are longer than a lap).
+   * Drive a lane instead of the racing line: a fixed sideways distance from the middle of the road (the same all the way round, squeezed in only where
+   * the road is narrower than the lanes need), so a big field keeps to parallel lanes, wide enough apart that neighbours do not count as in each
+   * other's way, and never has to merge into one file (a big field in single file is longer than a lap).
    */
   lane?: number;
 }
 
 /** How much of the pull is toward least curvature rather than the shortest path: 0.6 laps quickest on most tracks. */
 const CURVE = 0.6;
+/** The widest lane of a big field sits this far from the middle of the road (see Race's grid columns); on a narrower road the lanes squeeze in together. */
+const LANE_REACH = 17;
+/** The share of the centre line's radius a lane may go in by (the radius of an inside lane is the centre line's less its offset). */
+const LANE_INSIDE = 0.55;
 /** Waypoints are about this far apart, so a wander of this many of them is a slow one. */
 const WANDER_SPAN = 36;
 const WANDER_MAX = 7;
@@ -167,8 +172,22 @@ export function botLine(track: Track, seed: number, skill: number, opts: BotLine
   };
   if (opts.lane !== undefined) {
     // a lane: the same share of the road's width all the way round, with the least wander of the driver's
-    const lane = Math.max(-1, Math.min(1, opts.lane));
-    for (const w of wps) w.l = (w.lo + w.hi) / 2 + (lane * (w.hi - w.lo)) / 2;
+    const lane = opts.lane;
+    for (let k = 0; k < m; k++) {
+      const w = wps[k]!;
+      // how far the lane can sit toward the inside of the bend here: a line that far in has a radius of the centre line's minus its offset, and
+      // below about half the centre line's radius it is not a line a car can drive (it is a corner of its own). The road's width limits it too.
+      const a = base[(k + m - 1) % m]!.p, b = base[k]!.p, c = base[(k + 1) % m]!.p, n = base[k]!.n;
+      const d1x = b.x - a.x, d1y = b.y - a.y, d2x = c.x - b.x, d2y = c.y - b.y;
+      const l1 = Math.hypot(d1x, d1y) || 1, l2 = Math.hypot(d2x, d2y) || 1;
+      const turnX = d2x / l2 - d1x / l1, turnY = d2y / l2 - d1y / l1;
+      const kappa = Math.hypot(turnX, turnY) / ((l1 + l2) / 2);
+      const toward = turnX * n.x + turnY * n.y; // positive: the bend curves toward +n, so +n is the inside
+      const inside = kappa > 1e-4 ? LANE_INSIDE / kappa : Infinity;
+      const hiRoom = toward > 0 ? Math.min(w.hi, inside) : w.hi, loRoom = toward < 0 ? Math.min(-w.lo, inside) : -w.lo;
+      const squeeze = Math.min(1, Math.max(0.2, Math.min(hiRoom, loRoom) / LANE_REACH));
+      w.l = Math.min(w.hi, Math.max(w.lo, lane * squeeze));
+    }
     const saved = wps.map((w) => w.l);
     for (const wob of [(1 - skill) * WANDER_MAX * 0.12, 0]) {
       wps.forEach((w, k) => { w.l = saved[k]!; });

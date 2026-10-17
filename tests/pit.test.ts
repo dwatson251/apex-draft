@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PIT_PENALTY, PIT_STOP_TIME, Race, Rng, TANK, TYRE_WEAR_PER_UNIT, botLine, trackLength, checkTrack, defaultCar, fuelPerLap, generateTrack,
+  PIT_PENALTY, PIT_STOP_TIME, firstDryLap, Race, Rng, TANK, TYRE_WEAR_PER_UNIT, botLine, trackLength, checkTrack, defaultCar, fuelPerLap, generateTrack,
   randomPhrase, type Entrant,
 } from "@apex/sim";
 
@@ -55,6 +55,26 @@ describe("pit stops", () => {
     expect(pitted.events.filter((e) => e.type === "pitEnd").length).toBe(1);
     const stopped = p.vtrace.filter((v, k) => v === 0 && p.ptrace[k] === 2).length;
     expect(stopped / 60).toBeGreaterThanOrEqual(PIT_STOP_TIME - 0.1);
+  });
+  it("shows the fuel filling steadily and the tyres coming off and going on a quarter at a time through the stop", () => {
+    const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
+    const r = new Race(t, field(t, 1, () => [true, false, false]), 3); r.runToEnd();
+    const p = r.cars[0]!;
+    const inBox = p.ptrace.map((v, k) => (v === 2 && p.vtrace[k] === 0 ? k : -1)).filter((k) => k >= 0);
+    expect(inBox.length).toBeGreaterThan(60);
+    const fuel = inBox.map((k) => p.ftrace[k]!), tyre = inBox.map((k) => p.ttrace[k]!);
+    // the tank fills a little every tick, never goes down, and ends full
+    for (let k = 1; k < fuel.length; k++) expect(fuel[k]!).toBeGreaterThanOrEqual(fuel[k - 1]! - 0.11);
+    expect(fuel.at(-1)!).toBeGreaterThan(TANK - 2);
+    expect(fuel[0]!).toBeLessThan(fuel.at(-1)! - 5);
+    // the tyres go down in quarters of what they were to 0, then up in quarters to 100%
+    const steps = [...new Set(tyre.map((v) => Math.round(v * 1000) / 1000))];
+    const before = Math.max(...tyre);
+    expect(steps).toContain(0);
+    expect(steps).toContain(0.25); expect(steps).toContain(0.5); expect(steps).toContain(0.75);
+    expect(tyre.at(-1)!).toBeCloseTo(1, 2);
+    expect(steps.length).toBeLessThanOrEqual(8);
+    expect(before).toBeLessThanOrEqual(1);
   });
   it("never pitting costs the penalty, pitting does not", () => {
     const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
@@ -247,5 +267,20 @@ describe("stopping the race at the player's pit stops", () => {
     const me = r.cars.find((c) => c.entrant.id === "b0")!;
     expect(r.runToStop("b0")).toBe(true);
     expect(me.emergency || me.emergencies > 0 || me.limp || me.pitIn).toBe(true);
+  });
+});
+
+describe("when a car runs dry on its plan", () => {
+  it("counts the stop it is in the middle of as a full tank, and a queued one at the end of its lap", () => {
+    // 40 a lap, a 100 tank: from a full tank it gets two laps in and runs short on the third
+    expect(firstDryLap(40, 6, 2, 100, [], 100)).toBe(4);
+    // coming into the box nearly empty is not running dry: the stop fills it first
+    expect(firstDryLap(40, 6, 2, 20, [], 100)).toBe(2);
+    expect(firstDryLap(40, 6, 2, 100, [], 100)).not.toBe(2);
+    // a stop queued at the end of lap 3 refuels it again: over eight laps it then runs short on lap 6, and a second at the end of lap 5 gets it home
+    expect(firstDryLap(40, 8, 2, 100, [3], 100)).toBe(6);
+    expect(firstDryLap(40, 8, 2, 100, [3, 5], 100)).toBeNull();
+    expect(firstDryLap(40, 3, 0, 100, [], 100)).toBe(2); // three laps of 40 do not fit in a tank of 100
+    expect(firstDryLap(40, 2, 0, 100, [], 100)).toBeNull();
   });
 });

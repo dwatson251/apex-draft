@@ -8,7 +8,7 @@ function field(t: ReturnType<typeof generateTrack>, n: number, extra: Partial<En
 describe("a grid of 32", () => {
   const t = generateTrack("quiet-lynx-needs-clocks", { biome: "grass" });
   it("allows 31 rivals and keeps them in a share link", () => {
-    expect(MAX_RIVALS).toBe(255);
+    expect(MAX_RIVALS).toBe(63);
     const st = decodeShare(encodeShare({ phrase: "x-y", laps: 3, mode: "race", rivals: 31, car: defaultCar(), obstacles: true, realism: false, playing: false, startTyre: "soft", pitPlan: [] }));
     expect(typeof st).not.toBe("string");
     if (typeof st !== "string") { expect(st.rivals).toBe(31); expect(st.startTyre).toBe("soft"); }

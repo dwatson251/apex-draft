@@ -57,6 +57,10 @@ export interface Settings {
   difficulty: Difficulty;
   /** the player's paint: shown on their own car only */
   livery?: Livery;
+  /** experimental: cars take gaps to go past slower ones (see RaceRules.overtake) */
+  overtake?: boolean;
+  /** experimental: how much room cars take side by side and following: 0 normal, 1 tight, 2 tightest (RaceRules.room) */
+  room?: 0 | 1 | 2;
   tutorialDone?: boolean;
   /** pit stops queued: the end of lap `lap` (counting from 0), on this tyre */
   pitPlan: { lap: number; tyre: Compound; tactic?: Tactic }[];

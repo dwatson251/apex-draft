@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAX_WEAR_MULT, PIT_PENALTY, Race, botLine, clampWear, defaultCar, finishSession, generateTrack, gridFromTimes, newWeekend,
+  MAX_WEAR_MULT, PIT_PENALTY, crossedPlace, Race, botLine, clampWear, defaultCar, finishSession, generateTrack, gridFromTimes, newWeekend,
   quickGridTime, sessionBest, sessionLaps, sessionRules, skipTo, trialKey, type Entrant,
 } from "@apex/sim";
 
@@ -109,5 +109,18 @@ describe("a race weekend", () => {
     expect(finishSession(w, "race", null)).toBe(w);
     expect(skipTo(w, "qualifying").phase).toBe("qualifying");
     expect(skipTo(skipTo(w, "race"), "practice").phase).toBe("race");
+  });
+});
+
+describe("where a car crossed the line", () => {
+  it("is by time on the road, before any penalty, and null for a car that did not finish", () => {
+    const res = [
+      { id: "a", rawTime: 100 }, { id: "b", rawTime: 90 }, { id: "c", rawTime: 95 }, { id: "d", rawTime: null },
+    ];
+    expect(crossedPlace(res, "b")).toBe(1);
+    expect(crossedPlace(res, "c")).toBe(2);
+    expect(crossedPlace(res, "a")).toBe(3);
+    expect(crossedPlace(res, "d")).toBeNull();
+    expect(crossedPlace(res, "nobody")).toBeNull();
   });
 });

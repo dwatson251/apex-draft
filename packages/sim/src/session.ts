@@ -57,6 +57,16 @@ export function migrateBest(best: Record<string, number>, defaultFor: (phrase: s
   return out;
 }
 
+/**
+ * Where a car crossed the line, 1 for the first, from the results: by its time on the road, before any penalty. The classification (`position`) can
+ * differ, since with tyres and fuel in play a car that never stopped is given a penalty and one that did is not. Null for a car that did not finish.
+ */
+export function crossedPlace(results: { id: string; rawTime: number | null }[], id: string): number | null {
+  const mine = results.find((r) => r.id === id);
+  if (!mine || mine.rawTime === null) return null;
+  return 1 + results.filter((r) => r.id !== id && r.rawTime !== null && r.rawTime < mine.rawTime!).length;
+}
+
 export interface TimedCar { id: string; time: number | null }
 
 /** Grid places (0 = pole) from session times: quickest first, and those with no time at the back. Ties keep input order. */

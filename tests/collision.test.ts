@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contact, impact, type Body } from "@apex/sim";
+import { contact, impact, lastImpact, type Body } from "@apex/sim";
 
 const car = (o: Partial<Body>): Body => ({ x: 0, y: 0, hp: 0, v: 0, off: 0, offV: 0, s: 100, radius: 3.5, mass: 1, anchored: false, ...o });
 
@@ -251,5 +251,15 @@ describe("touching means the car's own size", () => {
   it("still treats a body with no size as a disc", () => {
     expect(contact(car({ x: 0 }), car({ x: 6.5 }))).not.toBeNull();
     expect(contact(car({ x: 0 }), car({ x: 7.5 }))).toBeNull();
+  });
+});
+
+describe("the record of the last hit", () => {
+  it("is not left over from an earlier, harder hit when two cars merely touch", () => {
+    const sized = (o: Partial<Body>): Body => car({ length: 8, width: 3.2, h: 0, radius: 2.8, ...o });
+    impact(sized({ x: 0, v: 80 }), sized({ x: 7, v: 0 }));    // a hard rear-end
+    expect(lastImpact.closing).toBeGreaterThan(30);
+    impact(sized({ x: 0, v: 20 }), sized({ x: 7.5, v: 20 })); // two cars touching, going the same speed
+    expect(lastImpact.closing).toBe(0);
   });
 });

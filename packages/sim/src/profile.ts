@@ -28,8 +28,8 @@ export interface Profile {
   seg: Int32Array;
   /** half the width of the road at each sample */
   half: Float64Array;
-  /** only where the track has shortcuts: how far round the ring the car is at each sample, whichever way it went (for ranking) */
-  canon?: Float64Array;
+  /** how far round the ring the car is at each sample, whichever line it is on and whichever way it went (for ranking) */
+  canon: Float64Array;
   /** speed limit after braking for what is ahead */
   vLim: Float64Array;
   accelMul: Float64Array;
@@ -130,10 +130,12 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     }
   }
 
-  // with shortcuts, laps are different lengths: rank cars by where they are on the ring, a shortcut counting as the stretch it replaces
-  let canon: Float64Array | undefined;
-  if (track.branches.length) {
-    canon = new Float64Array(n);
+  // Rank cars by where they are on the ring, not by how far along their own line they are: lines are different lengths (an inside line, a lane, a line
+  // someone drew), and over a lap the difference is tens of units, which is a good few places in a field. Inside each segment a car's place is the share of
+  // its own stretch of line there is behind it, taken of the segment's own length on the ring, so every line agrees at every gate. With shortcuts, laps are
+  // different lengths as well, and a shortcut counts as the stretch it replaces.
+  const canon = new Float64Array(n);
+  {
     const ring = ringCum(track), nr = track.segments.length;
     const first = new Map<number, number>(), lastAt = new Map<number, number>();
     for (let i = 0; i < n; i++) { const q = seg[i]!; if (!first.has(q)) first.set(q, i * ds); lastAt.set(q, i * ds); }
@@ -148,8 +150,10 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     for (let i = 0; i < n; i++) {
       const q = seg[i]!, s = i * ds, br = inBranch.get(q);
       if (br) canon[i] = br.c0 + (br.c1 - br.c0) * Math.min(1, Math.max(0, (s - br.s0) / Math.max(br.s1 - br.s0, 1e-6)));
-      else if (q < nr) canon[i] = Math.min(ring[q]! + (s - (first.get(q) ?? s)), ring[q + 1]!);
-      else canon[i] = ring[nr]!;
+      else if (q < nr) {
+        const f0 = first.get(q) ?? s, f1 = Math.max(lastAt.get(q) ?? s, f0 + ds);
+        canon[i] = ring[q]! + (ring[q + 1]! - ring[q]!) * Math.min(1, Math.max(0, (s - f0) / (f1 - f0)));
+      } else canon[i] = ring[nr]!;
     }
   }
 

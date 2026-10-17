@@ -43,9 +43,9 @@ export interface ShareState {
 
 export const SHARE_VERSION = 5;
 /** The sizes of field the game offers, you included: the round numbers of a real race. Rivals are one fewer. */
-export const FIELD_SIZES = [2, 4, 8, 16, 24, 32, 64, 128, 256] as const;
-/** A grid is at most 256 cars: you and 255 rivals. */
-export const MAX_RIVALS = 255;
+export const FIELD_SIZES = [2, 4, 8, 16, 24, 32, 64] as const;
+/** A grid is at most 64 cars: you and 63 rivals. */
+export const MAX_RIVALS = 63;
 /** The offered field size nearest to this many rivals (so a count from an old save or link lands on a size that is in the list), as a count of rivals. */
 export function snapRivals(rivals: number): number {
   const want = Math.min(MAX_RIVALS, Math.max(1, Math.round(rivals))) + 1;

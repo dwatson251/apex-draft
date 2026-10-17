@@ -19,7 +19,7 @@ import { SPLIT_EVERY, lapsApart, splitSeconds, standingsRows } from "./standings
 import { load, save, type Best, type Settings } from "./store.ts";
 import {
   CHALLENGES, ROUNDS, goalText, addDays, applyRound, challengeById, contactCount, dailyDate, dailyPhrase, dailyStreak, evaluate, isOver, newChampionship, newDaily, nextPhrase, normaliseChallenges, normaliseChampionship, normaliseDaily,
-  TACTIC_INFO, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
+  TACTIC_INFO, crossedPlace, firstDryLap, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
   type Challenge, type ChallengeStore, type Championship, type DailyRecord,
 } from "@apex/sim";
 import { DIFFICULTIES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
@@ -314,6 +314,7 @@ export class Game {
       s.livery = ok(l.primary) && ok(l.secondary) && [0, 1, 2, 3].includes(l.stripe as number) && Number.isInteger(l.number) && l.number! >= 0 && l.number! <= 99 ? { primary: l.primary!, secondary: l.secondary!, stripe: l.stripe!, number: l.number! } : undefined;
       if (!s.livery) delete s.livery;
     }
+    if (s.room !== undefined && s.room !== 0 && s.room !== 1 && s.room !== 2) delete s.room;
     if (!isCompound(s.startTyre)) s.startTyre = "medium";
     if (s.startTactic !== undefined && !isTactic(s.startTactic)) delete s.startTactic;
     s.pitPlan = (Array.isArray(s.pitPlan) ? s.pitPlan : [])
@@ -684,7 +685,7 @@ export class Game {
 
   private renderSettings(): void {
     const s = this.settings;
-    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX }));
+    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, overtake: !!s.overtake, room: s.room ?? 0, version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX }));
     this.on(el, "#back", () => { if (this.inGame) { this.screen = "home"; this.renderMenu(); } else this.go("home"); });
     // committed when the box loses focus or Enter is pressed, not on every key: a re-render would take the focus away
     const nameBox = el.querySelector<HTMLInputElement>("#player-name")!;
@@ -694,6 +695,8 @@ export class Game {
     wireControls(el, {
       change: (id, v) => {
         if (id === "sound") { this.audio.unlock(); this.settings.muted = v !== "1"; this.audio.setMuted(!!this.settings.muted); this.persist(); }
+        else if (id === "room") { s.room = (Number(v) === 2 ? 2 : Number(v) === 1 ? 1 : 0); this.persist(); }
+        else if (id === "overtake") { s.overtake = v === "1"; this.persist(); }
         else if (id === "music") { this.audio.unlock(); s.musicOff = v !== "1"; this.audio.setMusic(!s.musicOff); this.persist(); }
         this.renderMenu();
       },
@@ -1491,13 +1494,7 @@ export class Game {
   /** What the tank and the plan say: the first lap, if any, on which the car would run dry. */
   private fuelProblem(next: number, fuel: number): number | null {
     const per = fuelPerLap(this.playerCar(), this.run.laps, trackLength(this.track)) * this.run.wearFuel;
-    let left = fuel;
-    for (let lap = next; lap < this.run.laps; lap++) {
-      if (left < per * 1.03) return lap;
-      left -= per;
-      if (this.settings.pitPlan.some((p) => p.lap === lap)) left = TANK;
-    }
-    return null;
+    return firstDryLap(per, this.run.laps, next, fuel, this.settings.pitPlan.map((p) => p.lap), TANK);
   }
 
   private updateRain(r: number): void {
@@ -1534,7 +1531,8 @@ export class Game {
     const tooMany = !firstLap && changed.length > MAX_AMENDS;
     const real = this.run.realism;
     const me = this.race?.cars.find((c) => c.entrant.id === ME);
-    const fuel = me ? me.fuel : TANK;
+    // (in the box the stop being made refuels the car before it goes back out: judge the plan from the full tank it leaves with, not the one it came in on)
+    const fuel = me && !me.boxed ? me.fuel : TANK;
     const dryAt = real ? this.fuelProblem(next, fuel) : null;
     // no title, no gauges and no notes here: the weather as three tiles, and a box only when something is wrong
     const warns: string[] = [];
@@ -1692,7 +1690,7 @@ export class Game {
     const baseRules = r.kind !== "race" ? sessionRules(r.kind) : r.realism ? { ...sessionRules("race", { wearMult: { fuel: r.wearFuel, tyre: r.wearTyre }, mandatory: r.mandatory }), weather: true } : { realism: false, weather: false };
     // the rubber the weekend's earlier sessions laid down stays on the road (not on hard, whose races the server replays from scratch)
     const rubber = r.flow === "weekend" && r.difficulty !== "hard" ? this.weekend?.rubber : undefined;
-    const rules = rubber ? { ...baseRules, rubber } : baseRules;
+    const rules = { ...baseRules, ...(rubber ? { rubber } : {}), ...(st.overtake ? { overtake: true } : {}), ...(st.room ? { room: st.room } : {}) };
     this.race = new Race(this.track, entrants, r.laps, rules);
     this.lapNo = 0;
     this.view.clearSkids();
@@ -2265,7 +2263,7 @@ export class Game {
     this.reported = race;
     const car = this.playerCar();
     this.online.uploadLine(this.track.phrase, this.vehicle, car, this.me.lines[0]!);
-    if (r.kind !== "race" || this.special || r.difficulty !== "hard" || r.rivals > MAX_RACE_RIVALS) return; // only the hard field is one the server can replay // the server will not replay a field bigger than it allows
+    if (r.kind !== "race" || this.special || this.settings.overtake || this.settings.room || r.difficulty !== "hard" || r.rivals > MAX_RACE_RIVALS) return; // only the hard field is one the server can replay // the server will not replay a field bigger than it allows
     this.online.uploadRace({
       kind: r.flow === "weekend" ? "weekend" : "quick", phrase: this.track.phrase, vehicle: this.vehicle, car, laps: r.laps, rivals: r.rivals, realism: r.realism, lines: this.me.lines,
       wearFuel: r.wearFuel, wearTyre: r.wearTyre, mandatory: r.mandatory, startTyre: this.me.startTyre, startTactic: this.me.startTactic, pitPlan: this.me.pitPlan,
@@ -2404,14 +2402,17 @@ export class Game {
     }
     if (r.flow === "weekend" && this.weekend) this.weekend = finishSession(this.weekend, "race", null);
     if (r.flow === "tutorial" && this.tutBackup) { this.tutBackup.tutorialDone = true; this.persist(); }
+    const crossed = crossedPlace(res, ME);
     const title = mine.position === 1 ? "You won!" : `You finished P${mine.position}`;
+    // (with tyres and fuel in play the classification adds time penalties, so it can differ from the order the cars crossed the line in)
+    const orderNote = crossed !== null && crossed !== mine.position ? `<p class="dim">You crossed the line <b>P${crossed}</b>; with the time penalties (a car that never stopped in the pits, or never ran a required tyre, is given one) you are classified <b>P${mine.position}</b>.</p>` : "";
     if (mine.position === 1 && !mine.dnf && this.special?.kind !== "challenge") this.audio.stinger("win");
     const when = (x: CarResult) => (fmt(x.finishTime) + (x.penalty ? ` <span class="bad">+${realSeconds(x.penalty).toFixed(1)}</span>` : ""));
     const grid = r.flow === "weekend" ? this.weekend?.grid?.[ME] : undefined;
     const noStop = mine.penalty - mine.missing.length * pitPenalty(this.vehicle);
     const el = this.show("center", `
       <h2>${r.flow === "weekend" ? "Race weekend · " : ""}${title}</h2>
-      <p class="dim">${esc(this.track.phrase)} · ${r.laps} lap(s) · ${esc(VEHICLES[this.vehicle].plural)}${r.realism ? (r.wearFuel > 1 || r.wearTyre > 1 ? ` · fuel ${r.wearFuel}× · tyres ${r.wearTyre}×` : "") : " · no tyres or fuel"}${grid !== undefined ? ` · started P${grid + 1}` : ""}${r.flow !== "tutorial" ? ` · ${r.difficulty}` : ""}</p>${record}${earned}
+      <p class="dim">${esc(this.track.phrase)} · ${r.laps} lap(s) · ${esc(VEHICLES[this.vehicle].plural)}${r.realism ? (r.wearFuel > 1 || r.wearTyre > 1 ? ` · fuel ${r.wearFuel}× · tyres ${r.wearTyre}×` : "") : " · no tyres or fuel"}${grid !== undefined ? ` · started P${grid + 1}` : ""}${r.flow !== "tutorial" ? ` · ${r.difficulty}` : ""}</p>${orderNote}${record}${earned}
       ${mine.emergencies ? `<p class="bad">The tank ran dry ${mine.emergencies === 1 ? "once" : `${mine.emergencies} times`}: ${mine.emergencies === 1 ? "an emergency refuel" : "emergency refuels"} cost you a slow limp to the pits and a long stop.</p>` : ""}
       ${noStop > 0 ? `<p class="bad">+${realSeconds(noStop).toFixed(1)}s because you never stopped in the pits.</p>` : ""}
       ${mine.missing.length ? `<p class="bad">+${realSeconds(mine.missing.length * pitPenalty(this.vehicle)).toFixed(1)}s for never running ${mine.missing.map((c) => COMPOUNDS[c].name).join(" or ")} tyres.</p>` : ""}

@@ -98,6 +98,8 @@ export function contact(a: Body, b: Body): Contact | null {
 export function impact(a: Body, b: Body): number {
   const hit = contact(a, b);
   if (!hit) return -1;
+  // (the record of the hit is this one's: a touch with nobody closing must not inherit the speed of an earlier hit, which spun cars that were barely moving)
+  lastImpact.closing = 0; lastImpact.alignA = 1; lastImpact.alignB = 1;
   const { nx, ny } = hit;
   const ma = a.mass * (a.anchored ? 8 : 1), mb = b.mass * (b.anchored ? 8 : 1);
   const va = velocity(a), vb = velocity(b);

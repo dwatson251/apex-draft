@@ -446,7 +446,7 @@ button.tile.locked:hover:not(:disabled), button.tile.locked:active:not(:disabled
    ===================================================================================================================== */
 .panel, #menu .panel.menu-panel, .dialog, #hint, #tip, #loadingbox, #startlights, .toast, #tut, .best-box, .chrow, .lapstep, .slot, .stoprow, .tyrebtn, .chipbtn,
 button, button.big, #menubtn, #bar button.big, .chip, .pill, button.back, .sessions span, .field-copy, .opt, .dd-btn, .dd-list, .dd-opt, .stepper, .stepper button,
-.cchip, .keyrow kbd, input.fancy, select.fancy, .bubble input.fancy, .stoprow input[type=number], #tut .tut-skip, .slot .rm, .lapstep button, .bb-tube, .bb-ic { border-radius: 0; }
+.cchip, .keyrow kbd, input.fancy, select.fancy, .bubble input.fancy, .stoprow input[type=number], #tut .tut-skip, .slot .rm, .lapstep button { border-radius: 0; }
 
 /* menu panels that are not tile screens (setup, settings, pause, results, dialogs) */
 #menu .panel.menu-panel.bubble:not(.tiles), .dialog {
@@ -489,9 +489,6 @@ input.fancy:focus, .bubble input.fancy:focus { border-color: var(--accent); outl
 .lapstep, .slot, .stoprow, .tyrebtn { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.18); }
 .tyrebtn:hover:not(:disabled) { background: #3a4b82; border-color: rgba(255, 255, 255, 0.7); }
 .slot { border-top: 3px solid var(--stop, #5f78c9); }
-
-/* gauges: square tubes and sockets */
-.bb-tube { border-width: 1px; background: rgba(8, 10, 18, 0.8); } .bb-ic { border-width: 1px; background: rgba(8, 10, 18, 0.85); }
 
 /* small floating things */
 #hint, #tip, .toast, #tut { background: rgba(10, 14, 26, 0.88); border: 1px solid rgba(255, 255, 255, 0.22); border-left: 3px solid var(--accent); } .toast.good { border-left-color: #5fe08a; }
