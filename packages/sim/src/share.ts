@@ -12,7 +12,7 @@ import type { Vec2 } from "./vec.ts";
  *   u8 version (5)
  *   u8 flags: 1 obstacles, 2 realism, 4 race mode (else time trial), 8 in a game (else menu), 16 has points, 32 has a route (the line takes a shortcut)
  *   u8 laps (1 to 50)
- *   u8 rivals (1 to 31), u8 start tyre (0 soft, 1 medium, 2 wet)
+ *   u8 rivals (1 to 255), u8 start tyre (0 soft, 1 medium, 2 wet)
  *   (versions 1 to 3 had rivals in the low nibble of one byte and the tyre in the high nibble: at most 7 rivals)
  *   u8 stops queued, then per stop: u8 lap, u8 tyre
  *   (version 2 also had a byte, after the tyre byte, for edit-every-N-laps: no longer a thing, and ignored.
@@ -42,8 +42,15 @@ export interface ShareState {
 }
 
 export const SHARE_VERSION = 5;
-/** A grid is at most 32 cars: you and 31 rivals. */
-export const MAX_RIVALS = 31;
+/** The sizes of field the game offers, you included: the round numbers of a real race. Rivals are one fewer. */
+export const FIELD_SIZES = [2, 4, 8, 16, 24, 32, 64, 128, 256] as const;
+/** A grid is at most 256 cars: you and 255 rivals. */
+export const MAX_RIVALS = 255;
+/** The offered field size nearest to this many rivals (so a count from an old save or link lands on a size that is in the list), as a count of rivals. */
+export function snapRivals(rivals: number): number {
+  const want = Math.min(MAX_RIVALS, Math.max(1, Math.round(rivals))) + 1;
+  return FIELD_SIZES.reduce((best, n) => (Math.abs(n - want) < Math.abs(best - want) ? n : best), FIELD_SIZES[0]) - 1;
+}
 const Q = 10;
 
 class Writer {

@@ -23,7 +23,10 @@
     "android:sync": "npm run build:web && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "circuits:fetch": "node --no-warnings tools/circuits/fetch.ts",
-    "circuits": "node --no-warnings tools/circuits/build.ts"
+    "circuits": "node --no-warnings tools/circuits/build.ts",
+    "server:build": "node server/build.mjs",
+    "server:dev": "node server/build.mjs && DATA_DIR=./server/data node server/dist/server.js",
+    "server:typecheck": "tsc -p server/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.9",

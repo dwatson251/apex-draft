@@ -1,6 +1,7 @@
 import { Application, Container, Graphics, RenderTexture, Sprite } from "pixi.js";
 import { CELL, halfIdx, WET_LAT, WET_LONG, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
 import { buildCar, variantOf, type CarShape } from "./cars.ts";
+import { LabelLayer, type LabelItem } from "./labels.ts";
 import { buildScenery, MARGIN_CELLS, type PlaneState, type Scenery } from "./scenery.ts";
 import { Sky } from "./sky.ts";
 import { buildSegmentArt, type SegmentArt } from "./trackart.ts";
@@ -29,10 +30,10 @@ const FOCUS_PAN_REACH = 0.5;
 /** How visible the segments you have not reached yet are while drawing a lap. */
 const FUTURE_ALPHA = 0.28;
 const MIN_ZOOM = 0.6;
-const MAX_ZOOM = 5;
+const MAX_ZOOM = 14;
 /** How far the wheel can pull the following camera out (nearly the whole track) and in (close on the car). */
 const MIN_FOLLOW_ZOOM = 0.8;
-const MAX_FOLLOW_ZOOM = 6;
+const MAX_FOLLOW_ZOOM = 16;
 type CamMode = "overview" | "focus" | "follow";
 
 type CarView = CarShape;
@@ -50,7 +51,12 @@ export class WorldView {
   private wetShown: Uint8Array | null | undefined;
   private skidSprite = new Sprite();
   private lines = new Graphics();
+  private cursorG = new Graphics();
+  private labelLayer = new LabelLayer();
   private carsLayer = new Container();
+  /** bridge decks, over the cars on the ground beneath them; the cars on the bridges themselves are in `carsHigh`, over the decks */
+  private deckLayer = new Container();
+  private carsHigh = new Container();
   private crew = new Graphics();
   private sparkG = new Graphics();
   private sparks: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
@@ -75,8 +81,9 @@ export class WorldView {
   private clock = 0;
 
   constructor(readonly app: Application) {
-    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.wetG, this.highlight, this.skidSprite, this.sky.shadows, this.lines, this.carsLayer, this.crew, this.sparkG, this.sky.air);
+    this.root.addChild(this.groundLayer, this.grid, this.segLayer, this.wetG, this.skidSprite, this.sky.shadows, this.carsLayer, this.deckLayer, this.highlight, this.lines, this.carsHigh, this.crew, this.sparkG, this.sky.air, this.cursorG);
     app.stage.addChild(this.root);
+    app.stage.addChild(this.labelLayer.root);
     app.renderer.on("resize", () => this.applyCamera());
     this.setBounds(700, 500);
   }
@@ -124,6 +131,35 @@ export class WorldView {
   toWorld(clientX: number, clientY: number): Vec2 {
     const r = this.app.canvas.getBoundingClientRect();
     return { x: (clientX - r.left - this.root.x) / this.root.scale.x, y: (clientY - r.top - this.root.y) / this.root.scale.y };
+  }
+
+  /**
+   * Name labels for cars (the player and the other online racers). Each has a world position; they are drawn in screen space so the text
+   * stays the same size however far you zoom, and thinned out where they would overlap.
+   */
+  updateLabels(cars: { id: string; name: string; x: number; y: number; color: number; priority: number; always?: boolean }[], dt: number): void {
+    const items: LabelItem[] = cars.map((c) => {
+      const w = this.labelLayer.measure(c.id, c.name, c.color);
+      return { id: c.id, w, priority: c.priority, ...(c.always ? { always: true } : {}), x: c.x * this.root.scale.x + this.root.x, y: c.y * this.root.scale.y + this.root.y - 7 * this.root.scale.x };
+    });
+    this.labelLayer.update(items, { width: this.app.screen.width, height: this.app.screen.height }, dt);
+  }
+
+  clearLabels(): void { this.labelLayer.clear(); }
+
+  /** World units back to client pixels (the inverse of toWorld). */
+  toClient(p: Vec2): { x: number; y: number } {
+    const r = this.app.canvas.getBoundingClientRect();
+    return { x: p.x * this.root.scale.x + this.root.x + r.left, y: p.y * this.root.scale.y + this.root.y + r.top };
+  }
+
+  /** The gamepad cursor: a ring (bigger and filled when it is over a handle). null hides it. */
+  drawCursor(p: Vec2 | null, over = false, down = false): void {
+    const g = this.cursorG.clear();
+    if (!p) return;
+    const r = 7 / this.scale;
+    g.circle(p.x, p.y, r).stroke({ width: 1.6 / this.scale, color: down ? 0xffcf3f : 0xffffff }).fill({ color: 0xffcf3f, alpha: over ? 0.35 : 0 });
+    g.circle(p.x, p.y, 1.2 / this.scale).fill(0xffffff);
   }
 
   // ---------- camera ----------
@@ -259,6 +295,7 @@ export class WorldView {
   private clearTrack(): void {
     this.groundLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.segLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
+    this.deckLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.arts.clear();
     this.scenery?.dispose();
     this.scenery = null;
@@ -298,7 +335,7 @@ export class WorldView {
     for (const s of track.allSegments) {
       const art = buildSegmentArt(track, s);
       this.arts.set(s.index, art);
-      this.segLayer.addChild(art.root);
+      (art.deck ? this.deckLayer : this.segLayer).addChild(art.root);
     }
     // one polygon for each bin of the wet field, worked out once
     const samples = track.segments[0]!.center.length;
@@ -424,19 +461,22 @@ export class WorldView {
   }
 
   // ---------- cars ----------
-  setCar(id: string, type: VehicleId | undefined, x: number, y: number, h: number, color: number, ghost: boolean, isPlayer: boolean, braking: boolean, hidden = false, boat?: { v: number; beta: number }): void {
+  setCar(id: string, type: VehicleId | undefined, x: number, y: number, h: number, color: number, ghost: boolean, isPlayer: boolean, braking: boolean, hidden = false, boat?: { v: number; beta: number }, steer = 0, onDeck = false): void {
     let c = this.cars.get(id);
     if (!c) {
       c = buildCar(type ?? "rally", color, isPlayer, variantOf(id));
       this.carsLayer.addChild(c.root);
       this.cars.set(id, c);
     }
+    // on a bridge: over the deck. It is on the road like any other car (a lifted shadow made it look like it was flying), so only the layer changes
+    if (onDeck !== (c.root.parent === this.carsHigh)) (onDeck ? this.carsHigh : this.carsLayer).addChild(c.root);
     c.root.visible = !hidden;
     c.root.position.set(x, y);
     c.body.rotation = h;
     c.shadow.position.set(1.6, 2.2);
     c.shadow.rotation = h;
     c.brake.visible = braking;
+    for (const w of c.steer) w.rotation = steer;
     c.root.alpha = ghost ? 0.4 : 1;
     if (c.wake) {
       // foam trails behind the path the hull is travelling on, not the way it points
@@ -469,7 +509,7 @@ export class WorldView {
     }
   }
 
-  clearCars(): void { this.carsLayer.removeChildren().forEach((c) => c.destroy({ children: true })); this.cars.clear(); }
+  clearCars(): void { for (const layer of [this.carsLayer, this.carsHigh]) layer.removeChildren().forEach((c) => c.destroy({ children: true })); this.cars.clear(); this.labelLayer.clear(); }
 }
 
 export { MARGIN_CELLS };

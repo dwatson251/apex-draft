@@ -1,0 +1,30 @@
+# Paste this into a Portainer stack (Stacks > Add stack > Web editor). The reverse proxy for
+# apexdraft.dnlwtsn.co.uk should forward to this host on port 8787 and do the TLS.
+services:
+  apexdraft:
+    image: ghcr.io/dwatson251/apex-draft-server:latest
+    # To build it in Portainer instead of pulling the published image, comment out `image` and use:
+    # build:
+    #   context: https://github.com/dwatson251/apex-draft.git#main
+    #   dockerfile: server/Dockerfile
+    container_name: apexdraft
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      PORT: "8787"
+      DATA_DIR: /data
+      # 1 when a reverse proxy sits in front: per-client rate limits then use X-Forwarded-For
+      TRUST_PROXY: "1"
+      # threads that run the simulation; default is CPUs - 1, at most 4
+      # WORKERS: "2"
+    volumes:
+      - apexdraft-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+volumes:
+  # the SQLite database lives here (apex.db): back this volume up
+  apexdraft-data:

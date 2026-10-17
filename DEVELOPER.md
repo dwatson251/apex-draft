@@ -144,7 +144,6 @@ CSP. The IPC surface is deliberately tiny, and each handler checks that the send
 
 - `store:get` / `store:set`: only `settings`, `cars` and `best` are valid keys, and they are written as plain files in the
   user data folder (override it with `APEX_DRAFT_DATA`).
-- `lines:export` / `lines:import`: the line file dialogs.
 - `app:version`, `app:quit`.
 
 New windows are denied, only `https://` links are opened externally, and navigation away from the app is blocked.
@@ -232,7 +231,7 @@ npm run android:apk    # sync, then gradlew assembleDebug -> android/app/build/o
 ```
 
 - `src/renderer/platform.ts` is the only Capacitor-aware renderer code: it fills `window.apex` with just `version` and
-  `exportLine` (share sheet) and hooks the Back button and app pause. Saves use `localStorage`, which persists in the WebView.
+  nothing but `version`, and hooks the Back button and app pause. Saves use `localStorage`, which persists in the WebView.
 - Touch input lives in `Game.onPointerDown/Move/Up` (tap tool, hold to delete, pinch). Phone layout is the last two blocks of
   `style.css` (`pointer: coarse` and `max-height: 520px`).
 - `tools/e2e/ui-touch.cjs` checks the phone layout and gestures (see "Looking at the UI"; run it with `CDP=http://localhost:9333`).
@@ -299,4 +298,25 @@ length compare fairly; tracks without shortcuts rank by arclength exactly as bef
 every existing race. That is fine, since no race is stored, but a change to what a share link *contains* needs a new link
 version in `share.ts` that still reads the old ones (version 5 is current, and 1 to 4 still open).
 
-**Not done yet.** Online upload of times and lines (line files stand in), code signing and auto-update, and proper art.
+**Not done yet.** Code signing and auto-update, and proper art.
+
+## Online play
+
+`server/` is a small Node server (`node:http`, SQLite via `node:sqlite`, worker threads) that **re-runs the game's own sim** to time
+what players upload. Docs: `server/README.md`. The pieces:
+
+- **The sim as a service** (`packages/sim/src/headless.ts`): `timeTrial` (a solo timed lap, every check the game makes), `runRace`
+  (a whole race: the player's lines, recorded ghosts, bots), `makeBots` (the computer rivals, identical on every machine),
+  `cachedTrack`. The game and the server call the same functions, so a time means the same thing on both sides. `wire.ts` is the
+  line format on the wire (`[x, y]` to 0.01); the game drives `roundLine(line)` so its own time matches the server's.
+- **`SIM_VERSION`** (`packages/sim/src/version.ts`): the server only ranks times from the current ruleset. Bump it with any change to
+  race.ts, profile.ts, car.ts, track.ts, bots.ts, vehicles.ts, biomes.ts, weather.ts, tyres.ts or the circuit data;
+  `tests/version.test.ts` fingerprints a fixed race and fails if you forget (update its golden values with the bump).
+- **Client** (`src/renderer/online.ts`): the only networking. Server URL baked in, 10 s timeout, every failure silent, a 60 s back-off
+  after one, ghosts preloaded when a track is set up and consumed synchronously by `Game.makeRivals`, uploads fire and forget from
+  `Game.reportRun`. The identity (a UUID that is the player's secret, plus the display name) lives under the `identity` store key.
+- **Names over cars** (`src/renderer/labels.ts`): `declutterLabels` is the pure layout (player first and never hidden; others lifted,
+  then name dropped, then arrow dropped); `LabelLayer` draws them in screen space. Only the player and online racers have labels.
+- The CSP names the server in two places (`src/renderer/index.html`, `src/main/index.ts`); `tests/online.test.ts` checks both.
+- Tests: `tests/server.test.ts` (API, cheats, results queue, website), `tests/online.test.ts`, `tests/labels.test.ts`;
+  `tools/e2e/online.cjs` plays against a local server (see the file header), `tools/e2e/pad.cjs` drives a fake gamepad.

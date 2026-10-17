@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { VEHICLES, VEHICLE_IDS, CIRCUIT_VEHICLES, vehicleForSeed, vehicleForTrack, placeFor, generateTrack, carStats, defaultCar } from "@apex/sim";
+import { pitStopTime, VEHICLES, VEHICLE_IDS, CIRCUIT_VEHICLES, vehicleForSeed, vehicleForTrack, placeFor, generateTrack, carStats, defaultCar } from "@apex/sim";
 import { GEARS } from "../src/renderer/gearbox.ts";
+import { WORLD_TIME } from "../src/renderer/scale.ts";
 
 describe("every vehicle class", () => {
   it("has a gearbox", () => {
@@ -45,5 +46,13 @@ describe("every vehicle class", () => {
     expect(s("gt3").aLat).toBeGreaterThan(s("gt4").aLat);
     expect(s("gt3").vTop).toBeGreaterThan(s("gt4").vTop);
     expect(s("formula").vTop).toBeGreaterThan(s("prototype").vTop);
+  });
+  it("has a pit stop for its own class: a full service takes real time, longest for the heavy and the endurance machines", () => {
+    for (const id of VEHICLE_IDS) expect(VEHICLES[id].pitSecs, id).toBeGreaterThanOrEqual(8);
+    const shown = (id: (typeof VEHICLE_IDS)[number]) => pitStopTime(id) * WORLD_TIME;
+    expect(shown("rally")).toBeCloseTo(25, 6);
+    expect(shown("prototype")).toBeGreaterThan(shown("formula") * 3);
+    expect(shown("gt3")).toBeGreaterThan(shown("touring"));
+    expect(shown("tank")).toBeGreaterThan(shown("truck"));
   });
 });

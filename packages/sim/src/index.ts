@@ -27,3 +27,8 @@ export * from "./width.ts";
 export * from "./fun.ts";
 export * from "./branches.ts";
 export * from "./routetime.ts";
+export * from "./version.ts";
+export * from "./names.ts";
+export * from "./headless.ts";
+export * from "./wire.ts";
+export * from "./difficulty.ts";

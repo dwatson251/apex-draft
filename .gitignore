@@ -14,3 +14,5 @@ android/capacitor-cordova-android-plugins/
 *.apk
 tools/audio/out/
 tools/circuits/cache/
+server/dist/
+server/data/

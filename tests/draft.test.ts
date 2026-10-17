@@ -8,8 +8,9 @@ function lab(spots: { s: number; v: number }[], rules: { realism: boolean; draft
   const es = spots.map((_, i) => ({ id: `c${i}`, name: `c${i}`, car: defaultCar(), lines: [botLine(t, 4, 1)], isPlayer: i === 0 }));
   const r = new Race(t, es, 3, rules);
   const any = r as any;
+  any.trafficLimit = () => Infinity; // these cars are placed by hand, close together, and not here to be held back
   r.cars.forEach((c, i) => {
-    c.lap = 0; c.s = spots[i]!.s; c.v = spots[i]!.v; c.gridOff = 0; c.freeUntil = 1e9;
+    c.lap = 0; c.s = spots[i]!.s; c.v = spots[i]!.v; c.gridOff = 0;
     c.prof = any.profile(c.entrant, 0);
     any.place(c);
   });

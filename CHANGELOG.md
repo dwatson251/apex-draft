@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.1.0-alpha.6
+- **Difficulty.** Quick Race and Race Weekend ask for Easy, Medium or Hard before the race menu (Time Trial does not). Rivals drive at about 66%, 80% and 100% of their pace; Easy has no tyres or fuel; only Hard can have other players' lines in the field. Medium opens with a win on Easy, Hard with a win on Medium. Finishing a race earns 1, 2 or 3 stars for the track, and the race menu shows the stars and your best place. Saved as the `records` key.
+- **Split times.** Every row of the race standings shows how far that car is from you in seconds: red `+1.2` for a car ahead (what you must make up, and for the leader the gap to the lead), green `−0.8` for one behind, `+1 lap` only for a car that has really lapped you. It is a time, not a distance (how long ago the car ahead was where you are now), and updates about every half second.
+- **Points go on the road.** A racing-line point can no longer be placed or dragged off the road being drawn, or closer than 8 units to the start or end of its segment or to another point.
+- **Your racing line is kept.** The line you draw for a track (finished, or the segments done so far) is saved for that track and is still there after quitting to the menu, starting any session, or closing the game. Only **Redraw track** in the pause menu clears it. The last 40 tracks are kept.
+- **Shorter standings.** The race list shows five rows whatever the size of the field: the leader, last place, the car ahead of you, you, and the car behind. In or next to first or last place the spare rows are filled with the cars nearest you, so there are always five.
+- **Bridges.** A new piece: a crossing where the road goes over itself on a raised deck, so the cars on the bridge and on the road beneath
+  pass without touching or giving way. They turn up on about one ordinary track in ten (a figure of eight or a chain of lobes) and on
+  most fun tracks (6 in 10 of their crossings; the rest are still flat crossings you can collide on). The artwork is a concrete deck with
+  parapets that rise as it climbs, railing posts, expansion joints, piers and a shadow over the road beneath; cars on the road under it
+  go out of sight beneath the deck, and cars on it are drawn above it.
+- **Cars get out of the way after a crash.** Cars steer round a wreck, or a car that has sat still for a second, when there is room, instead
+  of queueing behind it. A wrecked car now gives way to nobody, so it is no longer held in the middle of a junction, and with traffic coming
+  up behind it pulls to the side of the road and lets the pack through before it rejoins. Cars do not drive into a crossing unless the road
+  beyond it is clear. Fixed: a car facing the wrong way flipped between forward and reverse every frame and never turned round. A stuck car
+  stops giving way after 2 seconds (it was 10), and one that is still stuck after 5 drives on regardless (it stays solid: no car ghosts after a collision or a jam).
+  A recovering car steers only while it is moving, in a tighter circle the slower it goes, and turns about its rear axle.
+- The simulation changed (SIM_VERSION 2): online times set before this are not ranked against new ones.
+- **Online play.** Your times and lines go to the online server as you play, and other players' lines come back as rivals on the
+  same track, picked to put you mid-pack (the grid is topped up with computer-driven rivals). The server runs every line through
+  the game's own simulation, so times can't be faked. Pick your name under Settings. Other online racers (and you) get a name above
+  a small arrow on the car; when many names crowd together yours always shows and the rest thin out. If the server can't be reached
+  nothing is said and the game plays as before. The website shows lap times, popular tracks (real circuits are spoilers, fun tracks
+  are labelled), track pages with the layout, code, weather and top 10 per car, and player profiles with race results. Host your own
+  with `server/docker-compose.yml`.
+- Line files are gone: no more Import lines or Save my lines.
+- **Weather is on a clock, not on laps.** Showers are laid out over the estimated race time (the same estimate every time for a track,
+  vehicle class and lap count, from `raceDuration`), and rain comes at those moments whatever pace the laps go at. The forecast
+  tiles are the start, middle and end of that time.
+- **Harder collisions.** A hit at speed costs much more than a nudge, and a car with little grip (wet track, snow, worn tyres) is thrown
+  further sideways, loses more speed and can be spun. In a side-swipe both cars are recipients, each by its own grip.
+- **Pit stops take real time** for the class: F1 8 s, touring 20 s, rally 25 s, GT cars 40 s, prototypes 45 s, trucks 45 s, tanks 90 s
+  (see the table in `vehicles.ts`). The no-stop penalty is two of the car's own stops.
+- **Kerbs.** A racing line may run to the road edge, over the kerb with two wheels still on the track.
+- **Sound.** On phones the audio uses a longer buffer, builds fewer engines (only the nearest) and updates them less often, drops
+  engines too far away to hear, and brings the audio back if the system takes it. Exhaust pops and bangs on downshifts and on the
+  overrun for touring cars, rally cars, muscle cars, superbikes, dragsters and some GT and prototype cars.
+- **A loading box** goes up when you hit Race (or leave the pits) while the race is worked out, so a long wait no longer looks frozen.
+- **Impacts are physical.** A car that is hit, or spins on a wet road, is now a body with a heading, a direction of travel and a yaw rate. Its
+  tyres drag its travel toward its heading as hard as the grip allows and scrub speed while it slides; the driver steers the nose back toward
+  the line at the vehicle's turning circle, and cannot steer while it is sliding. Cars now turn, spin, go round in a circle and rejoin instead
+  of sliding sideways into place, and the tyres screech (and leave skid marks) while they slide.
+- **Reversing out.** A car that ends nose-first against the wall, or pointing the wrong way, backs out (steering the tail toward the road)
+  and then drives forward again once it points along the track.
+- **Front wheels steer.** The front tyres of cars, karts, trucks, buggies, dragsters and bikes turn to the steering angle (from the car's
+  yaw rate, speed and wheelbase), so you can see them point into corners and during a recovery.
+- **Start lights.** A race starts from the grid with five red lights coming on one by one with a beep, a short random pause (the same
+  for the same track) and lights out with a go tone and the crowd; the cars do not move until then. Skip ahead cuts the sequence short.
+- **The speed button** steps through 1x, 2x, 4x, 8x and 16x of real-world pace (it showed fractions on phones).
+- **Zoom** goes in much further (14x in the overview, 16x following the car).
+- **Race HUD.** The fuel and tyre bubbles and the list of positions share the screen height: the list takes what the bubbles leave,
+  and the bubbles and forecast tiles shrink on short screens.
+
+- **Gamepad support, built for the Steam Deck.** Left stick moves a cursor that slows down and settles onto points; A places a point
+  or grabs the one under the cursor (hold and move to drag), X always inserts, LB deletes, B undoes, Y finishes the segment,
+  d-pad left/right steps through the handles, right stick pans, triggers zoom, Select walks the bottom buttons with the d-pad, and
+  Start is the pause menu. Menus and dialogs work with the d-pad, A and B. Using the mouse or touch takes control back at once.
+- **Steam Deck build.** The Linux AppImage is named `...-steamdeck-x86_64.AppImage`, has a desktop entry, and starts fullscreen in Game
+  mode (or with `--fullscreen`).
+
 ## 0.1.0-alpha.5
 - **Racing line editor on forks.** Editing a segment where the road splits now lets you drag its end node onto the other exit and it
   snaps there (it already did while drawing a lap); the rest of the lap is re-drawn along the new road. On small screens the editor

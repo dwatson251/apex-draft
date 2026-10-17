@@ -23,7 +23,21 @@ interface Voice {
   /** when we last changed gear, and whether it was down (a throttle blip) */
   shiftAt: number;
   blip: boolean;
+  /** how readily this engine pops and bangs, 0 to 1 */
+  pops: number;
+  /** the last time its parameters were updated, and the last pop, and since when it has been too far to hear */
+  last: number;
+  lastPop: number;
+  quietSince: number;
 }
+
+/** Which engines crackle on the overrun and on downshifts: anti-lag and sports exhausts, V8 burble, race-tuned fours. */
+const POPS: Partial<Record<VehicleId, number>> = { touring: 0.8, rally: 0.9, muscle: 0.55, superbike: 0.6, dragster: 0.9, gt3: 0.35, gt4: 0.45, prototype: 0.25, formula: 0.2, buggy: 0.3, speedboat: 0.3 };
+
+/** Phones have fewer cores and a tighter audio thread: fewer engines are built and they are told about changes less often. */
+const COARSE = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+const MAX_VOICES = COARSE ? 5 : 12;
+const UPDATE_EVERY = COARSE ? 0.05 : 0.025;
 
 /** What an engine sounds like. Frequencies are for the fundamental: base + slope * speed (+ lift on throttle). */
 interface Engine {
@@ -177,7 +191,9 @@ export class CarAudio {
   unlock(): void {
     try {
       if (!this.ctx) {
-        this.ctx = new AudioContext();
+        // a long buffer on a phone, where a short one underruns and the sound stutters or stops
+        this.ctx = new AudioContext({ latencyHint: COARSE ? "playback" : "interactive" });
+        this.watchContext();
         this.master = this.ctx.createGain();
         this.master.connect(this.ctx.destination);
         this.fx = this.ctx.createGain(); this.fx.gain.value = 1; this.fx.connect(this.master);
@@ -193,6 +209,17 @@ export class CarAudio {
       if (this.musicOn) this.startMusic();
     } catch { this.ctx = null; }
   }
+
+  /** A phone can take the audio away (a call, another app, the screen locking) and a context left suspended is silent for good: bring it back. */
+  private watchContext(): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const revive = () => { if (!this.userSuspended && (ctx.state as string) !== "running") void ctx.resume().catch(() => undefined); };
+    ctx.addEventListener("statechange", () => { if (!this.userSuspended) window.setTimeout(revive, 250); });
+    window.setInterval(revive, 1500);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") revive(); });
+  }
+  private userSuspended = false;
 
   /** Start the sound as the app opens. Desktop and Android allow that; a plain browser holds the context
    *  suspended until the first tap, key or click anywhere, so this also listens for that and resumes then. */
@@ -213,6 +240,7 @@ export class CarAudio {
   /** The app is in the background (Android): stop the audio clock; coming back resumes it. */
   setSuspended(s: boolean): void {
     if (!this.ctx) return;
+    this.userSuspended = s;
     if (s) void this.ctx.suspend(); else void this.ctx.resume();
   }
   setMusic(on: boolean): void {
@@ -290,18 +318,35 @@ export class CarAudio {
     const osc = [...parts.map((p) => p.o), lfo, ...(whine ? [whine.o] : [])];
     const g = GEARS[veh.id] ?? GEARS["rally"]!;
     return { osc, parts, lfo, whine, rasp: { band: rb, g: rg }, filter, hum, noise, band, squeal, pan, out, prof,
-      box: new Gearbox(g.hi, g.idle, g.gap, g.up, g.down), ref: 110 * veh.top, shiftAt: -10, blip: false };
+      box: new Gearbox(g.hi, g.idle, g.gap, g.up, g.down), ref: 110 * veh.top, shiftAt: -10, blip: false, pops: POPS[veh.id] ?? 0, last: -1, lastPop: -1, quietSince: -1 };
   }
 
   update(id: string, type: VehicleId | undefined, s: CarSound, player: boolean): void {
     if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
     let v = this.voices.get(id);
-    if (!v) { v = this.make(type) ?? undefined; if (!v) return; this.voices.set(id, v); }
-    const t = this.ctx.currentTime, p = v.prof;
+    if (!v) {
+      // only the engines near the camera are built, and a crowded field on a phone gets fewer of them
+      if (!player && (s.vol < 0.08 || this.voices.size >= MAX_VOICES)) return;
+      v = this.make(type) ?? undefined; if (!v) return; this.voices.set(id, v);
+    }
+    // nobody hears a car that is far off: let its nodes go, which also keeps the graph small
+    if (!player && s.vol < 0.05) {
+      if (v.quietSince < 0) v.quietSince = t;
+      else if (t - v.quietSince > 1.5) { this.release(id); return; }
+    } else v.quietSince = -1;
+    if (t - v.last < (player ? UPDATE_EVERY * 0.6 : UPDATE_EVERY)) return;
+    v.last = t;
+    const p = v.prof;
     const lift = clamp(s.accel / 120, -0.6, 1), on = clamp(0.5 + lift, 0, 1);
     // the gearbox decides the revs: they climb in a gear, fall away on a change up, and snap up on a change down
     const { rev, shift } = v.box.step(clamp(s.speed / (s.top ?? v.ref), 0, 1.1), lift, t);
-    if (shift) { v.shiftAt = t; v.blip = shift < 0; }
+    if (shift) {
+      v.shiftAt = t; v.blip = shift < 0;
+      if (shift < 0 && v.pops > 0) this.pops(v, t, 0.5 + 0.5 * rev, s.vol, player);
+    }
+    // off the throttle at high revs: the exhaust crackles on the overrun
+    if (v.pops > 0 && lift < -0.25 && rev > 0.55 && t - v.lastPop > 0.16 && Math.random() < 0.55 * v.pops) this.pops(v, t, 0.35 + 0.4 * rev, s.vol, player);
     const since = t - v.shiftAt;
     const r = clamp(rev + (v.blip && since < 0.09 ? 0.07 : 0), 0, 1.08);
     const vs = r * v.ref; // "speed" as far as the engine profile is concerned
@@ -328,6 +373,49 @@ export class CarAudio {
       v.squeal.gain.setTargetAtTime(s.slip * s.slip * (player ? 0.05 : 0.03) * s.vol, t, 0.04);
     }
     if (v.pan) v.pan.pan.setTargetAtTime(clamp(s.pan, -0.9, 0.9), t, 0.06);
+  }
+
+  /** One tone with a quick envelope: the start-light beeps and the go signal. */
+  private beep(freq: number, dur: number, type: OscillatorType, peak: number, delay = 0): void {
+    if (!this.ctx || !this.fx) return;
+    const ctx = this.ctx, t = ctx.currentTime + 0.02 + delay;
+    const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + 0.01); g.gain.setValueAtTime(peak, t + dur - 0.03); g.gain.linearRampToValueAtTime(0, t + dur);
+    o.connect(g); g.connect(this.fx); o.start(t); o.stop(t + dur + 0.02);
+  }
+
+  /** A start light comes on (1 to 5): a short beep, a little higher each time. */
+  startLight(n: number): void { this.beep(420 + 45 * n, 0.2, "square", 0.07); }
+
+  /** The lights go out: a long bright tone and a rush of noise, and the crowd. */
+  startGo(): void {
+    if (!this.ctx || !this.fx) return;
+    this.beep(1046, 0.55, "square", 0.08); this.beep(1568, 0.55, "sine", 0.06);
+    const bus = this.ctx.createGain(); bus.gain.value = 0.18; bus.connect(this.fx);
+    this.burst(bus, this.ctx.currentTime + 0.02, 0.6, 1800, 0.8, 0.8, 0.05);
+    this.cheer(0.45);
+  }
+
+  /** Pops and bangs: a few short cracks and thumps out of the exhaust, spaced like unburnt fuel going off. */
+  private pops(v: Voice, t: number, strength: number, vol: number, player: boolean): void {
+    if (!this.ctx || !this.fx || (!player && vol < 0.25)) return;
+    v.lastPop = t;
+    const n = 1 + Math.floor(Math.random() * (1 + 3 * v.pops)), amp = (player ? 0.11 : 0.05) * strength * v.pops * Math.max(0.3, vol);
+    let at = t + 0.01;
+    for (let i = 0; i < n; i++) {
+      this.burst(this.fx, at, 0.05 + Math.random() * 0.04, 500 + Math.random() * 1400, 0.8, amp * (0.6 + Math.random() * 0.6), 0.002); // the crack
+      this.burst(this.fx, at, 0.09, 140 + Math.random() * 120, 1.1, amp * 0.9, 0.003); // the thump behind it
+      at += 0.04 + Math.random() * 0.1;
+    }
+  }
+
+  /** Take a car's engine out of the graph. */
+  private release(id: string): void {
+    const v = this.voices.get(id);
+    if (!v) return;
+    try { v.osc.forEach((o) => o.stop()); v.noise.stop(); v.out.disconnect(); } catch { /* already stopped */ }
+    this.voices.delete(id);
   }
 
   /** Which gear a car is in, for the engine lab. */

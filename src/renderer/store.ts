@@ -1,13 +1,11 @@
-import type { CarConfig, Compound, VehicleId } from "@apex/sim";
+import type { CarConfig, Compound, Difficulty, VehicleId } from "@apex/sim";
 
 declare global {
   interface Window {
     apex?: {
-      // Electron provides all of these; the Android shell (platform.ts) provides only version and exportLine.
+      // Electron provides all of these; the Android shell (platform.ts) provides only version.
       get?(key: string): Promise<unknown>;
       set?(key: string, value: unknown): Promise<boolean>;
-      exportLine?(suggested: string, text: string): Promise<boolean>;
-      importLines?(): Promise<string[]>;
       version?(): Promise<string>;
       quit?(): Promise<void>;
     };
@@ -54,6 +52,8 @@ export interface Settings {
   wearTyre?: number;
   /** compounds every car must run (realism only) */
   mandatory?: Compound[];
+  /** how hard the rivals drive in a Quick Race or Race Weekend */
+  difficulty: Difficulty;
   tutorialDone?: boolean;
   /** pit stops queued: the end of lap `lap` (counting from 0), on this tyre */
   pitPlan: { lap: number; tyre: Compound }[];

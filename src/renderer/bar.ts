@@ -15,6 +15,8 @@ export interface BarButton {
   /** shown instead of the label on small screens (a default is picked from the id) */
   icon?: string;
   onClick: () => void;
+  /** right click (the browser's own menu is kept away from the button either way) */
+  onSecondary?: () => void;
 }
 
 /** What each button looks like with no room for words. */
@@ -63,6 +65,7 @@ export class Bar {
       el.title = b.label; el.setAttribute("aria-label", b.label);
       el.disabled = !!b.disabled;
       el.addEventListener("click", () => { this.hideTip(); b.onClick(); });
+      el.addEventListener("contextmenu", (e) => { e.preventDefault(); if (b.onSecondary) { this.hideTip(); b.onSecondary(); } });
       el.addEventListener("mouseenter", () => this.showTip(el, b.tip));
       el.addEventListener("mouseleave", () => this.hideTip());
       this.bar.appendChild(el);

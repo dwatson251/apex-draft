@@ -1,4 +1,6 @@
 import { add, dot, mul, sub, v2, type Vec2 } from "./vec.ts";
+import { WORLD_TIME } from "./scale.ts";
+import { vehicleOf, type VehicleId } from "./vehicles.ts";
 
 /** The pit lane runs alongside the two straights either side of the start line. Distances are along the road from
  *  the start line (negative = before it) and across it, toward the pit side. */
@@ -16,10 +18,13 @@ export const PIT_BAYS = 4;
 /** speed limit between a = -38 and a = +38, units/s */
 export const PIT_SPEED = 40;
 export const PIT_LIMIT_A = 38;
-/** seconds stopped in the box: tyres and fuel */
-export const PIT_STOP_TIME = 2;
-/** time added to a finish if the car never pitted (with tyres and fuel on) */
-export const PIT_PENALTY = 2 * PIT_STOP_TIME;
+/** Sim seconds stopped in the box for tyres and fuel, for a vehicle class: its real service time (`pitSecs`, in shown seconds) on the sim's clock. */
+export const pitStopTime = (type?: VehicleId): number => vehicleOf(type).pitSecs / WORLD_TIME;
+/** The standard car's stop, sim seconds. */
+export const PIT_STOP_TIME = pitStopTime("rally");
+/** Time added to a finish if the car never pitted (with tyres and fuel on): two stops' worth. */
+export const pitPenalty = (type?: VehicleId): number => 2 * pitStopTime(type);
+export const PIT_PENALTY = pitPenalty("rally");
 
 export interface Pit {
   /** the start line, middle of the road */

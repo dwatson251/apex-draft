@@ -67,6 +67,29 @@ describe("a T-bone", () => {
   });
 });
 
+describe("slippery roads and high speed", () => {
+  const swipe = (grip: number, v: number) => {
+    const left = car({ y: 0, v, offV: 3, grip }), right = car({ y: 6, v, offV: -3, grip });
+    impact(left, right);
+    return { left, right };
+  };
+  it("a car with less grip is thrown further sideways and loses more speed in a side-swipe", () => {
+    const dry = swipe(1, 70), wet = swipe(0.5, 70);
+    expect(Math.abs(wet.left.offV)).toBeGreaterThan(Math.abs(dry.left.offV));
+    expect(wet.left.v).toBeLessThan(dry.left.v);
+  });
+  it("both cars in a side-swipe are recipients, each by its own grip", () => {
+    const left = car({ y: 0, v: 70, offV: 3, grip: 1 }), right = car({ y: 6, v: 70, offV: -3, grip: 0.4 });
+    impact(left, right);
+    expect(70 - right.v).toBeGreaterThan(70 - left.v);
+    expect(70 - left.v).toBeGreaterThan(0);
+  });
+  it("a hit at speed costs far more than a nudge", () => {
+    const slow = swipe(1, 30), fast = swipe(1, 90);
+    expect(90 - fast.left.v).toBeGreaterThan((30 - slow.left.v) * 2);
+  });
+});
+
 describe("weight", () => {
   it("a heavier car moves a lighter one more than the reverse", () => {
     const tank = car({ x: 0, v: 40, mass: 4 }), kart = car({ x: 6, v: 40, mass: 0.45 });
@@ -161,5 +184,43 @@ describe("in a race", () => {
     run(3);
     expect(Math.abs(c.off)).toBeLessThan(0.6);
     expect(t.segments.length).toBeGreaterThan(8);
+  });
+});
+
+describe("recovering from a hit", () => {
+  // a car on a straight at speed is knocked hard sideways: it must turn and steer back, not slide into place
+  it("turns to get back to its line and rejoins pointing along it", () => {
+    const { r, run } = lab(1, [{ s: 40, v: 60, off: 0, offV: 0 }]);
+    const c = r.cars[0] as any;
+    c.offV = 24; (r as any).startRecovery(c, 0.3, 0.5);
+    let widest = 0, turned = 0, rec = 0;
+    for (let k = 0; k < 60 * 8; k++) { r.step(); widest = Math.max(widest, Math.abs(c.off)); turned = Math.max(turned, Math.abs(c.psi)); if (c.rec) rec++; }
+    expect(turned).toBeGreaterThan(0.3);        // it really pointed off its line
+    expect(widest).toBeGreaterThan(4);          // and travelled off it
+    expect(rec).toBeGreaterThan(60);            // it took a while to sort out (not instantly)
+    expect(c.rec).toBe(false);                  // and then it rejoined
+    expect(Math.abs(c.off)).toBeLessThan(1);
+    expect(c.v).toBeGreaterThan(20);
+  });
+  it("a spin goes round and the car drives off again, slower, with its tyres sliding", () => {
+    const { r } = lab(1, [{ s: 40, v: 70, off: 0, offV: 0 }]);
+    const c = r.cars[0] as any;
+    (r as any).startRecovery(c, 2.8, 7);
+    let slid = 0, slowest = 70;
+    for (let k = 0; k < 60 * 10; k++) { r.step(); slid = Math.max(slid, Math.abs(c.beta)); slowest = Math.min(slowest, c.v); }
+    expect(slid).toBeGreaterThan(0.6);          // a big slip angle: the screech
+    expect(slowest).toBeLessThan(40);
+    expect(c.rec).toBe(false);
+    expect(Math.abs(c.off)).toBeLessThan(1.5);
+  });
+  it("a car stuck nose-first against the wall reverses out and rejoins", () => {
+    const { r } = lab(1, [{ s: 40, v: 0, off: 25, offV: 0 }]);
+    const c = r.cars[0] as any;
+    c.rec = true; c.psi = 1.5; c.phi = 0; c.yaw = 0; c.v = 0;
+    let backed = false, farthest = 0;
+    for (let k = 0; k < 60 * 14; k++) { r.step(); if (c.back) backed = true; farthest = Math.max(farthest, Math.abs(c.off)); }
+    expect(backed).toBe(true);
+    expect(c.rec).toBe(false);
+    expect(Math.abs(c.off)).toBeLessThan(1.5);
   });
 });

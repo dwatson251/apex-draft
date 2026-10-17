@@ -48,7 +48,7 @@ describe("random tracks", () => {
     for (const p of phrases(200, 900)) for (const s of generateTrack(p).segments) seen.add(s.kind);
     for (const k of ["sharp", "corner", "sweeper", "uturn", "kink", "esses", "chicaneA"]) expect(seen.has(k), k).toBe(true);
   });
-  it("never contain a crossroads", () => {
+  it("never contain a flat crossroads (a bridge, now and then, is another matter: nobody can hit anybody on it)", () => {
     for (const p of phrases(400, 5)) expect(generateTrack(p).segments.some((s) => s.kind === "cross"), p).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PIT_PENALTY, PIT_STOP_TIME, Race, Rng, TANK, TYRE_WEAR_PER_LAP, botLine, checkTrack, defaultCar, fuelPerLap, generateTrack,
+  PIT_PENALTY, PIT_STOP_TIME, Race, Rng, TANK, TYRE_WEAR_PER_UNIT, botLine, trackLength, checkTrack, defaultCar, fuelPerLap, generateTrack,
   randomPhrase, type Entrant,
 } from "@apex/sim";
 
@@ -21,12 +21,12 @@ describe("tracks with a pit lane", () => {
 
 describe("tyres and fuel", () => {
   const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
-  it("wear tyres by about the stated amount a lap, and burn about a third of a tank", () => {
+  it("wear tyres by about the stated amount a unit driven (so a lap of this track costs in proportion to its length), and burn about a third of a tank", () => {
     const r = new Race(t, field(t, 1), 2); r.runLap("b0", 0);
     const c = r.cars[0]!;
-    expect(1 - c.tyre).toBeGreaterThan(TYRE_WEAR_PER_LAP * 0.6);
-    expect(1 - c.tyre).toBeLessThan(TYRE_WEAR_PER_LAP * 1.8);
-    expect(c.fuel).toBeCloseTo(TANK - fuelPerLap(defaultCar()), -1);
+    expect(1 - c.tyre).toBeGreaterThan(TYRE_WEAR_PER_UNIT * trackLength(t) * 0.6);
+    expect(1 - c.tyre).toBeLessThan(TYRE_WEAR_PER_UNIT * trackLength(t) * 1.8);
+    expect(c.fuel).toBeCloseTo(TANK - fuelPerLap(defaultCar(), 3, trackLength(t)), -1);
   });
   it("slow the car as the tyres wear (grip changes at the start of each lap)", () => {
     const worn = new Race(t, field(t, 1), 3); worn.cars[0]!.tyre = 0.05; worn.runToEnd();
@@ -47,7 +47,7 @@ describe("pit stops", () => {
     const pitted = new Race(t, field(t, 1, () => [true, false, false]), 3); pitted.runToEnd();
     const p = pitted.cars[0]!;
     expect(p.pits).toBe(1);
-    expect(p.fuel).toBeGreaterThan(TANK - 2 * fuelPerLap(defaultCar()) - 1);
+    expect(p.fuel).toBeGreaterThan(TANK - 2 * fuelPerLap(defaultCar(), 3, trackLength(t)) - 1);
     const cost = pitted.cars[0]!.finishTime! - plain.cars[0]!.finishTime!;
     expect(cost).toBeGreaterThan(PIT_STOP_TIME);
     expect(cost).toBeLessThan(PIT_STOP_TIME + 6);   // (pulling away is slower now that accelerations are real)

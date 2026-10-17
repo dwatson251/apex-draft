@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  COMPOUNDS, Rng, WetField, botLine, generateTrack, rainAt, randomPhrase, spinRate, tyreGrip, weatherFor, wearRate,
+  COMPOUNDS, Rng, WetField, botLine, generateTrack, rainAt, raceDuration, vehicleForTrack, randomPhrase, spinRate, tyreGrip, weatherFor, wearRate,
   type BiomeId,
 } from "@apex/sim";
 
@@ -41,28 +41,34 @@ describe("tyre compounds", () => {
 
 describe("weather", () => {
   it("is the same for the same seed and laps, and different otherwise", () => {
-    const a = weatherFor(12345, 20, "grass"), b = weatherFor(12345, 20, "grass");
+    const a = weatherFor(12345, 1200, "grass"), b = weatherFor(12345, 1200, "grass");
     expect(a).toEqual(b);
     const kinds = new Set<string>();
-    for (let i = 0; i < 60; i++) kinds.add(JSON.stringify(weatherFor(i * 7919, 20, "grass")));
+    for (let i = 0; i < 60; i++) kinds.add(JSON.stringify(weatherFor(i * 7919, 1200, "grass")));
     expect(kinds.size).toBeGreaterThan(10);
   });
+  it("is on the clock, not on laps: the estimated race time is deterministic, and a slow class takes longer than a fast one", () => {
+    const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
+    expect(raceDuration(t, "rally", 8)).toBe(raceDuration(t, "rally", 8));
+    expect(raceDuration(t, "tank", 8)).toBeGreaterThan(raceDuration(t, "formula", 8));
+    expect(raceDuration(t, "rally", 16)).toBeCloseTo(2 * raceDuration(t, "rally", 8), 6);
+  });
   it("by place: the moon never rains, the desert rarely, elsewhere often", () => {
-    const rainy = (b: BiomeId) => Array.from({ length: 300 }, (_, i) => weatherFor(i * 104729 + 1, 12, b).showers.length > 0).filter(Boolean).length / 300;
+    const rainy = (b: BiomeId) => Array.from({ length: 300 }, (_, i) => weatherFor(i * 104729 + 1, 720, b).showers.length > 0).filter(Boolean).length / 300;
     expect(rainy("moon")).toBe(0);
     expect(rainy("desert")).toBeLessThan(0.3);
     expect(rainy("grass")).toBeGreaterThan(0.4);
   });
   it("showers fit inside the race and rain eases in and out", () => {
     for (let i = 0; i < 200; i++) {
-      const laps = 3 + (i % 48), w = weatherFor(i * 31337, laps, "grass");
-      for (const s of w.showers) { expect(s.start).toBeGreaterThanOrEqual(0); expect(s.end).toBeLessThanOrEqual(laps); expect(s.end).toBeGreaterThan(s.start); }
+      const duration = 200 + (i % 48) * 60, w = weatherFor(i * 31337, duration, "grass");
+      for (const s of w.showers) { expect(s.start).toBeGreaterThanOrEqual(0); expect(s.end).toBeLessThanOrEqual(duration); expect(s.end).toBeGreaterThan(s.start); }
     }
-    const w = { showers: [{ start: 2, end: 6, intensity: 0.8 }] };
-    expect(rainAt(w, 1)).toBe(0);
-    expect(rainAt(w, 4)).toBeCloseTo(0.8, 5);
-    expect(rainAt(w, 2.1)).toBeLessThan(rainAt(w, 4));
-    expect(rainAt(w, 7)).toBe(0);
+    const w = { showers: [{ start: 100, end: 300, intensity: 0.8 }] };
+    expect(rainAt(w, 50)).toBe(0);
+    expect(rainAt(w, 200)).toBeCloseTo(0.8, 5);
+    expect(rainAt(w, 110)).toBeLessThan(rainAt(w, 200));
+    expect(rainAt(w, 400)).toBe(0);
   });
 });
 
@@ -170,7 +176,7 @@ describe("tyres and weather in a race", () => {
 
   it("a rainy seed really rains and dries: the field is wet at some time and the events say so", () => {
     let found = "";
-    for (let i = 0; i < 300 && !found; i++) { const p = randomPhrase(new Rng(i + 900)); const tr = generateTrack(p, { biome: "grass" }); if (weatherFor(tr.seed, 6, "grass").showers.length >= 1) found = p; }
+    for (let i = 0; i < 300 && !found; i++) { const p = randomPhrase(new Rng(i + 900)); const tr = generateTrack(p, { biome: "grass" }); if (weatherFor(tr.seed, raceDuration(tr, vehicleForTrack(tr), 6), "grass").showers.length >= 1) found = p; }
     expect(found).not.toBe("");
     const tr = generateTrack(found, { biome: "grass" });
     const e: Entrant = { id: "x", name: "x", car: defaultCar(), lines: [botLine(tr, 3, 1)], isPlayer: true, startTyre: "wet" };

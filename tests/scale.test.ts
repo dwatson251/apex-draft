@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VEHICLES, PACE, Race, botLine, carStats, defaultCar, generateTrack, trackLength, type VehicleId } from "@apex/sim";
+import { ROAD_HALF, isDrivable, VEHICLES, PACE, Race, botLine, carStats, defaultCar, generateTrack, trackLength, type VehicleId } from "@apex/sim";
 import { SEGMENT_LENGTH } from "../packages/sim/src/freetrack.ts";
 import { METRES_PER_UNIT, SEGMENT_MILES, WORLD_TIME } from "../src/renderer/scale.ts";
 
@@ -66,5 +66,14 @@ describe("real-world scale", () => {
       const s = carStats({ ...defaultCar(), type: id });
       expect((s.vTop / s.accel) * WORLD_TIME, id).toBeGreaterThan(3);
     }
+  });
+
+  it("a line may run over the kerb: the centre can reach the road edge (two wheels on the track), and no further", () => {
+    const t = generateTrack("brave-owl-rides-melons");
+    const seg = t.segments[0]!;
+    const c = seg.center[12]!, n = seg.normals[12]!;
+    const at = (d: number) => ({ x: c.x + n.x * d, y: c.y + n.y * d });
+    expect(isDrivable(t, at(ROAD_HALF - 1))).toBe(true);   // wheels on the kerb, the car still on the track
+    expect(isDrivable(t, at(ROAD_HALF + 2))).toBe(false);  // the whole car off the road
   });
 });

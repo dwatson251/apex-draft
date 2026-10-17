@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "lib": ["ES2023"], "types": ["node"], "baseUrl": "..", "paths": { "@apex/sim": ["packages/sim/src/index.ts"] } },
+  "include": ["src", "../packages/sim/src"]
+}

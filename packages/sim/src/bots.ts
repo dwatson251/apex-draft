@@ -1,4 +1,4 @@
-import { CAR_R, centreAt, halfAt, type Segment, type Track } from "./track.ts";
+import { CAR_R, KERB_ALLOW, centreAt, halfAt, type Segment, type Track } from "./track.ts";
 import { makeLine, validateLine, type Line } from "./line.ts";
 import { routesOf } from "./branches.ts";
 import { buildProfile } from "./profile.ts";
@@ -9,8 +9,8 @@ import type { WetField } from "./trackwet.ts";
 import { add, dot, mul, sub, type Vec2 } from "./vec.ts";
 
 const TS = [0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1];
-/** How far from the centre line a car may be put, given half the road width there. */
-const limitOf = (half: number): number => half - CAR_R - 1.5;
+/** How far from the centre line a car may be put, given half the road width there: up to the kerb, two wheels still on the track. */
+const limitOf = (half: number): number => half - CAR_R + KERB_ALLOW - 1.5;
 
 interface Wp { seg: number; t: number; lo: number; hi: number; l: number }
 

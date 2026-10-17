@@ -14,7 +14,11 @@ const BRAKE = 110;
 /** Seconds a crossing costs: cars have to give way and the line is crowded. */
 export const CROSSING_COST = 0.8;
 
-export function estimateTime(segs: Segment[], entrySpeed = 80, crossingCost = CROSSING_COST): number {
+/** What a car can do, in the sim's units: top speed, lateral and forward acceleration, braking. */
+export interface Pace { top: number; aLat: number; accel: number; brake: number }
+const STANDARD: Pace = { top: TOP, aLat: A_LAT, accel: ACCEL, brake: BRAKE };
+
+export function estimateTime(segs: Segment[], entrySpeed = 80, crossingCost = CROSSING_COST, pace: Pace = STANDARD): number {
   const pts: { x: number; y: number; half: number }[] = [];
   for (const s of segs) for (let i = pts.length ? 1 : 0; i <= SAMPLES; i++) pts.push({ x: s.center[i]!.x, y: s.center[i]!.y, half: halfIdx(s, i) });
   const n = pts.length;
@@ -27,12 +31,12 @@ export function estimateTime(segs: Segment[], entrySpeed = 80, crossingCost = CR
     const cr = Math.abs((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
     const R = cr < 1e-9 ? Infinity : (ab * bc * ca) / (2 * cr);
     const narrow = Math.min(1, Math.sqrt(b.half / ROAD_HALF));
-    lim.push(Math.min(TOP, Math.sqrt(A_LAT * R)) * narrow);
+    lim.push(Math.min(pace.top, Math.sqrt(pace.aLat * R)) * narrow);
   }
   const v = lim.slice();
   v[0] = Math.min(v[0]!, entrySpeed);
-  for (let i = 1; i < n; i++) v[i] = Math.min(v[i]!, Math.sqrt(v[i - 1]! ** 2 + 2 * ACCEL * ds[i - 1]!));
-  for (let i = n - 2; i >= 0; i--) v[i] = Math.min(v[i]!, Math.sqrt(v[i + 1]! ** 2 + 2 * BRAKE * ds[i]!));
+  for (let i = 1; i < n; i++) v[i] = Math.min(v[i]!, Math.sqrt(v[i - 1]! ** 2 + 2 * pace.accel * ds[i - 1]!));
+  for (let i = n - 2; i >= 0; i--) v[i] = Math.min(v[i]!, Math.sqrt(v[i + 1]! ** 2 + 2 * pace.brake * ds[i]!));
   let t = 0;
   for (let i = 0; i < n - 1; i++) t += (2 * ds[i]!) / (v[i]! + v[i + 1]! || 1);
   return t + crossingCost * segs.filter((s) => s.kind === "cross").length;

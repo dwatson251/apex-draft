@@ -4,11 +4,11 @@ Made while the owner was away; review and overrule anything here.
 
 1. Branch `android-mobile` in this repo; nothing pushed, nothing tagged, no PR.
 2. Capacitor 7 wraps the Vite web build (`out/web`). Saves stay in localStorage (persists in the WebView), so no Preferences plugin.
-3. `window.apex` members are now optional so the Android shell can provide only `version` and `exportLine` (share sheet).
+3. `window.apex` members are now optional so the Android shell can provide only `version`.
 4. Landscape only, debug APK only (decided by the owner before leaving).
 5. No JDK/Android SDK on this machine, so the APK itself is built by CI; here I can only verify the web build, typecheck, tests and `cap sync`.
 6. Capacitor 7 needs JDK 21: CI uses Temurin 21. `minSdk 23` is Capacitor's default, kept.
-7. The `INTERNET` permission stays (Capacitor's template; harmless, the game does no networking).
+7. The `INTERNET` permission is used: the game talks to the online server (`https://apexdraft.dnlwtsn.co.uk`, https only: `allowMixedContent` is off). The share-sheet plugins (`@capacitor/filesystem`, `@capacitor/share`) are no longer used by the code and can be dropped from `package.json` on the next `cap sync`.
 8. The Menu button moved to the top-left on touch/short screens (it collided with the bottom action bar at 667px wide);
    the standings/side panels sit below it.
 9. Touch tap tool is a cycling button ("Tap: add → insert → delete") rather than separate buttons, to keep the bar to one row.

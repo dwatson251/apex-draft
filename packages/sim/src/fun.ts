@@ -16,6 +16,17 @@ type Cell = [number, number];
 const MAX_COLS = 13;
 const MAX_ROWS = 8;
 
+export interface FunOptions {
+  /** the biggest grid the layout may use; fun tracks have a lot of room, an ordinary track with a bridge only the usual 7 by 5 */
+  cols?: number;
+  rows?: number;
+  /** the share of crossings that are a bridge over the road beneath, and so not a crossing cars can hit each other on */
+  bridges?: number;
+}
+
+/** Of the crossings on a fun track, the share that are bridges. */
+export const FUN_BRIDGES = 0.6;
+
 /** A route written as runs from a start cell: [direction, length] pairs. */
 function walk(from: Cell, runs: [string, number][]): Cell[] {
   const d: Record<string, Cell> = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
@@ -60,8 +71,11 @@ function valid(cells: Cell[]): boolean {
   return true;
 }
 
-export function funLayout(phrase: string, seed: number, attempt: number): Circuit | null {
+export function funLayout(phrase: string, seed: number, attempt: number, opts: FunOptions = {}): Circuit | null {
   const rng = new Rng((seed ^ 0xf00dcafe ^ Math.imul(attempt + 1, 0x9e3779b1)) >>> 0);
+  // which crossings are bridges is drawn from a stream of its own, so the shape of the track does not depend on it
+  const bridgeRng = new Rng((seed ^ 0xb71d6e31 ^ Math.imul(attempt + 1, 0x85ebca6b)) >>> 0);
+  const bridges = opts.bridges ?? FUN_BRIDGES;
   let cells = rng.chance(0.5) ? eight(rng) : chain(rng);
   // turn and mirror it
   const flip = rng.int(8);
@@ -75,14 +89,15 @@ export function funLayout(phrase: string, seed: number, attempt: number): Circui
   const minX = Math.min(...cells.map((c) => c[0])), minY = Math.min(...cells.map((c) => c[1]));
   cells = cells.map(([x, y]): Cell => [x - minX, y - minY]);
   const cols = Math.max(...cells.map((c) => c[0])) + 1, rows = Math.max(...cells.map((c) => c[1])) + 1;
-  if (cols > MAX_COLS || rows > MAX_ROWS || !valid(cells)) return null;
+  if (cols > (opts.cols ?? MAX_COLS) || rows > (opts.rows ?? MAX_ROWS) || !valid(cells)) return null;
   const n = cells.length;
   if (n % 2) return null;
 
   const turn = (i: number): boolean => { const a = cells[(i + n - 1) % n]!, b = cells[i]!, c = cells[(i + 1) % n]!; return a[0] + c[0] !== 2 * b[0] || a[1] + c[1] !== 2 * b[1]; };
   const seen = new Map<string, number>();
   const crossing = new Set<number>();
-  cells.forEach((c, i) => { const k = key(c), o = seen.get(k); if (o !== undefined) { crossing.add(i); crossing.add(o); } seen.set(k, i); });
+  const pairs: [number, number][] = [];
+  cells.forEach((c, i) => { const k = key(c), o = seen.get(k); if (o !== undefined) { crossing.add(i); crossing.add(o); pairs.push([o, i]); } seen.set(k, i); });
   // the start line sits between two straight cells, on a run of four in a line, as far from a crossing as it can be
   const straightRun = (i: number) => !crossing.has(i) && !crossing.has((i + n - 1) % n);
   const ring = (i: number) => { let best = n; for (const c of crossing) best = Math.min(best, Math.abs(c - i), n - Math.abs(c - i)); return best; };
@@ -98,10 +113,17 @@ export function funLayout(phrase: string, seed: number, attempt: number): Circui
   cells = [...cells.slice(start), ...cells.slice(0, start)];
   const turned = (i: number) => turn(i);
   const cross = new Set<number>([...crossing].map((i) => (i - start + n) % n));
+  // a crossing is two cells; as a bridge, one of them carries the road over the other
+  const crossKind = new Map<number, CircuitKind>();
+  for (const pair of pairs) {
+    const [a, b] = pair.map((i) => (i - start + n) % n) as [number, number];
+    if (bridgeRng.next() < bridges) { const deck = bridgeRng.chance(0.5); crossKind.set(a, deck ? "bridge" : "under"); crossKind.set(b, deck ? "under" : "bridge"); }
+    else { crossKind.set(a, "cross"); crossKind.set(b, "cross"); }
+  }
 
   // the kind of each cell: corners are sometimes tight, a few straights have a kink or esses; never beside the start line
   const out: [number, number, CircuitKind][] = cells.map(([x, y], i) => {
-    if (cross.has(i)) return [x, y, "cross"];
+    if (cross.has(i)) return [x, y, crossKind.get(i)!];
     if (turned(i)) return [x, y, rng.chance(0.35) ? "sharp" : "corner"];
     if (i > 0 && i < n - 1 && rng.chance(0.15)) return [x, y, rng.chance(0.5) ? "kink" : "esses"];
     return [x, y, "straight"];

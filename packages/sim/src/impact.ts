@@ -23,12 +23,20 @@ export interface Body {
   mass: number;
   /** stopped in its pit box: very hard to shift */
   anchored: boolean;
+  /** how much traction it has right now (1 on dry tarmac with fresh tyres; far less on snow or a wet track): a slippery car is thrown further */
+  grip?: number;
 }
 
 /** How bouncy a hit is. */
 export const RESTITUTION = 0.2;
 /** Share of the speed a car loses when it is hit side-on, at full closing speed. */
-const SIDE_LOSS = 0.3;
+const SIDE_LOSS = 0.45;
+/** Extra sideways kick, per unit of impulse, for a car that is hit side-on, and the same again for how slippery it is. */
+const SLIDE_KICK = 0.35;
+const SLIDE_GRIP_KICK = 1.1;
+
+/** What the last contact was like, for the race to decide on spins: how hard they closed, and how square-on each car was hit. */
+export const lastImpact = { closing: 0, alignA: 1, alignB: 1 };
 const MAX_SHIFT = 3;
 
 const velocity = (c: Body) => ({
@@ -69,9 +77,16 @@ export function impact(a: Body, b: Body): number {
     const alignB = Math.abs(nx * Math.cos(b.hp) + ny * Math.sin(b.hp));
     kick(a, (-j * nx) / ma, (-j * ny) / ma);
     kick(b, (j * nx) / mb, (j * ny) / mb);
-    const power = Math.min(1, -closing / 45);
-    a.v *= 1 - SIDE_LOSS * (1 - alignA) * power;
-    b.v *= 1 - SIDE_LOSS * (1 - alignB) * power;
+    // a hit at speed costs much more than a nudge, and a car with little grip loses more of its speed and is thrown further sideways
+    const power = Math.min(1.6, -closing / 45);
+    const slipA = 1 - Math.min(1.2, Math.max(0.3, a.grip ?? 1)), slipB = 1 - Math.min(1.2, Math.max(0.3, b.grip ?? 1));
+    a.v *= 1 - Math.min(0.85, SIDE_LOSS * (1 - alignA) * power * (1 + 1.2 * slipA));
+    b.v *= 1 - Math.min(0.85, SIDE_LOSS * (1 - alignB) * power * (1 + 1.2 * slipB));
+    // an extra shove sideways, equal and opposite on the two cars (so momentum still holds): as big as the worse of the two hits
+    const slide = j * Math.max((1 - alignA) * (SLIDE_KICK + SLIDE_GRIP_KICK * Math.max(0, slipA)), (1 - alignB) * (SLIDE_KICK + SLIDE_GRIP_KICK * Math.max(0, slipB)));
+    kick(a, (-nx * slide) / ma, (-ny * slide) / ma);
+    kick(b, (nx * slide) / mb, (ny * slide) / mb);
+    lastImpact.closing = -closing; lastImpact.alignA = alignA; lastImpact.alignB = alignB;
   }
   // and prise them apart, so they do not sit inside each other: the lighter car moves more
   const push = Math.max(0, reach - d - 0.15) * 0.9;

@@ -30,6 +30,8 @@ function strip(g: Graphics, s: Segment, i0: number, i1: number, latA: Lat, latB:
 
 export interface SegmentArt {
   root: Container;
+  /** a bridge: drawn above the cars on the road beneath it (and under the ones on it) */
+  deck?: boolean;
   /** the two frames of the crowd; they swap a few times a second */
   crowdA: Graphics[];
   crowdB: Graphics[];
@@ -58,6 +60,7 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
   const look = LOOKS[track.biome];
   const root = new Container();
   const art: SegmentArt = { root, crowdA: [], crowdB: [], pulses: [] };
+  if (s.kind === "bridge") art.deck = true;
   const n = s.center.length - 1;
   const hw = (i: number): number => halfIdx(s, i);
   const water = track.biome === "water";
@@ -126,6 +129,9 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
     road.poly([...pt(-gh, 0), ...pt(gh, 0), ...pt(gh, push), ...pt(-gh, push)]).fill(look.asphalt);
   }
   root.addChild(road);
+
+  // a bridge: the deck is a slab above the road beneath, and under its own parapets (see bridgeDeck)
+  if (s.kind === "bridge") bridgeDeck(root, s);
 
   // paint: edge lines and a faint dashed centre line
   const paint = new Graphics();
@@ -241,6 +247,78 @@ export function buildSegmentArt(track: Track, s: Segment): SegmentArt {
     art.pulses.push(g);
   }
   return art;
+}
+
+/** How high a bridge deck stands, 0 on the ground to 1 on the flat top, at sample i of 0..n: it climbs over the first quarter, stays up, and comes down over the last. */
+export const DECK_RAMP = 0.26;
+export function deckHeight(t: number): number {
+  const u = Math.min(1, Math.max(0, Math.min(t, 1 - t) / DECK_RAMP));
+  return u * u * (3 - 2 * u);
+}
+
+/**
+ * The art for a bridge, seen from above with the light at the top left: the road is lifted onto a concrete deck whose parapets grow as
+ * it climbs, a shadow falls on the ground and the road beneath, the ramps are shaded where they meet the ground, and concrete piers
+ * stand just outside the deck at both ends of the flat top. The tarmac and the paint are the segment's usual.
+ * The shadow goes in first (the deck covers the part of it under itself); the rest goes on top of the tarmac.
+ */
+function bridgeDeck(root: Container, s: Segment): void {
+  const n = s.center.length - 1;
+  const hw = (i: number): number => halfIdx(s, i);
+  const h = (i: number): number => deckHeight(i / n);
+  const shadow = new Graphics();
+  const offset = (i: number, lat: number, dx: number, dy: number): number[] => { const p = at(s, i, lat); return [p.x + dx, p.y + dy]; };
+  const cast = (grow: number, dx: number, dy: number, alpha: number): void => {
+    const pts: number[] = [];
+    for (let i = 1; i < n; i++) if (h(i) > 0.12) pts.push(...offset(i, -(hw(i) + 3 + grow), dx * h(i), dy * h(i)));
+    for (let i = n - 1; i >= 1; i--) if (h(i) > 0.12) pts.push(...offset(i, hw(i) + 3 + grow, dx * h(i), dy * h(i)));
+    if (pts.length >= 6) shadow.poly(pts).fill({ color: 0x05070c, alpha });
+  };
+  cast(2, 6.5, 8.5, 0.12);
+  cast(0, 3.6, 4.8, 0.3);
+  root.addChildAt(shadow, 0);
+
+  const g = new Graphics();
+  // the deck is a little wider than the road: concrete edges that stand taller as the deck climbs
+  const edge = (i: number): number => hw(i) + 0.4 + 2.8 * h(i);
+  for (const side of [-1, 1] as const) {
+    strip(g, s, 0, n, (i) => side * (hw(i) - 0.2), (i) => side * edge(i)).fill(0xc7c4b8).stroke({ width: 0.6, color: 0x2b2a28, alpha: 0.7 });
+    // the lit top edge of the parapet
+    const p0 = at(s, 0, side * (edge(0) - 0.55));
+    g.moveTo(p0.x, p0.y);
+    for (let i = 1; i <= n; i++) { const p = at(s, i, side * (edge(i) - 0.55)); g.lineTo(p.x, p.y); }
+    g.stroke({ width: 0.5, color: 0xf2efe4, alpha: 0.85 });
+    // railing posts along the top
+    for (let i = 1; i < n; i += 2) {
+      if (h(i) < 0.3) continue;
+      const p = at(s, i, side * (edge(i) - 1.3));
+      g.circle(p.x, p.y, 0.55).fill({ color: 0x6f6c63, alpha: 0.9 });
+    }
+  }
+  // the deck is concrete-grey and catches the light on the flat top; the ramps are in the shade where they meet the ground
+  for (let i = 0; i < n; i++) {
+    const up = (h(i) + h(i + 1)) / 2, dark = 0.22 * (1 - up);
+    strip(g, s, i, i + 1, (k) => -hw(k), hw).fill(dark > 0.01 ? { color: 0x05070c, alpha: dark } : { color: 0xdfe3ee, alpha: 0.07 * up });
+  }
+  for (let i = 2; i < n - 1; i++) {
+    if (h(i) < 0.97 && !(h(i) > 0.5 && (h(i - 1) < 0.97 || h(i + 1) < 0.97))) continue;
+    const a = at(s, i, -hw(i)), b = at(s, i, hw(i));
+    g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 0.5, color: 0x14161c, alpha: 0.4 });
+  }
+  // concrete piers just outside the deck at both ends of the flat top, with their own shadows
+  const top = [...Array(n + 1).keys()].filter((i) => h(i) > 0.985);
+  for (const i of [top[0], top.at(-1)]) {
+    if (i === undefined) continue;
+    const d = norm(sub(s.center[Math.min(n, i + 1)]!, s.center[Math.max(0, i - 1)]!));
+    for (const side of [-1, 1] as const) {
+      const c = at(s, i, side * (edge(i) + 1.4));
+      const P = (a: number, b: number) => ({ x: c.x + d.x * a + (-d.y) * b, y: c.y + d.y * a + d.x * b });
+      const rect = (dx: number, dy: number, grow = 0): number[] => [P(-2.4 - grow, -1.7 - grow), P(2.4 + grow, -1.7 - grow), P(2.4 + grow, 1.7 + grow), P(-2.4 - grow, 1.7 + grow)].flatMap((q) => [q.x + dx, q.y + dy]);
+      g.poly(rect(2.4, 3.2)).fill({ color: 0x05070c, alpha: 0.32 });
+      g.poly(rect(0, 0)).fill(PAL.concrete).stroke({ width: 0.5, color: PAL.concreteDark });
+    }
+  }
+  root.addChild(g);
 }
 
 /** A grandstand with advertising boards, three rows of spectators, and a second frame so they bob about. */

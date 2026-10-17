@@ -5,7 +5,7 @@ const funPhrases = (n: number, seed = 5) => { const r = new Rng(seed); return Ar
 
 function crossings(p: string) {
   const t = generateTrack(p);
-  return { t, crosses: t.segments.filter((s) => s.kind === "cross").length };
+  return { t, crosses: t.segments.filter((s) => s.kind === "cross" || s.kind === "bridge" || s.kind === "under").length };
 }
 
 describe("fun tracks", () => {

@@ -1,7 +1,7 @@
 import { Container, Graphics } from "pixi.js";
 import { VEHICLES, type Vehicle, type VehicleId } from "@apex/sim";
 
-export interface CarShape { root: Container; body: Container; shadow: Graphics; brake: Graphics; /** boats only: foam trailing the stern, drawn in world axes */ wake?: Graphics }
+export interface CarShape { root: Container; body: Container; shadow: Graphics; brake: Graphics; /** the front tyres, turned to match the steering */ steer: Graphics[]; /** boats only: foam trailing the stern, drawn in world axes */ wake?: Graphics }
 
 const DARK = 0x14161c;
 const shade = (c: number, k: number): number => {
@@ -19,6 +19,9 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
   // every car gets the same outline, so the player's is the same model as the rest; the player is marked by a halo around it instead
   const ring = { width: 0.7, color: DARK };
   const g = new Graphics();
+  // the front tyres are drawn apart from the body so they can be turned: they sit under it, as the tyres always have
+  const steer: Graphics[] = [], wheelsBelow = new Container();
+  const front = (x: number, y: number, len: number, wid: number, c = DARK) => { const w = new Graphics().roundRect(-len / 2, -wid / 2, len, wid, 0.3).fill(c); w.position.set(x, y); steer.push(w); wheelsBelow.addChild(w); };
   const wheel = (x: number, y: number, w = 2.2, h = 1.2) => g.rect(x - w / 2, y - h / 2, w, h).fill(DARK);
 
   // outline helpers for the real-car shapes: points are [x as a fraction of half-length, y as a fraction of half-width], one side only
@@ -30,18 +33,18 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
   const mirrors = (x: number, y: number) => { g.rect(x * hl - 0.4, -hw * y - 0.55, 0.8, 0.7).fill(DARK); g.rect(x * hl - 0.4, hw * y - 0.15, 0.8, 0.7).fill(DARK); };
   // tyres to scale: about 0.65 m across on a 4.6 m car (14% of its length); `wf` and `wr` are the front and rear widths in half-widths
   const tyres = (xf: number, xr: number, y: number, wf: number, wr: number) => {
-    for (const s of [-1, 1]) { g.rect(xf * hl - L * 0.07, s * hw * y - hw * wf / 2, L * 0.14, hw * wf).fill(DARK); g.rect(xr * hl - L * 0.07, s * hw * y - hw * wr / 2, L * 0.14, hw * wr).fill(DARK); }
+    for (const s of [-1, 1]) { front(xf * hl, s * hw * y, L * 0.14, hw * wf); g.rect(xr * hl - L * 0.07, s * hw * y - hw * wr / 2, L * 0.14, hw * wr).fill(DARK); }
   };
   // fractional rectangles and ellipses, and a pair of tyres: `len` is a fraction of the length, `wid` of the half-width
   const R = (x0: number, x1: number, y0: number, y1: number, c: number) => g.rect(Math.min(x0, x1) * hl, Math.min(y0, y1) * hw, Math.abs(x1 - x0) * hl, Math.abs(y1 - y0) * hw).fill(c);
   const E = (x: number, y: number, rx: number, ry: number, c: number) => g.ellipse(x * hl, y * hw, rx * hl, ry * hw).fill(c);
-  const pair = (x: number, y: number, len: number, wid: number, c = DARK) => { for (const s of [-1, 1]) g.roundRect(x * hl - L * len / 2, s * hw * y - hw * wid / 2, L * len, hw * wid, 0.3).fill(c); };
+  const pair = (x: number, y: number, len: number, wid: number, c = DARK, steered = false) => { for (const s of [-1, 1]) if (steered) front(x * hl, s * hw * y, L * len, hw * wid, c); else g.roundRect(x * hl - L * len / 2, s * hw * y - hw * wid / 2, L * len, hw * wid, 0.3).fill(c); };
   const flare = (x: number, y: number, w: number) => { for (const s of [-1, 1]) g.roundRect(x * hl - w / 2, s * hw * y - 0.45, w, 0.9, 0.4).fill(shade(color, 0.85)); };
 
   switch (v.id) {
     case "kart": { // racing kart (Tony Kart / OTK class, 1.9 x 1.4 m): exposed tyres, tube frame, nose cone and pods, offset engine, driver in a seat
       const suit = 0x2b3a67, glove = 0xe8e8e0;
-      pair(0.66, 0.78, 0.16, 0.26); pair(-0.58, 0.9, 0.22, 0.4); // front 10 in and rear 11 in slicks, rear track wider
+      pair(0.66, 0.78, 0.16, 0.26, DARK, true); pair(-0.58, 0.9, 0.22, 0.4); // front 10 in and rear 11 in slicks, rear track wider
       line([[0.66, 0.78], [0.66, -0.78]], 0.5, 0x8a8f9a); line([[-0.58, 0.9], [-0.58, -0.9]], 0.6, 0x8a8f9a); // stub axle and the live rear axle
       g.roundRect(-hl * 0.78, -hw * 0.58, hl * 1.42, hw * 1.16, 0.5).stroke({ width: 0.7, color: 0x8a8f9a }); // chrome-moly frame rails
       line([[0.55, -0.58], [0.18, -0.2], [-0.2, -0.2], [-0.78, -0.4]], 0.4, 0x8a8f9a); line([[0.55, 0.58], [0.18, 0.2], [-0.2, 0.2], [-0.78, 0.4]], 0.4, 0x8a8f9a);
@@ -64,7 +67,7 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
     case "formula": { // 2020s F1 car (5.6 x 2.0 m): front wing, narrow nose, exposed tyres, sidepods, halo, airbox, rear wing
       R(0.9, 1, -1, 1, shade(color, 0.7)); R(0.84, 0.92, -1, 1, shade(color, 0.85)); // two-element front wing, endplates
       R(0.88, 1, -1, -0.92, DARK); R(0.88, 1, 0.92, 1, DARK);
-      pair(0.56, 0.8, 0.125, 0.3); pair(-0.62, 0.82, 0.145, 0.4); // 18 in tyres, wider at the rear
+      pair(0.56, 0.8, 0.125, 0.3, DARK, true); pair(-0.62, 0.82, 0.145, 0.4); // 18 in tyres, wider at the rear
       line([[0.55, 0.8], [0.3, 0.36]], 0.4, DARK); line([[0.55, -0.8], [0.3, -0.36]], 0.4, DARK); line([[-0.62, 0.8], [-0.4, 0.5]], 0.4, DARK); line([[-0.62, -0.8], [-0.4, -0.5]], 0.4, DARK); // wishbones
       hull([[0.9, 0.08], [0.6, 0.14], [0.28, 0.24], [0.05, 0.38], [-0.2, 0.5], [-0.5, 0.42], [-0.78, 0.2], [-0.9, 0.1]]); // nose, monocoque, sidepods, engine cover
       R(-0.14, 0.16, -0.62, -0.5, DARK); R(-0.14, 0.16, 0.5, 0.62, DARK); // sidepod inlets
@@ -98,7 +101,7 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
       break;
     }
     case "truck": { // full-size pickup (F-150 Raptor: 5.9 x 2.2 m, wheelbase 3.7 m): bonnet, crew cab, open bed, wide arches
-      pair(0.68, 0.93, 0.15, 0.36); pair(-0.58, 0.93, 0.15, 0.36); // 35 in tyres
+      pair(0.68, 0.93, 0.15, 0.36, DARK, true); pair(-0.58, 0.93, 0.15, 0.36); // 35 in tyres
       hull([[1, 0.62], [0.97, 0.84], [0.62, 0.9], [0.4, 0.9], [-0.1, 0.9], [-0.95, 0.9], [-1, 0.86]]); // outline: long overhangs front and rear
       R(0.94, 1, -0.72, 0.72, DARK); R(0.97, 1, -0.5, 0.5, 0xc8ccd6); // grille and bumper
       line([[0.9, 0.4], [0.5, 0.45]], 0.5, shade(color, 0.7)); line([[0.9, -0.4], [0.5, -0.45]], 0.5, shade(color, 0.7)); // bonnet lines
@@ -127,7 +130,7 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
       break;
     }
     case "superbike": { // sportsbike (Panigale-class, 2.1 x 0.8 m): thin tyres, nose fairing, tank and tail, rider tucked behind the screen
-      g.roundRect(-hl, -hw * 0.18, L * 0.26, hw * 0.36, 0.5).fill(DARK); g.roundRect(hl * 0.74, -hw * 0.14, L * 0.24, hw * 0.28, 0.5).fill(DARK); // 190 and 120 section tyres
+      g.roundRect(-hl, -hw * 0.18, L * 0.26, hw * 0.36, 0.5).fill(DARK); front(hl * 0.98, 0, L * 0.24, hw * 0.28); // 190 and 120 section tyres
       hull([[0.8, 0.14], [0.7, 0.32], [0.42, 0.42], [0.1, 0.4], [-0.3, 0.36], [-0.7, 0.26], [-0.92, 0.12]].map(([x, y]) => [x!, y!])); // fairing, tank, tail
       body2([[0.62, 0.22], [0.4, 0.26], [0.4, -0.26], [0.62, -0.22]], 0x1a2430); // screen
       line([[0.3, 0.9], [0.3, -0.9]], 0.7, DARK); // bars
@@ -139,7 +142,7 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
       break;
     }
     case "buggy": { // Ariel Nomad (3.7 x 1.85 m): open tube frame, two seats side by side, long-travel arms, mid engine, minimal wings
-      pair(0.62, 0.9, 0.17, 0.34); pair(-0.58, 0.9, 0.18, 0.4); // 33 in off-road tyres
+      pair(0.62, 0.9, 0.17, 0.34, DARK, true); pair(-0.58, 0.9, 0.18, 0.4); // 33 in off-road tyres
       for (const s of [-1, 1]) { // double wishbones to each wheel
         line([[0.62, 0.9 * s], [0.34, 0.52 * s]], 0.5, 0x8a8f9a); line([[0.62, 0.82 * s], [0.3, 0.4 * s]], 0.4, 0x8a8f9a);
         line([[-0.58, 0.9 * s], [-0.3, 0.52 * s]], 0.5, 0x8a8f9a); line([[-0.58, 0.82 * s], [-0.26, 0.4 * s]], 0.4, 0x8a8f9a);
@@ -165,7 +168,7 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
       break;
     }
     case "dragster": { // Top Fuel dragster (7.6 m): spidery front wheels, blown engine ahead of the driver, huge rear slicks, tall wing
-      pair(0.78, 0.55, 0.06, 0.1, 0x2a2d34); // narrow front wheels
+      pair(0.78, 0.55, 0.06, 0.1, 0x2a2d34, true); // narrow front wheels
       pair(-0.74, 0.8, 0.16, 0.42); // 36 x 17.5 in rear slicks
       line([[0.78, 0.55], [0.5, 0.12]], 0.3, DARK); line([[0.78, -0.55], [0.5, -0.12]], 0.3, DARK);
       hull([[0.96, 0.05], [0.85, 0.1], [0.4, 0.14], [-0.2, 0.2], [-0.55, 0.3], [-0.95, 0.3]].map(([x, y]) => [x!, y!])); // chassis and tub
@@ -288,7 +291,7 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
   brake.visible = false;
   const body = new Container();
   if (isPlayer) body.addChild(new Graphics().circle(0, 0, Math.hypot(hl, hw) + 1.5).fill({ color: 0xbfe0ff, alpha: 0.1 }).stroke({ width: 0.8, color: 0xbfe0ff, alpha: 0.4 })); // a circle round the whole vehicle, whatever its shape
-  body.addChild(g, brake);
+  body.addChild(wheelsBelow, g, brake);
   const shadow = new Graphics().roundRect(-hl, -hw, L, W, 1.5).fill({ color: 0x000000, alpha: 0.32 });
   const root = new Container();
   let wake: Graphics | undefined;
@@ -297,5 +300,5 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
     root.addChild(wake);
   }
   root.addChild(shadow, body);
-  return { root, body, shadow, brake, wake };
+  return { root, body, shadow, brake, steer, wake };
 }

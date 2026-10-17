@@ -22,6 +22,8 @@ const OUT = process.env.SHOTS || "";
   const G = (fn, a) => page.evaluate(fn, a);
   const shot = async (name) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png` }); };
   const settle = (ms = 3800) => page.waitForTimeout(ms);
+  // a race is worked out a stretch at a time while it plays: wait until the part up to the player's stop (or the end) is done
+  const untilWorkedOut = async () => { for (let i = 0; i < 300; i++) { if (await G(() => { const p = window.__game.play; return !p || p.final; })) return; await page.waitForTimeout(200); } };
   const toScreen = (w) => G((w) => { const v = window.__game.view; const r = v.app.canvas.getBoundingClientRect(); return { x: r.left + v.root.position.x + w.x * v.root.scale.x, y: r.top + v.root.position.y + w.y * v.root.scale.y }; }, w);
   const click = async (w, opts) => { const s = await toScreen(w); await page.mouse.click(s.x, s.y, opts); };
   const drag = async (from, to) => { const a = await toScreen(from), b = await toScreen(to); await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 3 }); await page.mouse.move(b.x, b.y, { steps: 3 }); await page.mouse.up(); };
@@ -30,7 +32,7 @@ const OUT = process.env.SHOTS || "";
 
   // ---------------- the title ----------------
   const home = async (url) => { await page.goto(BASE); await page.evaluate(() => localStorage.clear()); await page.goto(url); await page.waitForSelector(".home"); };
-  const setup = async (id) => { await page.click(id); await page.waitForSelector("#go"); };
+  const setup = async (id, diff = "#d-easy") => { await page.click(id); if (id !== "#h-trial") { await page.waitForSelector(diff); await page.click(diff); } await page.waitForSelector("#go"); };
   await home(BASE + "?t=1"); await settle(2500);
   ok("the title has a real track behind it, blurred, with bots going round", await G(() => window.__game.track.segments.length > 8 && document.querySelector("canvas").classList.contains("blurred") && window.__game.ambient.race.cars.length === 6));
   ok("the Menu button is hidden on the title", (await G(() => getComputedStyle(document.getElementById("menubtn")).display)) === "none");
@@ -59,6 +61,8 @@ const OUT = process.env.SHOTS || "";
     for (const real of [false, true]) {
       await open(BASE + (await hash(real))); await page.waitForSelector("#bar-go"); await settle(1800);
       await page.click("#bar-go"); await page.waitForSelector("#bar-skip");
+      // (the race is only worked out a little ahead of the play head, so work out the rest to see all its weather)
+      await G(() => window.__game.skipAhead(window.__game.play)); await page.waitForTimeout(500); await untilWorkedOut();
       const r = await G(() => { const race = window.__game.race; return { rain: race.events.some((e) => e.type === "rain"), wet: Math.max(0, ...race.wetSnaps.map((s) => Math.max(...s.slice(0, race.field.cells)))), showers: race.weather.showers.length }; });
       ok(`weather ${real ? "happens with realism on" : "does not happen with realism off"}`, real ? r.rain && r.wet > 20 : !r.rain && r.wet === 0 && r.showers === 0, JSON.stringify(r));
     }
@@ -95,7 +99,7 @@ const OUT = process.env.SHOTS || "";
   const handles = () => G(() => { const g = window.__game; return g.handles(g.draw).map((h) => ({ kind: h.kind, i: h.i, p: h.p })); });
   let hs = await handles();
   ok("the join, the points and the end node are all handles", hs[0].kind === "join" && hs.at(-1).kind === "end" && hs.filter((h) => h.kind === "pt").length === 3);
-  const p1 = hs[2].p, target = { x: p1.x + 6, y: p1.y - 5 };
+  const p1 = hs[2].p, target = { x: p1.x + 2.5, y: p1.y - 2 }; // (a small move: a point cannot be dragged closer than 8 units to its neighbours)
   await drag(p1, target);
   let pts = await G(() => window.__game.draw.pts);
   ok("dragging a point moves it", Math.abs(pts[1].x - target.x) < 0.6 && Math.abs(pts[1].y - target.y) < 0.6);
@@ -105,7 +109,10 @@ const OUT = process.env.SHOTS || "";
   ok("the end node stays on the road edge", Math.abs((end.x - gate.mid.x) * gate.dir.x + (end.y - gate.mid.y) * gate.dir.y) < 1e-6);
   hs = await handles(); await page.mouse.click((await toScreen(hs[1].p)).x, (await toScreen(hs[1].p)).y, { button: "right" });
   ok("right-click deletes a point", (await G(() => window.__game.draw.pts.length)) === 2);
-  hs = await handles(); const mid = { x: (hs[1].p.x + hs[2].p.x) / 2, y: (hs[1].p.y + hs[2].p.y) / 2 };
+  hs = await handles();
+  // (halfway between two points, and 10 units off to the side so it is not too close to either: points that crowd each other are refused)
+  const gx = hs[2].p.x - hs[1].p.x, gy = hs[2].p.y - hs[1].p.y, gl = Math.hypot(gx, gy) || 1;
+  const mid = { x: (hs[1].p.x + hs[2].p.x) / 2 - (gy / gl) * 10, y: (hs[1].p.y + hs[2].p.y) / 2 + (gx / gl) * 10 };
   await page.keyboard.down("Shift"); await click(mid); await page.keyboard.up("Shift");
   ok("Shift+click inserts between two points", (await G(() => window.__game.draw.pts.length)) === 3);
 
@@ -124,7 +131,9 @@ const OUT = process.env.SHOTS || "";
   await page.click("#bar-go"); await page.waitForSelector("#bar-skip");
   const z0 = await G(() => window.__game.view.cam.zoom); await page.waitForTimeout(2500); const z1 = await G(() => window.__game.view.cam.zoom);
   ok("the camera eases in on the car", z1 > z0 && z1 < 2.5, `${z0.toFixed(2)} -> ${z1.toFixed(2)}`);
-  ok("the race is running to the player's stop, which comes at the end of lap 2", await G(() => window.__game.play && window.__game.play.atStop && window.__game.lapNo === 1));
+  // (the race is only worked out a little ahead of the play head: work out the rest up to the stop)
+  await G(() => window.__game.skipAhead(window.__game.play)); await page.waitForTimeout(800); await untilWorkedOut();
+  ok("the race runs to the player's stop, which comes at the end of lap 2", await G(() => { const g = window.__game; return g.lapNo === 1 && g.race.events.some((e) => e.type === "pitStart" && g.race.cars.find((c) => c.entrant.id === e.id)?.entrant.isPlayer); }));
   await page.click("#bar-skip"); await page.waitForSelector("#bar-go", { timeout: 25000 }); await settle(2500);
   ok("in the pit stop the whole map is back and you can edit", Math.abs((await G(() => window.__game.view.cam.zoom)) - 1) < 0.03 && (await page.textContent("#hint")).includes("You are in the pits"));
   ok("the button says Back out", (await page.textContent("#bar-go")).includes("Back out"));

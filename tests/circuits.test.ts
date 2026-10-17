@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CIRCUITS, Race, ROAD_HALF, botLine, centreAt, checkTrack, defaultCar, generateTrack, randomPhrase, Rng, trackLength, type Segment } from "@apex/sim";
+import { CIRCUITS, Race, isCrossing, ROAD_HALF, botLine, centreAt, checkTrack, defaultCar, generateTrack, randomPhrase, Rng, trackLength, type Segment } from "@apex/sim";
 
 const MIN_GAP = 2 * ROAD_HALF + 4 - 0.5;
 
@@ -8,7 +8,7 @@ function separation(t: ReturnType<typeof generateTrack>): number {
   let best = Infinity;
   for (let i = 0; i < n; i++) for (let j = i + 2; j < n; j++) {
     if (i === 0 && j === n - 1) continue;
-    if (t.segments[i]!.kind === "cross" && t.segments[j]!.kind === "cross") continue; // a crossroads is meant to meet itself
+    if (isCrossing(t.segments[i]!.kind) && isCrossing(t.segments[j]!.kind)) continue; // a crossroads or a bridge is meant to meet itself
     for (const p of t.segments[i]!.center) for (const q of t.segments[j]!.center) best = Math.min(best, Math.hypot(p.x - q.x, p.y - q.y));
   }
   return best;

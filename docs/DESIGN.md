@@ -4,12 +4,12 @@
 - `packages/sim`: the whole game as pure, deterministic TypeScript. No DOM, no Node. Same phrase + same lines + same cars
   gives the same race (`Race.hash()`).
 - `src/renderer`: Pixi draws the track, lines and cars (`world.ts`); `game.ts` is the state machine and the DOM panels.
-- `src/main`, `src/preload`: Electron. Sandboxed renderer, CSP, a tiny IPC surface (saves, line files).
+- `src/main`, `src/preload`: Electron. Sandboxed renderer, CSP, a tiny IPC surface (saves).
 
 ## Rules in the sim
 - **Tracks** (`track.ts`): a simple cycle of grid cells grown from a ring round the edge of a block of cells, by pushing edges
   outward (nine pushes in ten the one that adds the fewest corners), so the road runs in long stretches and corners are the
-  exception: no dead ends, no crossings, always back to the start. 14–22 cells on a 7×5 grid. Each cell
+  exception: no dead ends, no flat crossings, always back to the start (about one phrase in ten is a figure of eight over a bridge instead, see Bridges). 14–22 cells on a 7×5 grid. Each cell
   is a segment: straight, bendy, corner or sharp. Boxes and water always leave room to pass on one side.
 - **Lines** (`line.ts`): per lap, a start point on the start line and per-segment waypoints. The last waypoint of a
   segment is where the next begins; the last segment ends back on the start point, so a lap is a closed loop. Waypoints
@@ -27,6 +27,22 @@
   - A test runs 15 tracks of 8 cars for 3 laps and asserts solid cars never get closer than `HARD_GAP`.
   - Ghost power-ups pass through everything, and only turn solid once nobody is inside (a lingering ghost drops back from
     a car ahead). The grid slides a car back if two slots would overlap.
+  - **Getting out of the way** (`race.ts`; tests in `tests/recovery.test.ts`). A car that is wrecked (recovering) or has sat still for a
+    second (`OBSTACLE_TICKS`) is an obstacle, and:
+    - the others steer round it rather than queue (`dodge`): they aim for the offset from their line nearest the one they have that clears
+      every obstacle by `DODGE_GAP` and stays on the road, and the traffic check looks along that shifted path, so a clear passing
+      line means no braking. With no room they brake as before.
+    - a recovering car gives way to nobody (everybody gives way to it), so it is never held in the middle of a junction by
+      right-of-way. With faster traffic coming up behind it, it pulls to the side of the road and waits for the pack to pass (at
+      most `PARK_MAX_TICKS`), then rejoins; it backs out of a wall as before, and one facing the wrong way turns round driving
+      forward for `TURN_ROUND_S` before it may reverse again (it used to flip between forward and reverse every tick and never turn).
+    - nobody drives into a crossing unless the road just beyond it is clear (`boxLimit`), so a queue does not sit in the box.
+    - a car that has not moved for `DEADLOCK_TICKS` (2 s) stops giving way for a while (it still keeps its distance to what is
+      ahead), and if it still has not moved after `PUSH_AFTER_TICKS` (5 s) it stops looking at the others for `PUSH_TICKS` and drives on.
+      It stays solid, shoving and being shoved: no car is ever a ghost in a race because of a collision or a jam (only a car that has taken the flag).
+    - a recovering car steers only as fast as it is rolling (no movement, no steering), the turning circle shrinks as it slows, and it
+      turns about its rear axle (`REC_HINGE`), so its middle swings out as the nose comes round. With its nose well off the road it
+      comes round at a crawl and only picks up speed as it straightens.
 - **Grid order**: by the ideal lap time of each car's first line.
 - **Amending**: joins stay fixed, so redrawing a segment never breaks the loop. Up to 3 segments may differ from the line
   just raced.
@@ -54,7 +70,7 @@
 - Rain wets bins, they dry slowly, and each car that drives over a bin dries it and adds `use`. High `use` polishes the
   line in the wet (less grip) and rubbers it in when dry. The profile for each lap takes its per-sample grip from the field
   at lap start (`ProfileOpts.gripAt`).
-- Fuel and tyre constants scale with the race length (`raceScale`) so five stops cover fifty laps.
+- Fuel and tyres are used up by distance driven, not by laps (`FUEL_RANGE`, `TYRE_WEAR_PER_UNIT`, both worked out from an ordinary lap of `LAP_UNITS`), so a long track costs more per lap. They scale with the length of the race (`raceScale`, in units) so five stops cover fifty ordinary laps.
 - `Entrant.pitPlan` is the player's queue (max `MAX_PIT_STOPS`); bots decide from fuel, tyres and the road they see, and
   `Race.replanBots` redraws their lines at each edit stop.
 - The race records a wet-field snapshot and the rain once a second for replay.
@@ -97,7 +113,28 @@ and the one after it, or before it, whichever is a plain straight), and esses wh
 `cross` is a straight cell that two parts of the lap pass through at right angles (`demolition-derby` only; `enrich` never lays it).
 A cell then holds two segments: `Track.cellSegments` lists them, `cellIndex` keeps the first, and `nearbySegments` returns both.
 The cars get across with the ordinary traffic rules (the car further round the race has right of way); the renderer paints
-yellow hatching in the junction. `checkTrack` allows a cell to be used twice only by two `cross` pieces going different ways.
+yellow hatching in the junction. `checkTrack` allows a cell to be used twice only by two `cross` pieces going different ways, or a
+`bridge` and an `under`.
+
+## Bridges
+A bridge is a crossing where the cars do not meet: the cell holds a `bridge` (the deck, which carries the road over) and an `under` (the road
+beneath it), the same shape as a `cross` (a straight cell, the two roads at right angles). `isCrossing(kind)` is true for all three, and
+the loop checks, width and shortcut code treat them alike. `levelsOf(track)` gives each segment's level by id: a bridge is +k and its under
+road -k, everything else 0, and `Race.apart(a, b)` says two cars are on the two levels of the same bridge. Such cars are left out of
+collisions, traffic checks, dodging, pulling over and the lingering-ghost check, so they pass through each other without a touch or a thought.
+`Race.levelOf(car)` and the `ltrace` array (per tick) carry the level to the renderer.
+
+Where they come from:
+- **Fun tracks:** each crossing of a fun layout (`fun.ts`) is a bridge 60% of the time (`FUN_BRIDGES`), otherwise a flat `cross`. Which
+  cell is the deck is drawn from a stream of its own, so the layout itself does not move.
+- **Ordinary tracks:** about one phrase in ten (`NORMAL_BRIDGE_CHANCE`, decided from a separate random stream before the usual loop is
+  grown, so every other phrase keeps its track) is a figure of eight or a chain of lobes on the 7×5 grid with every crossing a bridge
+  (`bridgedTrack` in `track.ts`, 14-22 cells). They are still ordinary tracks (not `fun`, no widths, no shortcuts, no water).
+
+The art (`trackart.ts`, `bridgeDeck`): a concrete deck a little wider than the road, with parapets that grow as it climbs (it rises over the
+first and last quarter of the cell, `DECK_RAMP`), railing posts, expansion joints, shaded ramps, piers at both ends of the flat top, and a
+shadow cast to the lower right over the road beneath. The deck is in its own layer above the cars on the ground (so cars on the road
+under it vanish and reappear), and cars on it are drawn above the deck (with their ordinary shadow: a lifted one made them look as if they were flying).
 
 ## Mapped circuits
 The real circuits (Spa, Monza, Silverstone, Barcelona, Laguna Seca, Monaco, Le Mans, Daytona's road course, Donington and Willow
@@ -154,7 +191,7 @@ the ones already placed (columns bunch up on a bend). The order is the fastest l
 - Dev only: `?demo&t=14` races a bot line and parks the camera; `?draw=5` and `?draw=3&amend` open the drawing screens.
 
 ## Not yet
-- Online uploads of times and lines (line files are the stand-in).
+- Online play is built (see `server/`); still to do: ranked weekends across qualifying, richer profiles.
 - Code signing and auto-update.
 - Sound, and proper art.
 

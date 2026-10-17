@@ -40,6 +40,12 @@ Installers for Windows, Linux (AppImage) and macOS are on the
 **Android:** each release also has `apex-draft-<version>-debug.apk`. Download it on the phone, allow "install unknown
 apps" for your browser or file manager, and open it. It is a debug build (not from the Play Store) and plays in landscape.
 
+**Steam Deck:** download `ApexDraft-<version>-steamdeck-x86_64.AppImage`, then in Desktop mode make it executable (right-click,
+Properties, Permissions, "Is executable", or `chmod +x`) and run it. To play in Game mode, add it with *Add a Non-Steam Game*, then
+pick the **Gamepad** controller template so the Deck's buttons arrive as a standard pad. It goes fullscreen on its own in Game mode
+(or run it with `--fullscreen`). Left stick moves the cursor, A places a point; the full list is under Settings. If it won't
+start, run it once from a terminal and open an issue with what it prints.
+
 ## How it plays
 
 <p align="center">
@@ -71,8 +77,10 @@ apps" for your browser or file manager, and open it. It is a debug build (not fr
   closer you are and the faster you are going. It works in every mode.
 - **Contact.** Cars can touch. A shunt from behind, a squeeze alongside and a T-bone each do what you would expect, and
   heavier vehicles push lighter ones around. A car carrying too much speed into a bend runs wide.
-- **Other people's lines.** Save your lines to a file and send it to a friend. They import it (**Import lines**) and race
-  against you on the same phrase. There is no online upload yet.
+- **Other people.** Your times and lines go to the online server (`apexdraft.dnlwtsn.co.uk`) as you play, and other players' lines come
+  back as rivals on the same track, picked to put you mid-pack. Their name shows above an arrow on their car. The server runs every
+  line through the game's own simulation, so times can't be faked. Pick your name under **Settings**. If the server can't be reached
+  the game says nothing and fills the grid with computer-driven rivals. See `server/README.md` to host your own.
 
 ### Your car
 
@@ -149,9 +157,10 @@ so sharing the phrase shares the track, the place and the cars. Any text works a
 
 What the phrase decides:
 
-- **The layout.** A loop of 14 to 22 pieces on a small grid. It never has a dead end or a crossing, and it always comes
+- **The layout.** A loop of 14 to 22 pieces on a small grid. It never has a dead end or a crossing where cars can meet, and it always comes
   back to the start. Pieces are straights, gentle bends, kinks, chicanes, esses, corners, sharp corners, sweepers and
-  hairpin U-turns. The start and finish always sit on plain straights, so there is room for the pit lane.
+  hairpin U-turns. Now and then (about one phrase in ten) the road runs over itself on a **bridge**: a figure of eight whose
+  crossing is a raised deck, so cars on the bridge and on the road beneath it pass without touching. The start and finish always sit on plain straights, so there is room for the pit lane.
 - **The place.** Countryside, desert, snow and ice, a city, or the Moon. Each changes grip, braking, acceleration, tyre
   wear and fuel use for everyone, and each has its own scenery: trains, planes, wind turbines, boats, villages.
 - **What you drive.** One class of vehicle for the whole field: go-karts, formula cars, rally cars, muscle cars, trucks, tanks,
@@ -160,7 +169,7 @@ What the phrase decides:
 - **Secrets.** Some real circuits are hidden behind their names. Try typing a famous one as the phrase. Each races its best-known class: Donington Park touring cars, Daytona prototypes, Spa GT3, Lago Maggiore GT4, Silverstone F1 cars (Le Mans prototypes, Monza, Barcelona and Monaco F1, Laguna Seca GT3, Willow Springs GT4). Their shapes come from
   [OpenStreetMap](https://www.openstreetmap.org/copyright) (see [docs/CIRCUIT_CREDITS.md](docs/CIRCUIT_CREDITS.md)).
 - **Fun tracks.** A phrase that starts with `fun-` (for example `fun-healthy-bear-eats-tuna`) is a fun track, and Random keeps the
-  `fun-` and changes the rest. The road runs over itself at crossings, narrows to a single-file bottleneck and opens out into wide
+  `fun-` and changes the rest. The road runs over itself at crossings (more often than not on a bridge, where the cars on the two levels never touch), narrows to a single-file bottleneck and opens out into wide
   arenas, and may have a shortcut: where the road forks, drag the diamond at the end of the segment onto the other exit and only
   that route is filled in. Open water turns up only on fun tracks, as likely as any other place. Boats have no grip: they carry
   speed into a corner and slide wide, hull at an angle to their path.

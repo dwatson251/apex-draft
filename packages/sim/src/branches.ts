@@ -1,6 +1,6 @@
 import { Rng } from "./rng.ts";
 import { SAMPLES } from "./pieces.ts";
-import { buildSegment, halfIdx, nextOf, type Branch, type Segment, type Track } from "./track.ts";
+import { buildSegment, halfIdx, isCrossing, nextOf, type Branch, type Segment, type Track } from "./track.ts";
 import { pinchSegment } from "./width.ts";
 import { estimateTime } from "./routetime.ts";
 
@@ -52,7 +52,7 @@ export function minClearance(t: { allSegments: Segment[]; segments: Segment[] },
     for (const b of all) {
       if (only ? a.index === b.index : b.index <= a.index) continue;
       if (related(t, a, b)) continue;
-      if (a.kind === "cross" && b.kind === "cross" && a.cx === b.cx && a.cy === b.cy) continue;
+      if (isCrossing(a.kind) && isCrossing(b.kind) && a.cx === b.cx && a.cy === b.cy) continue;
       for (let p = 0; p <= SAMPLES; p++) {
         const pa = a.center[p]!, ha = halfIdx(a, p);
         for (let q = 0; q <= SAMPLES; q++) {

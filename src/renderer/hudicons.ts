@@ -40,3 +40,9 @@ export function bubble(id: string, icon: string, frac: number, color: string, lo
   const pct = Math.max(0, Math.min(1, frac));
   return `<div class="bubble-bar${low ? " low" : ""}" id="${id}" style="--fill:${(pct * 100).toFixed(1)}%;--col:${color}"><div class="bb-tube"><i></i></div><div class="bb-ic">${icon}</div></div>`;
 }
+
+/** A podium with the best finishing place in it: gold, silver and bronze for the first three. */
+export function podiumIcon(place: number, px = 20): string {
+  const fill = place === 1 ? "#ffd23f" : place === 2 ? "#c9d1e0" : place === 3 ? "#d98a4a" : "#7d88a8";
+  return `<svg viewBox="0 0 64 64" width="${px}" height="${px}" role="img" aria-label="best finish: P${place}"><title>Best finish: P${place}</title><path d="M6 56V38h16V26h20v20h16v10z" fill="${fill}" stroke="#0b1020" stroke-width="3" stroke-linejoin="round"/></svg><b>P${place}</b>`;
+}

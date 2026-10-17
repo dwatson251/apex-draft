@@ -1,4 +1,4 @@
-import { CAR_R, ROAD_HALF, exitsAfter, isDrivable, nextOf, type Gate, type Track } from "./track.ts";
+import { CAR_R, KERB_ALLOW, ROAD_HALF, exitsAfter, isDrivable, nextOf, type Gate, type Track } from "./track.ts";
 import { add, clamp, dist, dot, mul, sub, type Vec2 } from "./vec.ts";
 
 /**
@@ -27,7 +27,7 @@ export function makeLine(start: Vec2, segs: Vec2[][], path: number[] | undefined
 
 /** Snap a point onto a gate, inside the drivable width. */
 export function projectToGate(g: Gate, p: Vec2): Vec2 {
-  const limit = (g.half ?? ROAD_HALF) - CAR_R - 0.5;
+  const limit = (g.half ?? ROAD_HALF) - CAR_R + KERB_ALLOW - 0.5;
   const l = clamp(dot(sub(p, g.mid), g.n), -limit, limit);
   return add(g.mid, mul(g.n, l));
 }

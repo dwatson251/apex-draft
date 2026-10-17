@@ -1,4 +1,4 @@
-import { ROAD_HALF, halfIdx, type Segment } from "./track.ts";
+import { ROAD_HALF, halfIdx, isCrossing, type Segment } from "./track.ts";
 import { SAMPLES } from "./pieces.ts";
 import { Rng } from "./rng.ts";
 
@@ -25,7 +25,7 @@ export function clearanceFrom(segs: Segment[], i: number): number {
     const gap = Math.min((i - j + n) % n, (j - i + n) % n);
     if (gap <= 1) continue;
     const b = segs[j]!;
-    if (a.kind === "cross" && b.kind === "cross" && a.cx === b.cx && a.cy === b.cy) continue;
+    if (isCrossing(a.kind) && isCrossing(b.kind) && a.cx === b.cx && a.cy === b.cy) continue;
     for (let p = 0; p <= SAMPLES; p++) {
       const pa = a.center[p]!, ha = halfIdx(a, p);
       for (let q = 0; q <= SAMPLES; q++) {
@@ -68,7 +68,7 @@ export function applyWidths(segs: Segment[], seed: number): void {
   const rng = new Rng((seed ^ 0x57a1d7e3) >>> 0);
   const taken = new Set<number>();
   // keep clear of the start line, its pit lane and any crossing
-  const ok = (i: number) => i >= 2 && i <= n - 3 && !taken.has(i) && segs[i]!.kind !== "cross" && segs[i - 1]!.kind !== "cross" && segs[(i + 1) % n]!.kind !== "cross";
+  const ok = (i: number) => i >= 2 && i <= n - 3 && !taken.has(i) && !isCrossing(segs[i]!.kind) && !isCrossing(segs[i - 1]!.kind) && !isCrossing(segs[(i + 1) % n]!.kind);
   const fits = (idx: number[]) => idx.every((i) => clearanceFrom(segs, i) >= MIN_CLEAR);
   for (let i = 2; i <= n - 3; i++) {
     if (!ok(i)) continue;

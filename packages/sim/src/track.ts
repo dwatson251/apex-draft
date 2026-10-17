@@ -21,9 +21,20 @@ export const POWERUPS_ENABLED = false;
 export const CELL = 100;
 export const ROAD_HALF = 22;
 export const CAR_R = 3;
+/**
+ * How far a car may run over the kerb at the road edge: its centre may reach the edge, with the outer wheels on the kerb and the inner two on the
+ * track. Everything else (rocks, walls) still keeps the whole car clear.
+ */
+export const KERB_ALLOW = 2.5;
 const SAMPLES = 24;
 
-export type SegmentKind = "straight" | "bendy" | "kink" | "chicaneA" | "chicaneB" | "esses" | "cross" | "fork" | "merge" | "corner" | "sharp" | "sweeper" | "uturn";
+export type SegmentKind = "straight" | "bendy" | "kink" | "chicaneA" | "chicaneB" | "esses" | "cross" | "bridge" | "under" | "fork" | "merge" | "corner" | "sharp" | "sweeper" | "uturn";
+
+/**
+ * A cell the road passes through twice is a crossing: a `cross` (the cars meet in the box and can hit each other), or a bridge, where one
+ * visit is the `bridge` that carries the road over the other, the `under`, and the cars on the two never touch.
+ */
+export const isCrossing = (k: SegmentKind): boolean => k === "cross" || k === "bridge" || k === "under";
 export type PowerupKind = "boost" | "grip" | "ghost";
 
 export interface Gate {
@@ -253,7 +264,7 @@ export function buildSegment(rng: Rng, index: number, cell: [number, number], pr
   else kind = rng.chance(0.4) ? "sharp" : "corner";
   const bendSign: 1 | -1 = rng.chance(0.5) ? 1 : -1;
   if (force) {
-    if (straight !== (force === "straight" || force === "bendy" || force === "kink" || force === "chicaneA" || force === "chicaneB" || force === "esses" || force === "cross")) throw new Error(`a ${force} cell at ${cx},${cy} does not fit the way the road runs`);
+    if (straight !== (force === "straight" || force === "bendy" || force === "kink" || force === "chicaneA" || force === "chicaneB" || force === "esses" || isCrossing(force))) throw new Error(`a ${force} cell at ${cx},${cy} does not fit the way the road runs`);
     kind = force;
   }
 
@@ -265,7 +276,7 @@ export function buildSegment(rng: Rng, index: number, cell: [number, number], pr
   if (kind === "corner" || kind === "sharp") {
     center = [];
     for (let i = 0; i <= SAMPLES; i++) center.push(bezier(p0, c1, c2, p2, i / SAMPLES));
-  } else center = straightCentre(kind === "cross" ? "straight" : (kind as StraightShape), p0, p2, bendSign);
+  } else center = straightCentre(isCrossing(kind) ? "straight" : (kind as StraightShape), p0, p2, bendSign);
   const seg: Segment = {
     index, cx, cy, kind, center, normals: normalsOf(center),
     entry: makeGate(p0, mul(toPrev, -1)),
@@ -273,7 +284,7 @@ export function buildSegment(rng: Rng, index: number, cell: [number, number], pr
     obstacles: [],
   };
   // nothing sits in a junction, and nothing is laid on the road just before it
-  placeFeatures(seg, rng, pitStraight || kind === "cross");
+  placeFeatures(seg, rng, pitStraight || isCrossing(kind));
   return seg;
 }
 
@@ -471,6 +482,9 @@ export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
     }
     if (plain) return plain;
   }
+  // now and then an ordinary track is a figure of eight with a bridge: decided from a stream of its own, so every other phrase keeps its track
+  const bridged = bridgedTrack(norm_, seed, opts);
+  if (bridged) return bridged;
   const rng = new Rng(seed);
   const cols = 7;
   const rows = 5;
@@ -509,8 +523,33 @@ export function generateTrack(phrase: string, opts: TrackOptions = {}): Track {
   return { phrase: norm_, seed, cols, rows, segments, pit, obstacles: opts.obstacles !== false, biome: opts.biome ?? biomeForSeed(seed, fun), fun, ...indexCells(segments, branches, extra) };
 }
 
-/** A track copied from a real circuit: its cells in driving order, with the kind of each, and its wide arcs. */
-function buildCircuit(c: Circuit, typed: string, opts: TrackOptions, fun = false): Track {
+/** Of the ordinary tracks, the share that run over themselves on a bridge (a fun track has them far more often). */
+export const NORMAL_BRIDGE_CHANCE = 0.1;
+/** How many layouts an ordinary phrase tries for its bridge before it settles for an ordinary loop. */
+const BRIDGE_ATTEMPTS = 40;
+
+/**
+ * An ordinary track (not a hidden circuit, not a fun phrase) that crosses itself on a bridge: a figure of eight or a chain of lobes
+ * drawn on the usual 7 by 5 grid, with every crossing a bridge, so nobody can run into anybody there. Null for most phrases.
+ */
+function bridgedTrack(phrase: string, seed: number, opts: TrackOptions): Track | null {
+  if (!new Rng((seed ^ 0x6b1d9e57) >>> 0).chance(NORMAL_BRIDGE_CHANCE)) return null;
+  for (let attempt = 0; attempt < BRIDGE_ATTEMPTS; attempt++) {
+    const lay = funLayout(phrase, seed ^ 0x2c1b3c6d, attempt, { cols: 7, rows: 5, bridges: 1 });
+    if (!lay || lay.cells.length < 14 || lay.cells.length > 22) continue;
+    for (const windows of [lay.windows, undefined]) {
+      try {
+        const t = buildCircuit({ ...lay, windows }, phrase, opts, false, true);
+        if (checkTrack(t).length !== 0 || minClearance(t) < MIN_CLEAR - 0.01) continue;
+        return t;
+      } catch { /* try the layout without its wide arcs, then the next layout */ }
+    }
+  }
+  return null;
+}
+
+/** A track copied from a real circuit: its cells in driving order, with the kind of each, and its wide arcs. `plain`: not a circuit at all, an ordinary track laid out from cells. */
+function buildCircuit(c: Circuit, typed: string, opts: TrackOptions, fun = false, plain = false): Track {
   if (c.free) return buildFreeCircuit(c, typed, opts);
   const seed = phraseToSeed(c.id);
   const rng = new Rng(seed);
@@ -553,8 +592,8 @@ function buildCircuit(c: Circuit, typed: string, opts: TrackOptions, fun = false
   const pit = makePit(g.mid, g.dir, g.n, crowding(inwardSide) <= crowding(-inwardSide as 1 | -1) ? inwardSide : (-inwardSide as 1 | -1));
   const track: Track = {
     phrase: typed, seed, cols: c.cols, rows: c.rows, segments, pit, obstacles: opts.obstacles !== false,
-    biome: opts.biome ?? (fun ? biomeForSeed(seed, true) : c.biome), fun, ...indexCells(segments, branches, extra),
-    ...(fun ? {} : { circuit: { id: c.id, name: c.name, lengthKm: c.lengthKm, blurb: c.blurb } }),
+    biome: opts.biome ?? (fun ? biomeForSeed(seed, true) : plain ? biomeForSeed(seed, false) : c.biome), fun, ...indexCells(segments, branches, extra),
+    ...(fun || plain ? {} : { circuit: { id: c.id, name: c.name, lengthKm: c.lengthKm, blurb: c.blurb } }),
   };
   return track;
 }
@@ -576,11 +615,12 @@ export function checkTrack(t: Track): string[] {
   const seen = new Map<string, number>();
   t.segments.forEach((s, i) => {
     const k = key(s.cx, s.cy);
-    // only a crossing may use a cell twice, and then both visits are crossing pieces going different ways
+    // only a crossing may use a cell twice, and then both visits are crossing pieces going different ways: two crosses, or a bridge and the road under it
     const other = seen.get(k);
     if (other !== undefined && !t.free) {
       const o = t.segments[other]!;
-      if (s.kind !== "cross" || o.kind !== "cross" || s.entry.dir.x * o.entry.dir.x + s.entry.dir.y * o.entry.dir.y !== 0) problems.push(`cell ${k} used twice`);
+      const pairOk = (s.kind === "cross" && o.kind === "cross") || (s.kind === "bridge" && o.kind === "under") || (s.kind === "under" && o.kind === "bridge");
+      if (!pairOk || s.entry.dir.x * o.entry.dir.x + s.entry.dir.y * o.entry.dir.y !== 0) problems.push(`cell ${k} used twice`);
     }
     seen.set(k, i);
     if (s.cx < 0 || s.cy < 0 || s.cx >= t.cols || s.cy >= t.rows) problems.push(`cell ${k} outside the grid`);
@@ -642,15 +682,46 @@ function lateralOf(s: Segment, o: Obstacle): number {
   return signed;
 }
 
-/** Segments near a point: its cell and the eight around it. */
+const LEVELS = new WeakMap<Track, Int16Array | null>();
+/**
+ * Which level each segment is on, by segment id, or null when the track has no bridge. A bridge and the road under it are
+ * +k and -k (k counts the bridges from 1); every other segment is 0. Cars on +k and -k never touch or give way to each other.
+ */
+export function levelsOf(t: Track): Int16Array | null {
+  let l = LEVELS.get(t);
+  if (l === undefined) {
+    l = null;
+    let k = 0;
+    for (const s of t.allSegments) {
+      if (s.kind !== "bridge") continue;
+      const under = t.allSegments.find((o) => o.kind === "under" && o.cx === s.cx && o.cy === s.cy);
+      if (!under) continue;
+      l ??= new Int16Array(t.allSegments.length);
+      k++;
+      l[s.index] = k; l[under.index] = -k;
+    }
+    LEVELS.set(t, l);
+  }
+  return l;
+}
+
+const NEAR = new WeakMap<Track, Map<number, Segment[]>>();
+/** Segments near a point: its cell and the eight around it. A track never changes, so the answer for each cell is worked out once. */
 export function nearbySegments(t: Track, p: Vec2): Segment[] {
   const cx = Math.floor(p.x / CELL);
   const cy = Math.floor(p.y / CELL);
-  const out: Segment[] = [];
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dy = -1; dy <= 1; dy++) {
-      for (const i of t.cellSegments.get(key(cx + dx, cy + dy)) ?? []) out.push(t.allSegments[i]!);
+  let memo = NEAR.get(t);
+  if (!memo) { memo = new Map(); NEAR.set(t, memo); }
+  const k = (cx + 64) * 4096 + (cy + 64);
+  let out = memo.get(k);
+  if (!out) {
+    out = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (const i of t.cellSegments.get(key(cx + dx, cy + dy)) ?? []) out.push(t.allSegments[i]!);
+      }
     }
+    memo.set(k, out);
   }
   return out;
 }
@@ -687,9 +758,9 @@ export function inObstacle(t: Track, p: Vec2, margin: number): Obstacle | undefi
   return undefined;
 }
 
-/** True when a car centred at p stays on the road and clear of obstacles. */
+/** True when a car centred at p stays on the road (two wheels on the track at the least, so the kerb is allowed) and clear of obstacles. */
 export function isDrivable(t: Track, p: Vec2, margin = CAR_R): boolean {
-  return roadMargin(t, p) >= margin && !inObstacle(t, p, margin);
+  return roadMargin(t, p) >= margin - KERB_ALLOW && !inObstacle(t, p, margin);
 }
 
 export function trackBounds(t: Track): { w: number; h: number } {

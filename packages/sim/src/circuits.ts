@@ -8,7 +8,7 @@ import { CIRCUIT_DATA } from "./circuitData.ts";
  * straight. A `window` lays a wide arc (`uturn` or `sweeper`) over three cells starting there. Those shapes are not from a map.
  */
 /** In a route, "chicane" marks a chicane: `build` lays it as two cells, a `chicaneA` and the `chicaneB` beside it. */
-export type CircuitKind = "straight" | "bendy" | "kink" | "esses" | "chicaneA" | "chicaneB" | "cross" | "corner" | "sharp";
+export type CircuitKind = "straight" | "bendy" | "kink" | "esses" | "chicaneA" | "chicaneB" | "cross" | "bridge" | "under" | "corner" | "sharp";
 
 export interface Circuit {
   id: string;

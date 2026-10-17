@@ -59,6 +59,8 @@ export interface ProfileOpts {
   brake?: number;
   /** grip of the tyres at each point of the road (wet and dry patches); defaults to 1 everywhere */
   gripAt?: (x: number, y: number) => number;
+  /** drive at this fraction of what the car can do (1 if left out): top speed and acceleration scale with it, and cornering with its square, so corners go by at that fraction too */
+  pace?: number;
 }
 
 /** Road narrower than this (half width) slows the cars: the speed limit is PINCH_SPEED per unit of half-width. */
@@ -69,6 +71,8 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   const st = carStats(car);
   st.aLat *= opts.grip ?? 1;
   st.brake *= opts.brake ?? 1;
+  const pace = opts.pace ?? 1;
+  if (pace !== 1) { st.vTop *= pace; st.accel *= pace; st.aLat *= pace * pace; }
   const pitIn = !!opts.pitIn, pitOut = !!opts.pitOut;
   const lapPit = applyPit(track, lapCurve(line, track.segments.length), pitIn, pitOut);
   const dense = lapPit.dense;

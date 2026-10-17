@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, ipcMain, session, shell, type IpcMainInvokeEvent } from "electron";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -8,7 +8,7 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
-  `connect-src 'self'${DEV_URL ? " ws://localhost:*" : ""}`,
+  `connect-src 'self' https://apexdraft.dnlwtsn.co.uk${DEV_URL ? " ws://localhost:*" : ""}`,
   "object-src 'none'",
   "base-uri 'none'",
 ].join("; ");
@@ -22,7 +22,7 @@ const dataDir = () => {
 };
 
 /** Only keys we know about may reach the disk, and only as plain file names. */
-const KEYS = new Set(["settings", "cars", "best"]);
+const KEYS = new Set(["settings", "cars", "best", "records", "identity"]);
 const fileFor = (key: string) => join(dataDir(), `${key}.json`);
 
 function trusted(e: IpcMainInvokeEvent): boolean {
@@ -30,9 +30,12 @@ function trusted(e: IpcMainInvokeEvent): boolean {
   return DEV_URL ? url.startsWith(DEV_URL) : url.startsWith("file://");
 }
 
+/** Steam Deck: Game mode sets these, and `--fullscreen` does the same by hand. The Deck's screen is 1280x800, the window's default size. */
+const onDeck = process.env["SteamDeck"] === "1" || process.env["SteamGamepadUI"] === "1" || process.argv.includes("--fullscreen");
+
 function createWindow(): void {
   win = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 900, minHeight: 600, backgroundColor: "#12151c", title: "Apex Draft",
+    width: 1280, height: 800, fullscreen: onDeck, minWidth: 900, minHeight: 600, backgroundColor: "#12151c", title: "Apex Draft",
     autoHideMenuBar: true,
     webPreferences: { preload: join(__dirname, "../preload/index.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, autoplayPolicy: "no-user-gesture-required" },
   });
@@ -60,22 +63,6 @@ ipcMain.handle("store:set", (e, key: string, value: unknown) => {
   writeFileSync(`${f}.tmp`, JSON.stringify(value));
   renameSync(`${f}.tmp`, f);
   return true;
-});
-
-ipcMain.handle("lines:export", async (e, suggested: string, text: string) => {
-  if (!trusted(e) || !win || typeof text !== "string" || text.length > 5_000_000) return false;
-  const safe = String(suggested).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "line";
-  const r = await dialog.showSaveDialog(win, { defaultPath: `${safe}.apexline.json`, filters: [{ name: "Apex Draft line", extensions: ["json"] }] });
-  if (r.canceled || !r.filePath) return false;
-  writeFileSync(r.filePath, text);
-  return true;
-});
-
-ipcMain.handle("lines:import", async (e) => {
-  if (!trusted(e) || !win) return [];
-  const r = await dialog.showOpenDialog(win, { properties: ["openFile", "multiSelections"], filters: [{ name: "Apex Draft line", extensions: ["json"] }] });
-  if (r.canceled) return [];
-  return r.filePaths.slice(0, 7).map((p) => readFileSync(p, "utf8")).filter((t) => t.length < 5_000_000);
 });
 
 ipcMain.handle("app:version", () => app.getVersion());
