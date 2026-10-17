@@ -1,0 +1,3689 @@
+[
+ {
+  "id": "mario-circuit-1",
+  "name": "Mario Circuit 1",
+  "game": "smk",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_1",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "retro",
+  "features": [
+   "sand",
+   "shortcut"
+  ],
+  "maps": [
+   "SMK_Mario_Circuit_1_Lower-Screen_Map.png",
+   "MKSC_SNES_Mario_Circuit_1_Map.png",
+   "MKSC_Mario_Circuit_1_Extra_Cup_Map.png",
+   "MKSC_SNES_Mario_Circuit_1_Mini_Map.png",
+   "MKDS_Mario_Circuit_1_Map.png",
+   "MKT_Map_MarioCircuit1SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "donut-plains-1",
+  "name": "Donut Plains 1",
+  "game": "smk",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Donut_Plains_1_(race_course)",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "retro",
+  "features": [
+   "mud",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "SMK_Donut_Plains_1_Lower-Screen_Map.png",
+   "SMK_Donut_Plains_1_Overhead_Map.png",
+   "MKSC_SNES_Donut_Plains_1_Map.png",
+   "MKSC_SNES_Donut_Plains_1_Extra_Cup_Map.png",
+   "MKSC_SNES_Donut_Plains_1_Mini_Map.png",
+   "MKDS_Donut_Plains_1_Map.png",
+   "MKDS_SNES_Donut_Plains_1_Monochrome_Map.jpg",
+   "MKT_Map_DonutPlains1SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "ghost-valley-1",
+  "name": "Ghost Valley 1",
+  "game": "smk",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Ghost_Valley_1",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "ghost",
+  "features": [
+   "jump",
+   "shortcut"
+  ],
+  "maps": [
+   "SMK_Ghost_Valley_1_Lower-Screen_Map.png",
+   "SMK_Ghost_Valley_1_Overhead_Map.png",
+   "MKSC_SNES_Ghost_Valley_1_Map.png",
+   "MKSC_Ghost_Valley_1_Extra_Cup_Map.png",
+   "MKSC_SNES_Ghost_Valley_1_Mini_Map.png",
+   "MKT_Map_GhostValley1SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "smk-bowser-castle-1",
+  "name": "Bowser Castle 1",
+  "game": "smk",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser_Castle_1_(Super_Mario_Kart)",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "castle",
+  "features": [
+   "jump",
+   "crossing"
+  ],
+  "maps": [
+   "SMK_Bowser_Castle_1_Lower-Screen_Map.png",
+   "SMK_Bowser_Castle_1_Overhead_Map.png",
+   "MKSC_SNES_Bowser_Castle_1_Map.png",
+   "MKSC_SNES_Bowser_Castle_1_Extra_Cup_Map.png",
+   "MKSC_SNES_Bowser_Castle_1_Mini_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mario-circuit-2",
+  "name": "Mario Circuit 2",
+  "game": "smk",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_2",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "retro",
+  "features": [
+   "jump",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "SMK_Mario_Circuit_2_Lower-Screen_Map.png",
+   "MKSC_SNES_Mario_Circuit_2_Map.png",
+   "MKSC_Mario_Circuit_2_Extra_Cup_Map.png",
+   "MKSC_SNES_Mario_Circuit_2_Mini_Map.png",
+   "MK7_SNES_Mario_Circuit_2_Minimap.png",
+   "MKT_Map_MarioCircuit2SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "choco-island-1",
+  "name": "Choco Island 1",
+  "game": "smk",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Choco_Island_1",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "retro",
+  "features": [
+   "ice",
+   "mud"
+  ],
+  "maps": [
+   "SMK_Choco_Island_1_Lower-Screen_Map.png",
+   "SMK_Choco_Island_1_Overhead_Map.png",
+   "MKSC_SNES_Choco_Island_1_Map.png",
+   "MKSC_Choco_Island_1_Extra_Cup_Map.png",
+   "MKSC_SNES_Choco_Island_1_Mini_Map.png",
+   "MKT_Map_ChocoIsland1SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "ghost-valley-2",
+  "name": "Ghost Valley 2",
+  "game": "smk",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Ghost_Valley_2",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "ghost",
+  "features": [
+   "jump",
+   "shortcut"
+  ],
+  "maps": [
+   "SMK_Ghost_Valley_2_Lower-Screen_Map.png",
+   "SMK_Ghost_Valley_2_Overhead_Map.png",
+   "MKSC_SNES_Ghost_Valley_2_Map.png",
+   "MKSC_Ghost_Valley_2_Extra_Cup_Map.png",
+   "MKSC_SNES_Ghost_Valley_2_Mini_Map.png",
+   "MKT_Map_GhostValley2SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "donut-plains-2",
+  "name": "Donut Plains 2",
+  "game": "smk",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Donut_Plains_2_(race_course)",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "retro",
+  "features": [
+   "jump",
+   "ice",
+   "mud",
+   "water",
+   "crossing"
+  ],
+  "maps": [
+   "SMK_Donut_Plains_2_Lower-Screen_Map.png",
+   "SMK_Donut_Plains_2_Overhead_Map.png",
+   "MKSC_SNES_Donut_Plains_2_Map.png",
+   "MKSC_SNES_Donut_Plains_2_Extra_Cup_Map.png",
+   "MKSC_SNES_Donut_Plains_2_Mini_Map.png",
+   "MKT_Map_DonutPlains2SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "smk-bowser-castle-2",
+  "name": "Bowser Castle 2",
+  "game": "smk",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser_Castle_2_(Super_Mario_Kart)",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "castle",
+  "features": [
+   "jump",
+   "shortcut"
+  ],
+  "maps": [
+   "SMK_Bowser_Castle_2_Lower-Screen_Map.png",
+   "SMK_Bowser_Castle_2_Overhead_Map.png",
+   "MKSC_SNES_Bowser_Castle_2_Map.png",
+   "MKSC_SNES_Bowser_Castle_2_Extra_Cup_Map.png",
+   "MKSC_SNES_Bowser_Castle_2_Mini_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mario-circuit-3",
+  "name": "Mario Circuit 3",
+  "game": "smk",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_3",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "retro",
+  "features": [
+   "boost",
+   "shortcut"
+  ],
+  "maps": [
+   "SMK_Mario_Circuit_3_Lower-Screen_Map.png",
+   "SMK_Mario_Circuit_3_Overhead_Map.png",
+   "MKSC_SNES_Mario_Circuit_3_Map.png",
+   "MKSC_Mario_Circuit_3_Extra_Cup_Map.png",
+   "MKSC_SNES_Mario_Circuit_3_Mini_Map.png",
+   "MKT_Map_MarioCircuit3SNES.png",
+   "MK8DX_SNES_Mario_Circuit_3_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "koopa-beach-1",
+  "name": "Koopa Beach 1",
+  "game": "smk",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Koopa_Beach_1",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "water"
+  ],
+  "maps": [
+   "SMK_Koopa_Beach_1_Lower-Screen_Map.png",
+   "SMK_Koopa_Beach_1_Overhead_Map.png",
+   "MKSC_SNES_Koopa_Beach_1_Map.png",
+   "MKSC_Koopa_Beach_1_Extra_Cup_Map.png",
+   "MKSC_SNES_Koopa_Beach_1_Mini_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "choco-island-2",
+  "name": "Choco Island 2",
+  "game": "smk",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Choco_Island_2",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "retro",
+  "features": [
+   "jump",
+   "ice",
+   "mud"
+  ],
+  "maps": [
+   "SMK_Choco_Island_2_Lower-Screen_Map.png",
+   "SMK_Choco_Island_2_Overhead_Map.png",
+   "MKSC_SNES_Choco_Island_2_Map.png",
+   "MKSC_Choco_Island_2_Extra_Cup_Map.png",
+   "MKSC_SNES_Choco_Island_2_Mini_Map.png",
+   "MKDS_Choco_Island_2_Map.png",
+   "MKT_Map_ChocoIsland2SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "vanilla-lake-1",
+  "name": "Vanilla Lake 1",
+  "game": "smk",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Vanilla_Lake_1",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "snow",
+  "features": [
+   "ice",
+   "water"
+  ],
+  "maps": [
+   "SMK_Vanilla_Lake_1_Lower-Screen_Map.png",
+   "SMK_Vanilla_Lake_1_Overhead_Map.png",
+   "MKSC_SNES_Vanilla_Lake_1_Map.png",
+   "MKSC_Vanilla_Lake_1_Extra_Cup_Map.png",
+   "MKSC_SNES_Vanilla_Lake_1_Mini_Map.png",
+   "MKT_Map_VanillaLake1SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "smk-bowser-castle-3",
+  "name": "Bowser Castle 3",
+  "game": "smk",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser_Castle_3_(Super_Mario_Kart)",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "castle",
+  "features": [
+   "jump"
+  ],
+  "maps": [
+   "SMK_Bowser_Castle_3_Lower-Screen_Map.png",
+   "SMK_Bowser_Castle_3_Overhead_Map.png",
+   "MKSC_SNES_Bowser_Castle_3_Map.png",
+   "MKSC_SNES_Bowser_Castle_3_Extra_Cup_Map.png",
+   "MKSC_SNES_Bowser_Castle_3_Mini_Map.png",
+   "MKT_Map_BowserCastle3SNES.png",
+   "MK8DX_SNES_Bowser_Castle_3_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mario-circuit-4",
+  "name": "Mario Circuit 4",
+  "game": "smk",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_4",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "retro",
+  "features": [
+   "jump",
+   "shortcut"
+  ],
+  "maps": [
+   "SMK_Mario_Circuit_4_Lower-Screen_Map.png",
+   "SMK_Mario_Circuit_4_Overhead_Map.png",
+   "MKSC_SNES_Mario_Circuit_4_Map.png",
+   "MKSC_Mario_Circuit_4_Extra_Cup_Map.png",
+   "MKSC_SNES_Mario_Circuit_4_Mini_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "donut-plains-3",
+  "name": "Donut Plains 3",
+  "game": "smk",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Donut_Plains_3_(race_course)",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "retro",
+  "features": [
+   "ice",
+   "mud",
+   "water",
+   "crossing"
+  ],
+  "maps": [
+   "SMK_Donut_Plains_3_Lower-Screen_Map.png",
+   "SMK_Donut_Plains_3_Overhead_Map.png",
+   "MKSC_SNES_Donut_Plains_3_Map.png",
+   "MKSC_SNES_Donut_Plains_3_Extra_Cup_Map.png",
+   "MKSC_SNES_Donut_Plains_3_Mini_Map.png",
+   "MK8_SNES_Donut_Plains_3_Map.png",
+   "MK8D_SNES_Donut_Plains_3_Map.png",
+   "MKT_Map_DonutPlains3SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "koopa-beach-2",
+  "name": "Koopa Beach 2",
+  "game": "smk",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Koopa_Troopa_Beach_(Super_Mario_Kart)",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "beach",
+  "features": [
+   "sand",
+   "water"
+  ],
+  "maps": [
+   "SMK_Koopa_Beach_2_Lower-Screen_Map.png",
+   "SMK_Koopa_Beach_2_Overhead_Map.png",
+   "MKSC_SNES_Koopa_Beach_2_Map.png",
+   "MKSC_Koopa_Beach_2_Extra_Cup_Map.png",
+   "MKSC_SNES_Koopa_Beach_2_Mini_Map.png",
+   "MKDS_Koopa_Beach_2_Map.png",
+   "MKT_Map_KoopaTroopaBeach2SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "ghost-valley-3",
+  "name": "Ghost Valley 3",
+  "game": "smk",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Ghost_Valley_3",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "ghost",
+  "features": [
+   "jump",
+   "shortcut"
+  ],
+  "maps": [
+   "SMK_Ghost_Valley_3_Lower-Screen_Map.png",
+   "SMK_Ghost_Valley_3_Overhead_Map.png",
+   "MKSC_SNES_Ghost_Valley_3_Map.png",
+   "MKSC_Ghost_Valley_3_Extra_Cup_Map.png",
+   "MKSC_SNES_Ghost_Valley_3_Mini_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "vanilla-lake-2",
+  "name": "Vanilla Lake 2",
+  "game": "smk",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Vanilla_Lake_2",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "snow",
+  "features": [
+   "ice",
+   "shortcut"
+  ],
+  "maps": [
+   "SMK_Vanilla_Lake_2_Lower-Screen_Map.png",
+   "SMK_Vanilla_Lake_2_Overhead_Map.png",
+   "MKSC_SNES_Vanilla_Lake_2_Map.png",
+   "MKSC_Vanilla_Lake_2_Extra_Cup_Map.png",
+   "MKSC_SNES_Vanilla_Lake_2_Mini_Map.png",
+   "MKT_Map_VanillaLake2SNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "smk-rainbow-road",
+  "name": "Rainbow Road",
+  "game": "smk",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rainbow_Road_(Super_Mario_Kart)",
+  "lengthM": null,
+  "laps": 5,
+  "theme": "rainbow",
+  "features": [
+   "jump",
+   "shortcut"
+  ],
+  "maps": [
+   "SMK_Rainbow_Road_Lower-Screen_Map.png",
+   "SMK_Rainbow_Road_Overhead_Map.png",
+   "MKSC_SNES_Rainbow_Road_Extra_Cup_Map.png",
+   "MKSC_SNES_Rainbow_Road_Mini_Map.png",
+   "MK7_SNES_Rainbow_Road_Minimap.png",
+   "MK8_SNES_Rainbow_Road_Map.png",
+   "MK8DX_SNES_Rainbow_Road_Map.png",
+   "MKT_Map_RainbowRoadSNES.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "luigi-raceway",
+  "name": "Luigi Raceway",
+  "game": "mk64",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Luigi_Raceway",
+  "lengthM": 717,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK64_Luigi_Raceway_map.jpg",
+   "MK64_Luigi_Raceway_minimap.png",
+   "MK7_N64_Luigi_Circuit_Minimap.png",
+   "MKT_Map_LuigiRacewayN64.png",
+   "MK64_Luigi_Raceway_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "moo-moo-farm",
+  "name": "Moo Moo Farm",
+  "game": "mk64",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Moo_Moo_Farm",
+  "lengthM": 527,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "crossing"
+  ],
+  "maps": [
+   "MK64_Moo_Moo_Farm_map.jpg",
+   "MK64_Moo_Moo_Farm_minimap.png",
+   "MKDS_Moo_Moo_Farms_Map.png",
+   "MK64_Moo_Moo_Farm_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "koopa-troopa-beach",
+  "name": "Koopa Troopa Beach",
+  "game": "mk64",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Koopa_Troopa_Beach_(Mario_Kart_64)",
+  "lengthM": 691,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "water",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK64_Kooopa_Troopa_Beach_map.jpg",
+   "MK64_Kooopa_Troopa_Beach_minimap.png",
+   "MK7_N64_Koopa_Troopa_Beach_Minimap.png",
+   "MKT_Map_KoopaTroopaBeachN64.png",
+   "MK64_Koopa_Troopa_Beach_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "kalimari-desert",
+  "name": "Kalimari Desert",
+  "game": "mk64",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Kalimari_Desert",
+  "lengthM": 753,
+  "laps": 3,
+  "theme": "desert",
+  "features": [
+   "sand",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK64_Kalimari_Desert_minimap.png",
+   "MK7_N64_Kalimari_Desert_Minimap.png",
+   "MKT_Map_KalimariDesertN64.png",
+   "MKT_Map_KalimariDesert2N64.png",
+   "MK8DX_N64_Kalimari_Desert_Map.png",
+   "MK64_Kalimari_Desert_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "toads-turnpike",
+  "name": "Toad's Turnpike",
+  "game": "mk64",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Toad%27s_Turnpike",
+  "lengthM": 1036,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "crossing"
+  ],
+  "maps": [
+   "MK64_Toad's_Turnpike_map.jpg",
+   "MK64_Toad's_Turnpike_minimap.png",
+   "MK8_N64_Toad's_Turnpike_Map.png",
+   "MK8DX_N64_Toad's_Turnpike_Map.png",
+   "MK64_Toad's_Turnpike_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "frappe-snowland",
+  "name": "Frappe Snowland",
+  "game": "mk64",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Frappe_Snowland",
+  "lengthM": 734,
+  "laps": 3,
+  "theme": "snow",
+  "features": [
+   "jump",
+   "ice",
+   "crossing"
+  ],
+  "maps": [
+   "MK64_Frappe_Snowland_map.jpg",
+   "MK64_Frappe_Snowland_minimap.png",
+   "MKDS_Frappe_Snowland_Map.png",
+   "MKT_Map_FrappeSnowlandN64.png",
+   "MK64_Frappe_Snowland_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "choco-mountain",
+  "name": "Choco Mountain",
+  "game": "mk64",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Choco_Mountain",
+  "lengthM": 687,
+  "laps": 3,
+  "theme": "mine",
+  "features": [
+   "jump"
+  ],
+  "maps": [
+   "MK64_Choco_Mountain_map.jpg",
+   "MK64_Choco_Mountain_minimap.png",
+   "MKDS_Choco_Mountain_Map.png",
+   "MKT_Map_ChocoMountainN64.png",
+   "MK8DX_N64_Choco_Mountain_Map.png",
+   "MK64_Choco_Mountain_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mario-raceway",
+  "name": "Mario Raceway",
+  "game": "mk64",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Raceway",
+  "lengthM": 567,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK64_Mario_Raceway_map.jpg",
+   "MK64_Mario_Raceway_minimap.png",
+   "MKT_Map_MarioRacewayN64.png",
+   "MK64_Mario_Raceway_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mk64-wario-stadium",
+  "name": "Wario Stadium",
+  "game": "mk64",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Wario_Stadium_(Mario_Kart_64)",
+  "lengthM": 1591,
+  "laps": 3,
+  "theme": "tech",
+  "features": [
+   "jump"
+  ],
+  "maps": [
+   "MK64_Wario_Stadium_map.jpg",
+   "MK64_Wario_Stadium_minimap.png",
+   "MK64_Wario_Stadium_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mk64-sherbet-land",
+  "name": "Sherbet Land",
+  "game": "mk64",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Sherbet_Land_(Mario_Kart_64)",
+  "lengthM": 756,
+  "laps": 3,
+  "theme": "snow",
+  "features": [
+   "ice",
+   "tunnel"
+  ],
+  "maps": [
+   "MK64_Sherbert_Land_map.jpg",
+   "MK64_Sherbet_Land_minimap.png",
+   "MK64_Sherbet_Land_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "royal-raceway",
+  "name": "Royal Raceway",
+  "game": "mk64",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Royal_Raceway",
+  "lengthM": 1025,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "jump",
+   "boost",
+   "water",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MK64_Royal_Raceway_map.jpg",
+   "MK64_Royal_Raceway_minimap.png",
+   "MK8_N64_Royal_Raceway_Map.png",
+   "MK8DX_N64_Royal_Raceway_Map.png",
+   "MKT_Map_RoyalRacewayN64.png",
+   "MK64_Royal_Raceway_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mk64-bowsers-castle",
+  "name": "Bowser's Castle",
+  "game": "mk64",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser%27s_Castle_(Mario_Kart_64)",
+  "lengthM": 777,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MK64_Bowser's_Castle_map.jpg",
+   "MK64_Bowser's_Castle_minimap.png",
+   "MK64_Bowser_Castle_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "d-k-s-jungle-parkway",
+  "name": "D.K.'s Jungle Parkway",
+  "game": "mk64",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/DK%27s_Jungle_Parkway",
+  "lengthM": 893,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "jump",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MK64_DK's_Jungle_Parkway_map.jpg",
+   "MK64_DK's_Jungle_Parkway_minimap.png",
+   "MK64_DK_Jungle_Parkway_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "yoshi-valley",
+  "name": "Yoshi Valley",
+  "game": "mk64",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Yoshi_Valley",
+  "lengthM": 772,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "jump",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MK64_Yoshi_Valley_map.jpg",
+   "MK64_Yoshi_Valley_minimap.png",
+   "MK8_N64_Yoshi_Valley_Map.png",
+   "MK8DX_N64_Yoshi_Valley_Map.png",
+   "MKT_Map_YoshiValleyN64.png",
+   "MK64_Yoshi_Valley_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "banshee-boardwalk",
+  "name": "Banshee Boardwalk",
+  "game": "mk64",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Banshee_Boardwalk",
+  "lengthM": 747,
+  "laps": 3,
+  "theme": "ghost",
+  "features": [
+   "jump",
+   "water"
+  ],
+  "maps": [
+   "MK64_Banshee_Boardwalk_map.jpg",
+   "MK64_Banshee_Boardwalk_minimap.png",
+   "MKDS_Banshee_Boardwalk_Map.png",
+   "MK64_Banshee_Boardwalk_website_map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mk64-rainbow-road",
+  "name": "Rainbow Road",
+  "game": "mk64",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rainbow_Road_(Mario_Kart_64)",
+  "lengthM": 2000,
+  "laps": 3,
+  "theme": "rainbow",
+  "features": [
+   "jump",
+   "shortcut"
+  ],
+  "maps": [
+   "MK64_Rainbow_Road_Map.jpg",
+   "MK64_Rainbow_Road_minimap.png",
+   "MK8_N64_Rainbow_Road_Map.png",
+   "MK8DX_N64_Rainbow_Road_Map.png",
+   "MK64_Rainbow_Road_website_map.png",
+   "MK8_N64_Rainbow_Road_Overview.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "peach-circuit",
+  "name": "Peach Circuit",
+  "game": "mksc",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Peach_Circuit",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "shortcut"
+  ],
+  "maps": [
+   "MKDS_Peach_Circuit_GBA_Map.png",
+   "MKT_Map_PeachCircuitGBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "shy-guy-beach",
+  "name": "Shy Guy Beach",
+  "game": "mksc",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Shy_Guy_Beach",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "sand",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MKSC_Shy_Guy_Beach_Mini_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "riverside-park",
+  "name": "Riverside Park",
+  "game": "mksc",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Riverside_Park",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "water",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MKSC_Riverside_Park_Mini_Map.png",
+   "MKT_Map_RiversideParkGBA.png",
+   "MK8DX_GBA_Riverside_Park_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mksc-bowser-castle-1",
+  "name": "Bowser Castle 1",
+  "game": "mksc",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser%27s_Castle_1",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump"
+  ],
+  "maps": [
+   "MKSC_Bowser_Castle_1_Map.png",
+   "MKSC_Bowser_Castle_1_Mini_Map.png",
+   "MK7_GBA_Bowser_Castle_1_Minimap.png",
+   "MKT_Map_BowserCastle1GBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mksc-mario-circuit",
+  "name": "Mario Circuit",
+  "game": "mksc",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_(Mario_Kart:_Super_Circuit)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "boost"
+  ],
+  "maps": [
+   "MKSC_Mario_Circuit_Map.png",
+   "MKSC_Mario_Circuit_Mini_Map.png",
+   "MK8_GBA_Mario_Circuit_Map.png",
+   "MK8DX_GBA_Mario_Circuit_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "boo-lake",
+  "name": "Boo Lake",
+  "game": "mksc",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Boo_Lake",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "ghost",
+  "features": [
+   "jump",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MKSC_Boo_Lake_Map.png",
+   "MKSC_Boo_Lake_Mini_Map.png",
+   "MKT_Map_BooLakeGBA.png",
+   "MK8DX_GBA_Boo_Lake_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "cheese-land",
+  "name": "Cheese Land",
+  "game": "mksc",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Cheese_Land",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "sweets",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut"
+  ],
+  "maps": [
+   "MKSC_Cheese_Land_Map.png",
+   "MKSC_Cheese_Land_Mini_Map.png",
+   "MK8_GBA_Cheese_Land_Map.png",
+   "MK8DX_GBA_Cheese_Land_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mksc-bowser-castle-2",
+  "name": "Bowser Castle 2",
+  "game": "mksc",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser%27s_Castle_2",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump"
+  ],
+  "maps": [
+   "MKSC_Bowser_Castle_2_Map.png",
+   "MKSC_Bowser_Castle_2_Mini_Map.png",
+   "MKDS_Bowser_Castle_2_GBA_Map.png",
+   "MKT_Map_BowserCastle2GBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mksc-luigi-circuit",
+  "name": "Luigi Circuit",
+  "game": "mksc",
+  "cup": "Lightning Cup",
+  "wikiUrl": "https://www.mariowiki.com/Luigi_Circuit_(Mario_Kart:_Super_Circuit)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "shortcut"
+  ],
+  "maps": [
+   "MKSC_Luigi_Circuit_Map.png",
+   "MKSC_Luigi_Circuit_Mini_Map.png",
+   "MKDS_Luigi_Circuit_GBA_Map.png",
+   "MKT_Map_LuigiCircuitGBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "sky-garden",
+  "name": "Sky Garden",
+  "game": "mksc",
+  "cup": "Lightning Cup",
+  "wikiUrl": "https://www.mariowiki.com/Sky_Garden_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "jump",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MKSC_Sky_Garden_Map.png",
+   "MKSC_Sky_Garden_Mini_Map.png",
+   "MKDS_Sky_Garden_Map.png",
+   "MKT_Map_SkyGardenGBA.png",
+   "MK8DX_GBA_Sky_Garden_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "cheep-cheep-island",
+  "name": "Cheep-Cheep Island",
+  "game": "mksc",
+  "cup": "Lightning Cup",
+  "wikiUrl": "https://www.mariowiki.com/Cheep-Cheep_Island",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MKSC_Cheep-Cheep_Island_Mini_Map.png",
+   "MKT_Map_CheepCheepIslandGBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "sunset-wilds",
+  "name": "Sunset Wilds",
+  "game": "mksc",
+  "cup": "Lightning Cup",
+  "wikiUrl": "https://www.mariowiki.com/Sunset_Wilds",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "desert",
+  "features": [
+   "jump",
+   "mud",
+   "shortcut"
+  ],
+  "maps": [
+   "MKSC_Sunset_Wilds_Map.gif",
+   "MKSC_Sunset_Wilds_Mini_Map.png",
+   "MKT_Map_SunsetWildsGBA.png",
+   "MK8DX_GBA_Sunset_Wilds_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "snow-land",
+  "name": "Snow Land",
+  "game": "mksc",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Snow_Land",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "snow",
+  "features": [
+   "jump",
+   "ice",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MKSC_Snow_Land_Map.png",
+   "MKSC_Snow_Land_Mini_Map.png",
+   "MK8DX_GBA_Snow_Land_Map.png",
+   "MKT_Map_SnowLandGBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "ribbon-road",
+  "name": "Ribbon Road",
+  "game": "mksc",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Ribbon_Road",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "sweets",
+  "features": [
+   "antigravity",
+   "jump",
+   "boost",
+   "ice",
+   "shortcut"
+  ],
+  "maps": [
+   "MKSC_Ribbon_Road_Map.png",
+   "MKSC_Ribbon_Road_Mini_Map.png",
+   "MK8_GBA_Ribbon_Road_Map.png",
+   "MK8DX_GBA_Ribbon_Road_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "yoshi-desert",
+  "name": "Yoshi Desert",
+  "game": "mksc",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Yoshi_Desert",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "desert",
+  "features": [
+   "jump",
+   "boost",
+   "sand",
+   "shortcut"
+  ],
+  "maps": [
+   "MKSC_Yoshi_Desert_Map.png",
+   "MKSC_Yoshi_Desert_Mini_Map.png",
+   "MKT_Map_YoshiDesertGBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mksc-bowser-castle-3",
+  "name": "Bowser Castle 3",
+  "game": "mksc",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser%27s_Castle_3",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump"
+  ],
+  "maps": [
+   "MKSC_Bowser_Castle_3_Mini_Map.png",
+   "MKT_Map_BowsersCastle3GBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "lakeside-park",
+  "name": "Lakeside Park",
+  "game": "mksc",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Lakeside_Park",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "boost",
+   "water",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MKSC_Lakeside_Park_Map.png",
+   "MKSC_Lakeside_Park_Mini_Map.png",
+   "MKT_Map_LakesideParkGBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "broken-pier",
+  "name": "Broken Pier",
+  "game": "mksc",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Broken_Pier",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "boost",
+   "crossing"
+  ],
+  "maps": [
+   "MKSC_Broken_Pier_Map.png",
+   "MKSC_Broken_Pier_Mini_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "bowser-castle-4",
+  "name": "Bowser Castle 4",
+  "game": "mksc",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser%27s_Castle_4",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump",
+   "boost"
+  ],
+  "maps": [
+   "MKSC_Bowser_Castle_4_Map.png",
+   "MKSC_Bowser_Castle_4_Mini_Map.png",
+   "MKT_Map_BowsersCastle4GBA.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mksc-rainbow-road",
+  "name": "Rainbow Road",
+  "game": "mksc",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rainbow_Road_(Mario_Kart:_Super_Circuit)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "rainbow",
+  "features": [
+   "boost",
+   "shortcut"
+  ],
+  "maps": [
+   "MKSC_Rainbow_Road_Map.png",
+   "MKSC_Rainbow_Road_Mini_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mkdd-luigi-circuit",
+  "name": "Luigi Circuit",
+  "game": "mkdd",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Luigi_Circuit_(Mario_Kart:_Double_Dash!!)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "boost",
+   "shortcut"
+  ],
+  "maps": [
+   "MKDS_Luigi_Circuit_GCN_Map.png",
+   "MKDD_Luigi_Circuit_Overview.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "peach-beach",
+  "name": "Peach Beach",
+  "game": "mkdd",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Peach_Beach",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "boost",
+   "water",
+   "shortcut"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "baby-park",
+  "name": "Baby Park",
+  "game": "mkdd",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Baby_Park",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "tech",
+  "features": [],
+  "maps": [
+   "MKDD_Baby_Park_Overview.png",
+   "MKDS_Baby_Park_Map.png",
+   "MK8_GCN_Baby_Park_Map.png",
+   "MK8DX_GCN_Baby_Park_Map.png",
+   "MKT_Map_BabyParkGCN.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "dry-dry-desert",
+  "name": "Dry Dry Desert",
+  "game": "mkdd",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Dry_Dry_Desert_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "desert",
+  "features": [
+   "sand"
+  ],
+  "maps": [
+   "MK8_GCN_Dry_Dry_Desert_Map.png",
+   "MK8DX_GCN_Dry_Dry_Desert_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mushroom-bridge",
+  "name": "Mushroom Bridge",
+  "game": "mkdd",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mushroom_Bridge",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "boost",
+   "water",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MKDS_Mushroom_Bridge_Map.png",
+   "MKT_Map_MushroomBridgeGCN.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mkdd-mario-circuit",
+  "name": "Mario Circuit",
+  "game": "mkdd",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_(Mario_Kart:_Double_Dash!!)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "jump",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "daisy-cruiser",
+  "name": "Daisy Cruiser",
+  "game": "mkdd",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Daisy_Cruiser_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK7_GCN_Daisy_Cruiser_Minimap.png",
+   "MKT_Map_DaisyCruiserGCN.png",
+   "MK8DX_GCN_Daisy_Cruiser_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "waluigi-stadium",
+  "name": "Waluigi Stadium",
+  "game": "mkdd",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Waluigi_Stadium_(Mario_Kart:_Double_Dash!!)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "tech",
+  "features": [
+   "jump",
+   "boost",
+   "mud",
+   "shortcut",
+   "halfpipe"
+  ],
+  "maps": [
+   "MK8DX_GCN_Waluigi_Stadium_Map.png",
+   "MKT_Map_WaluigiStadiumGCN.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mkdd-sherbet-land",
+  "name": "Sherbet Land",
+  "game": "mkdd",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Sherbet_Land_(Mario_Kart:_Double_Dash!!)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "snow",
+  "features": [
+   "ice",
+   "water",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK8_GCN_Sherbet_Land_Map.png",
+   "MK8DX_GCN_Sherbet_Land_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mushroom-city",
+  "name": "Mushroom City",
+  "game": "mkdd",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mushroom_City",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "shortcut"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "yoshi-circuit",
+  "name": "Yoshi Circuit",
+  "game": "mkdd",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Yoshi_Circuit",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "water",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MKDS_Yoshi_Circuit_Map.png",
+   "MK8_GCN_Yoshi_Circuit_Map.png",
+   "MK8DX_GCN_Yoshi_Circuit_Map.png",
+   "MKT_Map_YoshiCircuitGCN.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "dk-mountain",
+  "name": "DK Mountain",
+  "game": "mkdd",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/DK_Mountain",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "jump",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_DKMountainGCN.png",
+   "MK8DX_GCN_DK_Mountain_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "wario-colosseum",
+  "name": "Wario Colosseum",
+  "game": "mkdd",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Wario_Colosseum",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "dino-dino-jungle",
+  "name": "Dino Dino Jungle",
+  "game": "mkdd",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Dino_Dino_Jungle",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "water",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MK7_GCN_Dino_Dino_Jungle_Minimap.png",
+   "MKT_Map_DinoDinoJungleGCN.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mkdd-bowsers-castle",
+  "name": "Bowser's Castle",
+  "game": "mkdd",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser%27s_Castle_(Mario_Kart:_Double_Dash!!)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "mkdd-rainbow-road",
+  "name": "Rainbow Road",
+  "game": "mkdd",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rainbow_Road_(Mario_Kart:_Double_Dash!!)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "rainbow",
+  "features": [
+   "jump",
+   "boost"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "figure-8-circuit",
+  "name": "Figure-8 Circuit",
+  "game": "mkds",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Figure-8_Circuit",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "crossing"
+  ],
+  "maps": [
+   "MKDS_Figure_8_Circuit_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "yoshi-falls",
+  "name": "Yoshi Falls",
+  "game": "mkds",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Yoshi_Falls",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "boost",
+   "water",
+   "crossing"
+  ],
+  "maps": [
+   "MKDS_Yoshi_Falls_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "cheep-cheep-beach",
+  "name": "Cheep Cheep Beach",
+  "game": "mkds",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Cheep_Cheep_Beach",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "boost",
+   "sand",
+   "water"
+  ],
+  "maps": [
+   "MKDS_Cheep_Cheep_Beach_Map.png",
+   "MK8_DS_Cheep_Cheep_Beach_Map.png",
+   "MK8DX_DS_Cheep_Cheep_Beach_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "luigis-mansion",
+  "name": "Luigi's Mansion",
+  "game": "mkds",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Luigi%27s_Mansion_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "ghost",
+  "features": [
+   "mud",
+   "tunnel"
+  ],
+  "maps": [
+   "MKDS_Luigi's_Mansion_Map.png",
+   "MK7_DS_Luigi's_Mansion_Minimap.png",
+   "MKT_Map_LuigisMansionDS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "desert-hills",
+  "name": "Desert Hills",
+  "game": "mkds",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Desert_Hills",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "desert",
+  "features": [
+   "jump",
+   "sand",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MKDS_Desert_Hills_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "delfino-square",
+  "name": "Delfino Square",
+  "game": "mkds",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Delfino_Square",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "jump",
+   "boost",
+   "mud",
+   "water",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MKDS_Delfino_Square_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "waluigi-pinball",
+  "name": "Waluigi Pinball",
+  "game": "mkds",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Waluigi_Pinball_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "tech",
+  "features": [
+   "boost",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MKDS_Waluigi_Pinball_Map.png",
+   "MK7_DS_Waluigi_Pinball_Minimap.png",
+   "MKT_Map_WaluigiPinballDS.png",
+   "MK8DX_DS_Waluigi_Pinball_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "shroom-ridge",
+  "name": "Shroom Ridge",
+  "game": "mkds",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Shroom_Ridge",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "tunnel"
+  ],
+  "maps": [
+   "MKDS_Shroom_Ridge_Map.png",
+   "MK8DX_DS_Shroom_Ridge_Map.png",
+   "MKT_Map_ShroomRidgeDS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "dk-pass",
+  "name": "DK Pass",
+  "game": "mkds",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/DK_Pass",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "ice",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MKDS_DK_Pass_Map.png",
+   "MK7_DS_DK_Pass_Minimap.png",
+   "MKT_Map_DKPassDS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "tick-tock-clock",
+  "name": "Tick-Tock Clock",
+  "game": "mkds",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Tick-Tock_Clock_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "factory",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "shortcut"
+  ],
+  "maps": [
+   "MKDS_Tick_Tock_Clock_Map.gif",
+   "MK8_DS_Tick-Tock_Clock_Map.png",
+   "MK8DX_DS_Tick-Tock_Clock_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mkds-mario-circuit",
+  "name": "Mario Circuit",
+  "game": "mkds",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_(Mario_Kart_DS)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "ice",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MKDS_Mario_Circuit_DS_Map.png",
+   "MKT_Map_MarioCircuitDS.png",
+   "MK8DX_DS_Mario_Circuit_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "airship-fortress",
+  "name": "Airship Fortress",
+  "game": "mkds",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Airship_Fortress",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "boost"
+  ],
+  "maps": [
+   "MKDS_Airship_Fortress_Map.gif",
+   "MK7_DS_Airship_Fortress_Minimap.png",
+   "MKT_Map_AirshipFortressDS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mkds-wario-stadium",
+  "name": "Wario Stadium",
+  "game": "mkds",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Wario_Stadium_(Mario_Kart_DS)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "tech",
+  "features": [
+   "jump",
+   "boost",
+   "mud"
+  ],
+  "maps": [
+   "MK8_DS_Wario_Stadium_Map.png",
+   "MK8DX_DS_Wario_Stadium_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "peach-gardens",
+  "name": "Peach Gardens",
+  "game": "mkds",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Peach_Gardens_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "crossing"
+  ],
+  "maps": [
+   "MKDS_Peach_Gardens_Map.png",
+   "MKT_Map_PeachGardensDS.png",
+   "MK8DX_DS_Peach_Gardens_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "bowser-castle",
+  "name": "Bowser Castle",
+  "game": "mkds",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser_Castle_(Mario_Kart_DS)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump",
+   "boost",
+   "crossing"
+  ],
+  "maps": [
+   "MKDS_Bowser_Castle_DS_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mkds-rainbow-road",
+  "name": "Rainbow Road",
+  "game": "mkds",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rainbow_Road_(Mario_Kart_DS)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "rainbow",
+  "features": [
+   "boost"
+  ],
+  "maps": [
+   "MKDS_Rainbow_Road_DS_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mkwii-luigi-circuit",
+  "name": "Luigi Circuit",
+  "game": "mkwii",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Luigi_Circuit_(Mario_Kart_Wii)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "jump",
+   "boost",
+   "sand",
+   "shortcut"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "moo-moo-meadows",
+  "name": "Moo Moo Meadows",
+  "game": "mkwii",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Moo_Moo_Meadows",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MK8_Wii_Moo_Moo_Meadows_Map.png",
+   "MK8DX_Wii_Moo_Moo_Meadows_Map.png",
+   "MK8_dSBS_City_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mushroom-gorge",
+  "name": "Mushroom Gorge",
+  "game": "mkwii",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mushroom_Gorge",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_MushroomGorgeWii.png",
+   "MK8DX_Wii_Mushroom_Gorge_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "toads-factory",
+  "name": "Toad's Factory",
+  "game": "mkwii",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Toad%27s_Factory",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "factory",
+  "features": [
+   "jump",
+   "boost",
+   "mud",
+   "water",
+   "shortcut"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "mkwii-mario-circuit",
+  "name": "Mario Circuit",
+  "game": "mkwii",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_(Mario_Kart_Wii)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "coconut-mall",
+  "name": "Coconut Mall",
+  "game": "mkwii",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Coconut_Mall",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut"
+  ],
+  "maps": [
+   "MK7_Wii_Coconut_Mall_Minimap.png",
+   "MK8DX_Wii_Coconut_Mall_Map.png",
+   "MKT_Map_CoconutMallWii.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "dk-summit",
+  "name": "DK Summit",
+  "game": "mkwii",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/DK_Summit",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "jump",
+   "boost",
+   "ice",
+   "shortcut",
+   "halfpipe"
+  ],
+  "maps": [
+   "MKT_Map_DKSummitWii.png",
+   "MK8DX_Wii_DK_Summit_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "warios-gold-mine",
+  "name": "Wario's Gold Mine",
+  "game": "mkwii",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Wario%27s_Gold_Mine",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "mine",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "tunnel",
+   "halfpipe"
+  ],
+  "maps": [
+   "MK8_Wii_Wario's_Gold_Mine_Map.png",
+   "MK8DX_Wii_Wario's_Gold_Mine_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "daisy-circuit",
+  "name": "Daisy Circuit",
+  "game": "mkwii",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Daisy_Circuit",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_DaisyCircuitWii.png",
+   "MK8DX_Wii_Daisy_Circuit_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "koopa-cape",
+  "name": "Koopa Cape",
+  "game": "mkwii",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Koopa_Cape",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "jump",
+   "boost",
+   "water",
+   "shortcut",
+   "tunnel",
+   "halfpipe"
+  ],
+  "maps": [
+   "MK7_Wii_Koopa_Cape_Minimap.png",
+   "MKT_Map_KoopaCapeWii.png",
+   "MK8DX_Wii_Koopa_Cape_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "maple-treeway",
+  "name": "Maple Treeway",
+  "game": "mkwii",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Maple_Treeway",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "crossing",
+   "halfpipe"
+  ],
+  "maps": [
+   "MK7_WiiMapleTreeway.png",
+   "MK7_Wii_Maple_Treeway_Minimap.png",
+   "MKT_Map_MapleTreewayWii.png",
+   "MK8DX_Wii_Maple_Treeway_Map.png",
+   "MKT_Wii_Maple_Treeway_Big_Wigglers.jpg",
+   "MKT_Icon_Wii_Maple_Treeway.png",
+   "MKT_Icon_Wii_Maple_Treeway_R.png",
+   "MKT_Icon_Wii_Maple_Treeway_T.png",
+   "MKT_Icon_Wii_Maple_Treeway_RT.png",
+   "MK8D_Wii_Maple_Treeway.png",
+   "MKWii-MapleTreewayCoursePreview.gif",
+   "MK7MapleTreewayWigglerSection.jpg",
+   "MK7MapleTreewayFinalStraight.jpg",
+   "MK7MapleTreewayRaceFinish.jpg",
+   "MKT_Icon_MapleTreewayWii_PaulineRose.png",
+   "MKT_Icon_MapleTreewayRWii_RosalinaHalloween.png",
+   "MKT_Icon_MapleTreewayTWii_DaisyFairy.png",
+   "MKT_Icon_MapleTreewayRTWii_PeachHalloween.png",
+   "MKT_Wii_Maple_Treeway_Starting_Line.jpg",
+   "MKT_Maple_Treeway.jpg",
+   "MK8D_Wii_Maple_Treeway_Course_Icon.png",
+   "MK8D_Wii_Maple_Treeway_Course_Icon_Full.png",
+   "MK8-wii_MapleTree-Ending.png",
+   "MK8DMapleTreeway5.jpg",
+   "MK8DMapleTreeway6.jpg",
+   "MK8DMapleTreeway1.jpg",
+   "MK8DMapleTreeway4.jpg",
+   "MK8DMapleTreeway2.jpg",
+   "MK8DMapleTreeway3.jpg",
+   "MK8D_Wiggler_WiiMapleTreeway.jpg"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "grumble-volcano",
+  "name": "Grumble Volcano",
+  "game": "mkwii",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Grumble_Volcano",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "volcano",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK8_Wii_Grumble_Volcano_Map.png",
+   "MK8DX_Wii_Grumble_Volcano_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "dry-dry-ruins",
+  "name": "Dry Dry Ruins",
+  "game": "mkwii",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Dry_Dry_Ruins_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump",
+   "boost",
+   "sand",
+   "shortcut",
+   "crossing",
+   "halfpipe"
+  ],
+  "maps": [
+   "MKT_Map_DryDryRuinsWii.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "moonview-highway",
+  "name": "Moonview Highway",
+  "game": "mkwii",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Moonview_Highway",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_MoonviewHighwayWii.png",
+   "MK8DX_Wii_Moonview_Highway_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mkwii-bowsers-castle",
+  "name": "Bowser's Castle",
+  "game": "mkwii",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser%27s_Castle_(Mario_Kart_Wii)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "jump",
+   "boost",
+   "crossing",
+   "halfpipe"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "mkwii-rainbow-road",
+  "name": "Rainbow Road",
+  "game": "mkwii",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rainbow_Road_(Mario_Kart_Wii)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "rainbow",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut",
+   "tunnel",
+   "crossing",
+   "halfpipe"
+  ],
+  "maps": [
+   "MKT_Map_RainbowRoadWii.png",
+   "MK8DX_Wii_Rainbow_Road_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "toad-circuit",
+  "name": "Toad Circuit",
+  "game": "mk7",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Toad_Circuit",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "sand",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_ToadCircuit3DS.png",
+   "MK8DX_3DS_Toad_Circuit_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "daisy-hills",
+  "name": "Daisy Hills",
+  "game": "mk7",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Daisy_Hills",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_DaisyHills3DS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "cheep-cheep-lagoon",
+  "name": "Cheep Cheep Lagoon",
+  "game": "mk7",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Cheep_Cheep_Lagoon_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "glide",
+   "jump",
+   "water",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_CheepCheepLagoon3DS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "shy-guy-bazaar",
+  "name": "Shy Guy Bazaar",
+  "game": "mk7",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Shy_Guy_Bazaar",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "sand",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_ShyGuyBazaar3DS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "wuhu-loop",
+  "name": "Wuhu Loop",
+  "game": "mk7",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Wuhu_Loop",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "mk7-mario-circuit",
+  "name": "Mario Circuit",
+  "game": "mk7",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_(Mario_Kart_7)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "jump",
+   "sand",
+   "shortcut"
+  ],
+  "maps": [
+   "MKT_Map_MarioCircuit3DS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "music-park",
+  "name": "Music Park",
+  "game": "mk7",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Music_Park",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "jump",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_3DS_Music_Park_Map.png",
+   "MK8DX_3DS_Music_Park_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "rock-rock-mountain",
+  "name": "Rock Rock Mountain",
+  "game": "mk7",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rock_Rock_Mountain",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "mine",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_RockRockMountain3DS.png",
+   "MK8DX_3DS_Rock_Rock_Mountain_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "piranha-plant-slide",
+  "name": "Piranha Plant Slide",
+  "game": "mk7",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Piranha_Plant_Slide",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "water",
+   "tunnel"
+  ],
+  "maps": [
+   "MK8_3DS_Piranha_Plant_Slide_Map.png",
+   "MK8DX_3DS_Piranha_Plant_Slide_Map.png",
+   "MKT_Map_PiranhaPlantSlide3DS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "wario-shipyard",
+  "name": "Wario Shipyard",
+  "game": "mk7",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Wario_Shipyard",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "mud",
+   "water",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MKT_Map_WarioShipyard3DS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "neo-bowser-city",
+  "name": "Neo Bowser City",
+  "game": "mk7",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Neo_Bowser_City",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "glide",
+   "jump",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MK8_3DS_Neo_Bowser_City_Map.png",
+   "MK8DX_3DS_Neo_Bowser_City_Map.png",
+   "MKT_Map_NeoBowserCity3DS.png",
+   "MK7_Neo_Bowser_City_Detailed_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "maka-wuhu",
+  "name": "Maka Wuhu",
+  "game": "mk7",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Maka_Wuhu",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "mud",
+   "water",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [],
+  "confidence": "low"
+ },
+ {
+  "id": "dk-jungle",
+  "name": "DK Jungle",
+  "game": "mk7",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/DK_Jungle_(Mario_Kart_7)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "mud",
+   "water",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MK8_3DS_DK_Jungle_Map.png",
+   "MK8DX_3DS_DK_Jungle_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "rosalinas-ice-world",
+  "name": "Rosalina's Ice World",
+  "game": "mk7",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rosalina%27s_Ice_World",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "snow",
+  "features": [
+   "jump",
+   "boost",
+   "ice",
+   "water",
+   "shortcut",
+   "tunnel",
+   "halfpipe"
+  ],
+  "maps": [
+   "MKT_Map_Rosalina'sIceWorld3DS.png",
+   "MK8DX_3DS_Rosalina's_Ice_World_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mk7-bowsers-castle",
+  "name": "Bowser's Castle",
+  "game": "mk7",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser%27s_Castle_(Mario_Kart_7)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "glide",
+   "jump",
+   "water",
+   "tunnel"
+  ],
+  "maps": [
+   "MKT_Map_BowsersCastle3DS.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mk7-rainbow-road",
+  "name": "Rainbow Road",
+  "game": "mk7",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rainbow_Road_(Mario_Kart_7)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "rainbow",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MKT_Map_RainbowRoad3DS.png",
+   "MK8DX_3DS_Rainbow_Road_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mario-kart-stadium",
+  "name": "Mario Kart Stadium",
+  "game": "mk8",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Kart_Stadium",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "tech",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "boost",
+   "sand",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Mario_Kart_Stadium_Map.png",
+   "MK8DX_Mario_Kart_Stadium_Map.png",
+   "MK8-FirstCircuit-Overview.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "water-park",
+  "name": "Water Park",
+  "game": "mk8",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Water_Park",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Water_Park_Map.png",
+   "MK8DX_Water_Park_Map.png",
+   "MK8-WaterPark-Overview.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "sweet-sweet-canyon",
+  "name": "Sweet Sweet Canyon",
+  "game": "mk8",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Sweet_Sweet_Canyon",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "sweets",
+  "features": [
+   "glide",
+   "antigravity",
+   "ice",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK8_Sweet_Sweet_Canyon_Map.png",
+   "MK8DX_Sweet_Sweet_Canyon_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "thwomp-ruins",
+  "name": "Thwomp Ruins",
+  "game": "mk8",
+  "cup": "Mushroom Cup",
+  "wikiUrl": "https://www.mariowiki.com/Thwomp_Ruins",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "water",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK8_Thwomp_Ruins_Map.png",
+   "MK8DX_Thwomp_Ruins_Map.png",
+   "MK8-DossunIseki-Overview.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mk8-mario-circuit",
+  "name": "Mario Circuit",
+  "game": "mk8",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mario_Circuit_(Mario_Kart_8)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "sand",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MK8_Mario_Circuit_Map.png",
+   "MK8DX_Mario_Circuit_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "toad-harbor",
+  "name": "Toad Harbor",
+  "game": "mk8",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Toad_Harbor",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "antigravity",
+   "jump",
+   "boost",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MK8_Toad_Harbor_Map.png",
+   "MK8DX_Toad_Harbor_Map.png",
+   "MK8-City-Overview.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "twisted-mansion",
+  "name": "Twisted Mansion",
+  "game": "mk8",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Twisted_Mansion",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "ghost",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Twisted_Mansion_Map.png",
+   "MK8DX_Twisted_Mansion_Map.png",
+   "MK8-HorrorHouse-Overview.png",
+   "MK8_GamePad_map_mode.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "shy-guy-falls",
+  "name": "Shy Guy Falls",
+  "game": "mk8",
+  "cup": "Flower Cup",
+  "wikiUrl": "https://www.mariowiki.com/Shy_Guy_Falls",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "boost",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Shy_Guy_Falls_Map.png",
+   "MK8DX_Shy_Guy_Falls_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "sunshine-airport",
+  "name": "Sunshine Airport",
+  "game": "mk8",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Sunshine_Airport",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "boost",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Sunshine_Airport_Map.png",
+   "MK8DX_Sunshine_Airport_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "dolphin-shoals",
+  "name": "Dolphin Shoals",
+  "game": "mk8",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Dolphin_Shoals",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "boost",
+   "water",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK8_Dolphin_Shoals_Map.png",
+   "MK8DX_Dolphin_Shoals_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "electrodrome",
+  "name": "Electrodrome",
+  "game": "mk8",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Electrodrome",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "tech",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump"
+  ],
+  "maps": [
+   "MK8_Electrodrome_Map.png",
+   "MK8DX_Electrodrome_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mount-wario",
+  "name": "Mount Wario",
+  "game": "mk8",
+  "cup": "Star Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mount_Wario",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "mine",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "boost",
+   "ice",
+   "water",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK8_Mount_Wario_Map.png",
+   "MK8DX_Mount_Wario_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "cloudtop-cruise",
+  "name": "Cloudtop Cruise",
+  "game": "mk8",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Cloudtop_Cruise",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "sky",
+  "features": [
+   "antigravity",
+   "jump",
+   "boost",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Cloudtop_Cruise_Map.png",
+   "MK8DX_Cloudtop_Cruise_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "bone-dry-dunes",
+  "name": "Bone-Dry Dunes",
+  "game": "mk8",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bone-Dry_Dunes",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "desert",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "sand",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MK8_Bone-Dry_Dunes_Map.png",
+   "MK8DX_Bone-Dry_Dunes_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mk8-bowsers-castle",
+  "name": "Bowser's Castle",
+  "game": "mk8",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bowser%27s_Castle_(Mario_Kart_8)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "castle",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK8_Bowser's_Castle_Map.png",
+   "MK8DX_Bowser's_Castle_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mk8-rainbow-road",
+  "name": "Rainbow Road",
+  "game": "mk8",
+  "cup": "Special Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rainbow_Road_(Mario_Kart_8)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "rainbow",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "boost",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Rainbow_Road_Map.png",
+   "MK8DX_Rainbow_Road_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "excitebike-arena",
+  "name": "Excitebike Arena",
+  "game": "mk8",
+  "cup": "Egg Cup",
+  "wikiUrl": "https://www.mariowiki.com/Excitebike_Arena",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "tech",
+  "features": [
+   "antigravity",
+   "jump",
+   "ice",
+   "mud",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Excitebike_Arena_Map.png",
+   "MK8DX_Excitebike_Arena_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "dragon-driftway",
+  "name": "Dragon Driftway",
+  "game": "mk8",
+  "cup": "Egg Cup",
+  "wikiUrl": "https://www.mariowiki.com/Dragon_Driftway",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "antigravity",
+   "jump",
+   "shortcut",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MK8_Dragon_Driftway_Map.png",
+   "MK8DX_Dragon_Driftway_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "mute-city",
+  "name": "Mute City",
+  "game": "mk8",
+  "cup": "Egg Cup",
+  "wikiUrl": "https://www.mariowiki.com/Mute_City",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "antigravity",
+   "jump",
+   "boost",
+   "sand",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Mute_City_Map.png",
+   "MK8DX_Mute_City_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "ice-ice-outpost",
+  "name": "Ice Ice Outpost",
+  "game": "mk8",
+  "cup": "Triforce Cup",
+  "wikiUrl": "https://www.mariowiki.com/Ice_Ice_Outpost",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "snow",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "ice",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MK8_Ice_Ice_Outpost_Map.png",
+   "MK8DX_Ice_Ice_Outpost_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "hyrule-circuit",
+  "name": "Hyrule Circuit",
+  "game": "mk8",
+  "cup": "Triforce Cup",
+  "wikiUrl": "https://www.mariowiki.com/Hyrule_Circuit",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "jump",
+   "boost",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Hyrule_Circuit_Map.png",
+   "MK8DX_Hyrule_Circuit_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "wild-woods",
+  "name": "Wild Woods",
+  "game": "mk8",
+  "cup": "Crossing Cup",
+  "wikiUrl": "https://www.mariowiki.com/Wild_Woods",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "jungle",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "boost",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Wild_Woods_Map.png",
+   "MK8DX_Wild_Woods_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "animal-crossing",
+  "name": "Animal Crossing",
+  "game": "mk8",
+  "cup": "Crossing Cup",
+  "wikiUrl": "https://www.mariowiki.com/Animal_Crossing",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "boost",
+   "ice",
+   "sand",
+   "water",
+   "shortcut",
+   "crossing"
+  ],
+  "maps": [
+   "MK8_Animal_Crossing_Map.png",
+   "MK8DX_Animal_Crossing_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "super-bell-subway",
+  "name": "Super Bell Subway",
+  "game": "mk8",
+  "cup": "Bell Cup",
+  "wikiUrl": "https://www.mariowiki.com/Super_Bell_Subway",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Super_Bell_Subway_Map.png",
+   "MK8DX_Super_Bell_Subway_Map.png",
+   "MK8_dSBS_Map_Signs.png",
+   "MK8_dSBS_City_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "big-blue",
+  "name": "Big Blue",
+  "game": "mk8",
+  "cup": "Bell Cup",
+  "wikiUrl": "https://www.mariowiki.com/Big_Blue",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "antigravity",
+   "jump",
+   "boost",
+   "water",
+   "shortcut"
+  ],
+  "maps": [
+   "MK8_Big_Blue_Map.png",
+   "MK8DX_Big_Blue_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "ninja-hideaway",
+  "name": "Ninja Hideaway",
+  "game": "mk8",
+  "cup": "Lucky Cat Cup",
+  "wikiUrl": "https://www.mariowiki.com/Ninja_Hideaway",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "jump",
+   "water",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_NinjaHideaway.png",
+   "MK8DX_Ninja_Hideaway_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "sky-high-sundae",
+  "name": "Sky-High Sundae",
+  "game": "mk8",
+  "cup": "Propeller Cup",
+  "wikiUrl": "https://www.mariowiki.com/Sky-High_Sundae",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "sweets",
+  "features": [
+   "glide",
+   "antigravity",
+   "jump",
+   "ice"
+  ],
+  "maps": [
+   "MK8DX_Sky-High_Sundae_Map.png",
+   "MKT_Map_SkyHighSundae.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "merry-mountain",
+  "name": "Merry Mountain",
+  "game": "mk8",
+  "cup": "Moon Cup",
+  "wikiUrl": "https://www.mariowiki.com/Merry_Mountain",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "snow",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "ice",
+   "crossing",
+   "halfpipe"
+  ],
+  "maps": [
+   "MKT_Map_MerryMountain.png",
+   "MK8DX_Merry_Mountain_Map.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "yoshis-island",
+  "name": "Yoshi's Island",
+  "game": "mk8",
+  "cup": "Fruit Cup",
+  "wikiUrl": "https://www.mariowiki.com/Yoshi%27s_Island_(race_course)",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "beach",
+  "features": [
+   "glide",
+   "jump",
+   "ice",
+   "water",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MK8DX_Yoshi's_Island_Map.png",
+   "MKT_Map_Yoshi'sIsland.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "squeaky-clean-sprint",
+  "name": "Squeaky Clean Sprint",
+  "game": "mk8",
+  "cup": "Feather Cup",
+  "wikiUrl": "https://www.mariowiki.com/Squeaky_Clean_Sprint",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "water",
+   "shortcut",
+   "halfpipe"
+  ],
+  "maps": [
+   "MK8DX_Squeaky_Clean_Sprint_Map.png",
+   "MKT_Map_SqueakyCleanSprint.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "piranha-plant-cove",
+  "name": "Piranha Plant Cove",
+  "game": "mk8",
+  "cup": "Acorn Cup",
+  "wikiUrl": "https://www.mariowiki.com/Piranha_Plant_Cove",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "meadow",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "water",
+   "tunnel"
+  ],
+  "maps": [
+   "MKT_Map_PiranhaPlantCove.png",
+   "MKT_Map_PiranhaPlantCove2.png",
+   "MKT_Map_PiranhaPlantCove3.png",
+   "MK8DX_Piranha_Plant_Cove_Map.png",
+   "MKT_FullMap_PiranhaPlantCove.png",
+   "MKT_FullMap_PiranhaPlantCove2.png",
+   "MKT_FullMap_PiranhaPlantCove3.png",
+   "MKT_CombinedMap_PiranhaPlantCove.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "paris-promenade",
+  "name": "Paris Promenade",
+  "game": "mk8",
+  "cup": "Golden Dash Cup",
+  "wikiUrl": "https://www.mariowiki.com/Paris_Promenade",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "shortcut"
+  ],
+  "maps": [
+   "MKT_Map_ParisPromenade.png",
+   "MKT_Map_ParisPromenade2.png",
+   "MKT_Map_ParisPromenade3.png",
+   "MKT_Map_ParisPromenadeB.png",
+   "MK8DX_Tour_Paris_Promenade_Map.png",
+   "MKT_FullMap_ParisPromenade.png",
+   "MKT_FullMap_ParisPromenade2.png",
+   "MKT_FullMap_ParisPromenade3.png",
+   "MKT_FullMap_ParisPromenadeB.png",
+   "MKT_CombinedMap_ParisPromenade.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "tokyo-blur",
+  "name": "Tokyo Blur",
+  "game": "mk8",
+  "cup": "Lucky Cat Cup",
+  "wikiUrl": "https://www.mariowiki.com/Tokyo_Blur",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "tunnel",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_TokyoBlur.png",
+   "MKT_Map_TokyoBlur2.png",
+   "MKT_Map_TokyoBlur3.png",
+   "MKT_Map_TokyoBlur4.png",
+   "MK8DX_Tour_Tokyo_Blur_Map.png",
+   "MKT_FullMap_TokyoBlur.png",
+   "MKT_FullMap_TokyoBlur2.png",
+   "MKT_FullMap_TokyoBlur3.png",
+   "MKT_FullMap_TokyoBlur4.png",
+   "MKT_CombinedMap_TokyoBlur.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "new-york-minute",
+  "name": "New York Minute",
+  "game": "mk8",
+  "cup": "Turnip Cup",
+  "wikiUrl": "https://www.mariowiki.com/New_York_Minute",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_NewYorkMinute.png",
+   "MKT_Map_NewYorkMinute2.png",
+   "MKT_Map_NewYorkMinute3.png",
+   "MKT_Map_NewYorkMinute4.png",
+   "MKT_Map_NewYorkMinuteB.png",
+   "MK8DX_Tour_New_York_Minute_Map.png",
+   "MKT_FullMap_NewYorkMinute.png",
+   "MKT_FullMap_NewYorkMinute2.png",
+   "MKT_FullMap_NewYorkMinute3.png",
+   "MKT_FullMap_NewYorkMinute4.png",
+   "MKT_FullMap_NewYorkMinuteB.png",
+   "MKT_CombinedMap_NewYorkMinute.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "sydney-sprint",
+  "name": "Sydney Sprint",
+  "game": "mk8",
+  "cup": "Propeller Cup",
+  "wikiUrl": "https://www.mariowiki.com/Sydney_Sprint",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "water",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_SydneySprint.png",
+   "MKT_Map_SydneySprint2.png",
+   "MKT_Map_SydneySprint3.png",
+   "MK8DX_Tour_Sydney_Sprint_Map.png",
+   "MKT_FullMap_SydneySprint.png",
+   "MKT_FullMap_SydneySprint2.png",
+   "MKT_FullMap_SydneySprint3.png",
+   "MKT_CombinedMap_SydneySprint.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "london-loop",
+  "name": "London Loop",
+  "game": "mk8",
+  "cup": "Rock Cup",
+  "wikiUrl": "https://www.mariowiki.com/London_Loop",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_LondonLoop.png",
+   "MKT_Map_LondonLoop2.png",
+   "MKT_Map_LondonLoop3.png",
+   "MK8DX_Tour_London_Loop_Map.png",
+   "MKT_FullMap_LondonLoop.png",
+   "MKT_FullMap_LondonLoop2.png",
+   "MKT_FullMap_LondonLoop3.png",
+   "MKT_CombinedMap_LondonLoop.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "berlin-byways",
+  "name": "Berlin Byways",
+  "game": "mk8",
+  "cup": "Moon Cup",
+  "wikiUrl": "https://www.mariowiki.com/Berlin_Byways",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_BerlinByways.png",
+   "MKT_Map_BerlinByways2.png",
+   "MKT_Map_BerlinByways3.png",
+   "MK8DX_Tour_Berlin_Byways_Map.png",
+   "MKT_FullMap_BerlinByways.png",
+   "MKT_FullMap_BerlinByways2.png",
+   "MKT_FullMap_BerlinByways3.png",
+   "MKT_CombinedMap_BerlinByways.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "amsterdam-drift",
+  "name": "Amsterdam Drift",
+  "game": "mk8",
+  "cup": "Fruit Cup",
+  "wikiUrl": "https://www.mariowiki.com/Amsterdam_Drift",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "water",
+   "shortcut",
+   "tunnel"
+  ],
+  "maps": [
+   "MKT_Map_AmsterdamDrift.png",
+   "MKT_Map_AmsterdamDrift2.png",
+   "MKT_Map_AmsterdamDrift3.png",
+   "MK8DX_Tour_Amsterdam_Drift_Map.png",
+   "MKT_FullMap_AmsterdamDrift.png",
+   "MKT_FullMap_AmsterdamDrift2.png",
+   "MKT_FullMap_AmsterdamDrift3.png",
+   "MKT_CombinedMap_AmsterdamDrift.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "bangkok-rush",
+  "name": "Bangkok Rush",
+  "game": "mk8",
+  "cup": "Boomerang Cup",
+  "wikiUrl": "https://www.mariowiki.com/Bangkok_Rush",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "water"
+  ],
+  "maps": [
+   "MKT_Map_BangkokRush.png",
+   "MKT_Map_BangkokRush2.png",
+   "MKT_Map_BangkokRush3.png",
+   "MK8DX_Tour_Bangkok_Rush_Map.png",
+   "MKT_FullMap_BangkokRush.png",
+   "MKT_FullMap_BangkokRush2.png",
+   "MKT_FullMap_BangkokRush3.png",
+   "MKT_CombinedMap_BangkokRush.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "singapore-speedway",
+  "name": "Singapore Speedway",
+  "game": "mk8",
+  "cup": "Boomerang Cup",
+  "wikiUrl": "https://www.mariowiki.com/Singapore_Speedway",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "boost",
+   "water",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_SingaporeSpeedway.png",
+   "MKT_Map_SingaporeSpeedway2.png",
+   "MKT_Map_SingaporeSpeedway3.png",
+   "MK8DX_Tour_Singapore_Speedway_Map.png",
+   "MKT_FullMap_SingaporeSpeedway.png",
+   "MKT_FullMap_SingaporeSpeedway2.png",
+   "MKT_FullMap_SingaporeSpeedway3.png",
+   "MKT_CombinedMap_SingaporeSpeedway.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "athens-dash",
+  "name": "Athens Dash",
+  "game": "mk8",
+  "cup": "Feather Cup",
+  "wikiUrl": "https://www.mariowiki.com/Athens_Dash",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "water",
+   "tunnel",
+   "halfpipe"
+  ],
+  "maps": [
+   "MKT_Map_AthensDash.png",
+   "MKT_Map_AthensDash2.png",
+   "MKT_Map_AthensDash3.png",
+   "MK8DX_Tour_Athens_Dash_Map.png",
+   "MKT_FullMap_AthensDash.png",
+   "MKT_FullMap_AthensDash2.png",
+   "MKT_FullMap_AthensDash3.png",
+   "MKT_CombinedMap_AthensDash.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "los-angeles-laps",
+  "name": "Los Angeles Laps",
+  "game": "mk8",
+  "cup": "Cherry Cup",
+  "wikiUrl": "https://www.mariowiki.com/Los_Angeles_Laps",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "water",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_LosAngelesLaps.png",
+   "MKT_Map_LosAngelesLaps2.png",
+   "MKT_Map_LosAngelesLaps3.png",
+   "MK8DX_Tour_Los_Angeles_Laps_Map.png",
+   "MKT_FullMap_LosAngelesLaps.png",
+   "MKT_FullMap_LosAngelesLaps2.png",
+   "MKT_FullMap_LosAngelesLaps3.png",
+   "MKT_CombinedMap_LosAngelesLaps.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "vancouver-velocity",
+  "name": "Vancouver Velocity",
+  "game": "mk8",
+  "cup": "Cherry Cup",
+  "wikiUrl": "https://www.mariowiki.com/Vancouver_Velocity",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump",
+   "ice",
+   "crossing"
+  ],
+  "maps": [
+   "MKT_Map_VancouverVelocity.png",
+   "MKT_Map_VancouverVelocity2.png",
+   "MKT_Map_VancouverVelocity3.png",
+   "MK8DX_Tour_Vancouver_Velocity_Map.png",
+   "MKT_FullMap_VancouverVelocity.png",
+   "MKT_FullMap_VancouverVelocity2.png",
+   "MKT_FullMap_VancouverVelocity3.png",
+   "MKT_CombinedMap_VancouverVelocity.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "rome-avanti",
+  "name": "Rome Avanti",
+  "game": "mk8",
+  "cup": "Acorn Cup",
+  "wikiUrl": "https://www.mariowiki.com/Rome_Avanti",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump"
+  ],
+  "maps": [
+   "MKT_Map_RomeAvanti.png",
+   "MKT_Map_RomeAvanti2.png",
+   "MKT_Map_RomeAvanti3.png",
+   "MK8DX_Tour_Rome_Avanti_Map.png",
+   "MKT_FullMap_RomeAvanti.png",
+   "MKT_FullMap_RomeAvanti2.png",
+   "MKT_FullMap_RomeAvanti3.png",
+   "MKT_CombinedMap_RomeAvanti.png"
+  ],
+  "confidence": "medium"
+ },
+ {
+  "id": "madrid-drive",
+  "name": "Madrid Drive",
+  "game": "mk8",
+  "cup": "Spiny Cup",
+  "wikiUrl": "https://www.mariowiki.com/Madrid_Drive",
+  "lengthM": null,
+  "laps": 3,
+  "theme": "city",
+  "features": [
+   "glide",
+   "jump"
+  ],
+  "maps": [
+   "MKT_Map_MadridDrive.png",
+   "MKT_Map_MadridDrive2.png",
+   "MKT_Map_MadridDrive3.png",
+   "MK8DX_Tour_Madrid_Drive_Map.png",
+   "MKT_FullMap_MadridDrive.png",
+   "MKT_FullMap_MadridDrive2.png",
+   "MKT_FullMap_MadridDrive3.png",
+   "MKT_CombinedMap_MadridDrive.png"
+  ],
+  "confidence": "medium"
+ }
+]
