@@ -578,3 +578,6 @@ button.big { background-color: #3a4b82; }
   background-size: 420px 380px; animation: drops 14s linear infinite; }
 @keyframes drops { to { background-position: 0 380px; } }
 @media (prefers-reduced-motion: reduce) { #raindrops { animation: none; } }
+
+/* the tutorial's extra tip, one a segment */
+.tut-tip { display: inline-block; margin-top: 6px; color: #9fdcff; font-size: 13px; }

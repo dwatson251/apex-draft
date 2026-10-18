@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **The tutorial teaches the rest of the drawing.** A tip on each of the first segments: the speed colours, dragging points, inserting and deleting them, sliding the square and the diamond along the road edge, and that a smooth, sparse line is usually the quicker one. Its wording now matches the white preview line.
 - **Two new places, and two old ones on random tracks.** *Jungle* (hot, damp and muddy, rain more often than not) and *Volcano* (black basalt, rough on the tyres, lava where the lakes would be). They, *Mountains and forest* and *Coast* now turn up on random phrases: a share of the countryside and the desert becomes one of them, decided on a stream of its own, so every other phrase keeps its place and no layout moves.
 - **Two new classes.** *Classic F1* (a 1960s cigar on skinny tyres: no wings, it slides) races the real circuits beside the other race cars; the *Rallycross car* (600 hp in a hatchback, brutal off the line, happy on dirt) is offered on rally and buggy tracks. Each has its own drawing, engine note and gearbox.
 - **Superbikes lean into the bends.**

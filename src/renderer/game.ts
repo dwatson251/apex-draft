@@ -45,6 +45,15 @@ const START_FIRST = 1;
 const START_GAP = 0.85;
 interface StartSeq { t: number; lit: number; out: number; done: boolean }
 
+/** The tutorial teaches one more thing on each of the first segments, under its usual words (by the segment just finished: index 0 shows on the second). */
+const TUT_TIPS: readonly string[] = [
+  "Tip: the segments you have finished are drawn in <b>speed colours</b>: red where the car is slow, green where it is fast.",
+  "Tip: <b>drag</b> any point to move it. Only the segment you are on changes.",
+  "Tip: <b>Shift+click</b> on the line puts a new point between two others; <b>right-click</b> a point deletes it.",
+  "Tip: the <b>square</b> where a segment starts and the <b>diamond</b> where it ends slide along the edge of the road: drag them to start or leave the bend wider.",
+  "Tip: a smooth, sparse line is usually quicker than a busy one. Fewer points, longer curves.",
+];
+
 /** What each livery reward is called in the garage. */
 const REWARD_NAMES = { gold: "gold paint", chrome: "chrome paint", chequer: "the chequered pattern", chevron: "the chevron pattern" } as const;
 
@@ -2825,9 +2834,9 @@ export class Game {
       const pv = this.preview(d);
       if (d.mode === "amend") { step = "Editing a segment"; text = "Redraw this segment the way you want it, then press <b>Finish segment</b>. <b>Cancel</b> takes you back to the map."; }
       else if (!d.line) { step = "1 · Start"; text = "Click the <b>white start line</b> to place the start of your racing line."; }
-      else if (d.pts.length === 0) { step = "2 · Draw"; text = "Click along the road to place points. The curve runs through them and the car has to drive it. <b>Green</b> means clear, <b>red</b> means the line leaves the road."; }
+      else if (d.pts.length === 0) { step = "2 · Draw"; text = `Click along the road to place points. The curve runs through them and the car has to drive it. <b>White</b> means clear, <b>red</b> means the line leaves the road.${TUT_TIPS[d.seg - 1] ? `<br><span class="tut-tip">${TUT_TIPS[d.seg - 1]}</span>` : ""}`; }
       else if (pv && !pv.ok) { step = "2 · Draw"; text = "That part is <b>red</b>: it leaves the road. Drag a point back onto the tarmac, or press <b>Backspace</b> to undo."; }
-      else { step = "3 · Lock it in"; text = `Looks good. Press <b>Finish segment</b> (or <b>Enter</b>) and carry on to the next square of track. ${d.seg === n - 1 ? "This is the last one: it returns to your start." : `${n - d.seg} to go.`}`; }
+      else { step = "3 · Lock it in"; text = `Looks good. Press <b>Finish segment</b> (or <b>Enter</b>) and carry on to the next square of track. ${d.seg === n - 1 ? "This is the last one: it returns to your start." : `${n - d.seg} to go.`}${TUT_TIPS[d.seg - 1] ? `<br><span class="tut-tip">${TUT_TIPS[d.seg - 1]}</span>` : ""}`; }
     } else if (this.play) {
       step = "5 · Race"; text = "Your car drives the line you drew. <b>1×</b> changes the speed. It will stop at your pit stop, where you can change your line.";
     } else if (this.race && this.pick) {
@@ -2835,13 +2844,13 @@ export class Game {
     } else if (this.pick && !this.race) {
       step = "4 · Plan";
       text = this.settings.pitPlan.length === 0
-        ? "Your lap is drawn. Click segments on the map to select them and <b>Edit segments</b> to redraw. Open <b>Pit strategy</b> and queue a stop for fresh tyres and fuel, then press <b>Race!</b>"
+        ? "Your lap is drawn, in its speed colours, with the <b>flying lap</b> it is worth: red is slow, green fast. Click segments on the map to select them and <b>Edit segments</b> to redraw the slow ones. Open <b>Pit strategy</b> and queue a stop for fresh tyres and fuel, then press <b>Race!</b>"
         : "Stop queued. A pit stop is the only time you can change your line mid-race. Press <b>Race!</b>";
     } else if (this.race && !this.play) {
       step = "Done"; text = "Tutorial complete. Draw, race, pit, adjust. Try <b>Quick Race</b> next, or a <b>Race Weekend</b>.";
     }
     if (!text) { el.style.display = "none"; return; }
-    if (coarse()) text = text.replace(/Click/g, "Tap").replace(/click/g, "tap").replace(/press <b>Backspace<\/b> to undo/, "press <b>Undo</b>").replace(/ \(or <b>Enter<\/b>\)/, "");
+    if (coarse()) text = text.replace(/<b>Shift\+click<\/b> on the line/, "the <b>Tool</b> button set to insert, then a tap on the line,").replace(/<b>right-click<\/b> a point/, "holding a point").replace(/Click/g, "Tap").replace(/click/g, "tap").replace(/press <b>Backspace<\/b> to undo/, "press <b>Undo</b>").replace(/ \(or <b>Enter<\/b>\)/, "");
     el.innerHTML = `<div class="step">Tutorial · ${step}</div><p>${text}</p><button class="tut-skip" id="tut-skip">${step === "Done" ? "Close" : "Skip tutorial"}</button>`;
     el.style.display = "block";
     el.querySelector("#tut-skip")!.addEventListener("click", () => this.showMenu());
