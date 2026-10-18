@@ -27,7 +27,7 @@ import { CAREER_TIERS, PROMOTE_PLACE, finishSeason, newCareer, normaliseCareer, 
 import { SHIFTING, fuelMultFor } from "@apex/sim";
 import { SIM_VERSION, duelCode, readDuel, buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile, type RaceEdit, type RaceRules } from "@apex/sim";
 import { MAX_REPLAYS, MAX_REPLAY_BYTES, keepReplay, loadReplays, rulesIn, rulesOut, type Replay } from "./replays.ts";
-import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
+import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, pitWallCalls, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
 import { copyText, dropdown, wireControls } from "./menus/controls.ts";
 import { atlasHtml, careerHtml, challengesHtml, championshipHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
 import type { Handle, HandleKind, Skid, WorldView } from "./world.ts";
@@ -697,8 +697,8 @@ export class Game {
     const place = placeFor(phrase), biome = BIOMES[place.biome], chosen = this.pickVehicle(place.choices);
     const pct = (x: number, worse = false) => (x === 1 ? "" : `<span class="${(x > 1) !== worse ? "good" : "bad"}">${x > 1 ? "+" : "−"}${Math.round(Math.abs(x - 1) * 100)}%</span>`);
     const tt = this.best[trialKey(phrase, chosen)];
-    const easy = flow !== "trial" && !realismAllowed(s.difficulty);
-    const realism = !easy && (flow === "weekend" ? true : flow === "quick" && s.realism);
+    const pitWall = flow !== "trial" && pitWallCalls(s.difficulty);
+    const realism = flow === "weekend" ? true : flow === "quick" && s.realism;
     const chips = `
         ${circuit ? `<span class="chip circuit">🏁 ${esc(circuit.name)} · ${circuit.lengthKm} km</span>` : ""}
         ${place.fun ? '<span class="chip fun" title="Crossings, bridges, shortcuts, narrows and open water">Fun track</span>' : ""}
@@ -707,7 +707,7 @@ export class Game {
         ${biome.grip !== 1 ? `<span class="chip dim">grip ${pct(biome.grip)}</span>` : ""}${biome.brake !== 1 ? `<span class="chip dim">braking ${pct(biome.brake)}</span>` : ""}${biome.wear !== 1 ? `<span class="chip dim">tyre wear ${pct(biome.wear, true)}</span>` : ""}`;
     const el = this.menuPanel(setupHtml({
       flow, phrase: s.phrase, chips, difficulty: flow === "trial" ? null : s.difficulty,
-      unlocked: DIFFICULTIES.filter((d) => isUnlocked(d, this.records)), nextLock: (() => { const d = DIFFICULTIES.find((x) => !isUnlocked(x, this.records)); return d ? `${DIFFICULTY_NAMES[d]}: ${lockReason(d)}` : ""; })(), noRealism: easy, blurb: circuit ? circuit.blurb : biome.blurb,
+      unlocked: DIFFICULTIES.filter((d) => isUnlocked(d, this.records)), nextLock: (() => { const d = DIFFICULTIES.find((x) => !isUnlocked(x, this.records)); return d ? `${DIFFICULTY_NAMES[d]}: ${lockReason(d)}` : ""; })(), pitWall, blurb: circuit ? circuit.blurb : biome.blurb,
       forecast: realism && flow !== "trial" ? this.forecastFor(s.phrase, s.laps, chosen, true) : null,
       laps: flow === "quick" && s.elimination ? elimLaps(s.rivals) : s.laps, rivals: s.rivals, realism: realism && !(flow === "quick" && s.elimination), elimination: flow === "quick" && !!s.elimination, wearFuel: s.wearFuel ?? 1, wearTyre: s.wearTyre ?? 1, mandatory: s.mandatory ?? [],
       carLine: `Car: ${s.car.name} (${carCost(s.car)}/${CAR_BUDGET} points)`,
@@ -824,8 +824,9 @@ export class Game {
     if (kind === "practice" || kind === "qualifying") return { flow, kind, laps: sessionLaps(kind), realism: false, rivals: s.rivals, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty };
     // an elimination race: no tyres or fuel, and a lap for every rival, so the last lap is a duel (25 at most)
     if (flow === "quick" && s.elimination) return { flow, kind, laps: elimLaps(s.rivals), realism: false, rivals: s.rivals, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty, elimination: true };
-    const realism = realismAllowed(difficulty) && (flow === "weekend" ? true : s.realism);
-    return { flow, kind, laps: s.laps, realism, rivals: s.rivals, wearFuel: realism ? clampWear(s.wearFuel) : 1, wearTyre: realism ? clampWear(s.wearTyre) : 1, mandatory: realism ? s.mandatory ?? [] : [], difficulty };
+    const realism = flow === "weekend" ? true : s.realism;
+    // (on Easy the pit wall picks the tyres, so there are no tyres the player must use)
+    return { flow, kind, laps: s.laps, realism, rivals: s.rivals, wearFuel: realism ? clampWear(s.wearFuel) : 1, wearTyre: realism ? clampWear(s.wearTyre) : 1, mandatory: realism && !pitWallCalls(difficulty) ? s.mandatory ?? [] : [], difficulty };
   }
 
   private timed(): boolean { return this.run.kind !== "race"; }
@@ -865,7 +866,7 @@ export class Game {
 
   private startTutorial(): void {
     this.tutBackup = JSON.parse(JSON.stringify(this.settings)) as Settings;
-    this.settings = { ...this.settings, phrase: "oval", laps: 3, rivals: 3, realism: true, mode: "race", pitPlan: [], autoPit: false, mandatory: [], wearFuel: 1, wearTyre: 1, obstacles: false, startTyre: "medium" };
+    this.settings = { ...this.settings, phrase: "oval", laps: 3, rivals: 3, realism: true, mode: "race", pitPlan: [], mandatory: [], wearFuel: 1, wearTyre: 1, obstacles: false, startTyre: "medium" };
     this.weekend = null;
     this.run = this.runFor("tutorial", "race");
     this.audio.unlock();
@@ -1501,7 +1502,7 @@ export class Game {
       { id: "undo", label: "Undo", color: "orange", tip: "Take back the last point you placed (Backspace, or right-click a point to delete just that one).", onClick: () => this.undo() },
       ...(coarse() ? [{ id: "tool", label: TOOL_LABEL[this.tool], color: "cyan" as const, tip: "What a tap does: add a point, insert one on the line, or delete one.", onClick: () => { this.tool = TOOL_NEXT[this.tool]; this.renderDraw(); } }] : []),
       { id: "clear", label: "Clear", color: "pink", tip: "Remove every point you have placed in this segment and start it again.", onClick: () => { d.pts = []; d.end = d.mode === "amend" ? d.end : null; if (needStart) d.line = null; this.renderDraw(); } },
-      ...(this.run.realism ? [{ id: "pits", label: "Pit strategy", color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap.", onClick: () => this.togglePlan() }] : []),
+      ...(this.planning() ? [{ id: "pits", label: "Pit strategy", color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap.", onClick: () => this.togglePlan() }] : []),
       { id: "fin", label: "Finish segment", color: "yellow", wide: true, disabled: !(pv && pv.ok && !needStart), tip: "Lock in this segment (Enter). Click to place points; drag any point, the square (where it starts) or the diamond (where it ends) to move it along the road edge; Shift+click inserts a point.", onClick: () => this.finishSegment() },
       ...(d.mode === "amend" ? [{ id: "cancel", label: "Cancel", color: "grey" as const, tip: "Throw these edits away and go back to the map.", onClick: () => { this.draw = null; this.showPicker(null); } }] : []),
     ], `<b>${title}</b>${last}${this.special?.kind === "golf" && d.mode === "lap" ? ` <span class="golfpts">· ${(d.line ? linePoints(d.line) : 0) + d.pts.length} points so far, par ${golfPar(this.track)}</span>` : ""}<br/>${status}${d.warn ? `<br/><span class="bad">${esc(d.warn)}</span>` : ""}`);
@@ -1832,7 +1833,7 @@ export class Game {
 
   /** What the tank and the plan say: the first lap, if any, on which the car would run dry. */
   private fuelProblem(next: number, fuel: number): number | null {
-    if (this.settings.autoPit !== false) return null; // the pit wall brings the car in before it runs dry
+    if (!this.planning()) return null; // the pit wall brings the car in before it runs dry
     const per = this.fuelLap();
     return firstDryLap(per, this.run.laps, next, fuel, this.settings.pitPlan.map((p) => p.lap), TANK);
   }
@@ -1899,7 +1900,7 @@ export class Game {
         this.renderDraw();
       } },
       ...(!firstLap && changed.length ? [{ id: "revert", label: "Revert", color: "orange" as const, tip: "Undo every change you have made to your line during this stop.", onClick: () => { this.currentLine = this.me.lines[this.lapNo]!; this.shareLine = this.currentLine; this.syncHash(); this.pick = null; this.showPicker(null); } }] : []),
-      ...(real ? [{ id: "pits", label: `Pit strategy${this.queuedStops().length ? ` (${this.queuedStops().length})` : ""}`, color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap, and none on the last lap.", onClick: () => this.togglePlan() }] : []),
+      ...(real && this.planning() ? [{ id: "pits", label: `Pit strategy${this.queuedStops().length ? ` (${this.queuedStops().length})` : ""}`, color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap, and none on the last lap.", onClick: () => this.togglePlan() }] : []),
       { id: "go", label: goLabel, color: "yellow", wide: true, disabled: !(check.ok && !tooMany), tip: firstLap ? (this.timed() ? "Start the session with this line." : "Start the race with this line.") : "Leave the pits and carry on with your line as it now is.", onClick: () => { this.pick = null; this.closePlan(); if (firstLap) this.startRace(); else this.resumeRace(); } },
     ], `${golfBar(this.golfScore(line))}${prof ? `<span class="predict">Flying lap <b>${fmt(prof.ideal)}</b> <i class="speedkey"><em>slow</em><em>fast</em></i></span> ` : ""}${firstLap ? `Select segments on the map to edit them, or go. ${this.timed() ? "" : `<span class="dim">Once the race starts you can only change your line during a pit stop.</span>`}` : `You are in the pits: change up to <b>${MAX_AMENDS}</b> segments before you go back out (<b>${used}</b> used).`} <span class="dim">Scroll to zoom, drag to pan.</span>`);
     if (this.planOpen) this.renderPlan();
@@ -1916,6 +1917,8 @@ export class Game {
   }
 
   // ---------- pit strategy ----------
+  /** Whether the player plans the stops: realism is on and it is not Easy, where the pit wall makes every call. */
+  private planning(): boolean { return this.run.realism && !pitWallCalls(this.run.difficulty); }
   private togglePlan(): void { if (this.planOpen) this.closePlan(); else { this.planOpen = true; this.planMsg = ""; if (!this.race) this.planLap = -1; this.renderPlan(); this.updateTutorial(); } }
   private closePlan(): void { this.planOpen = false; this.planLayer.innerHTML = ""; if (this.tutBackup) this.updateTutorial(); }
 
@@ -1925,7 +1928,7 @@ export class Game {
   /** The stops still to come: the queue. Stops already made are history, and the five-stop limit applies only to these. */
   private queuedStops(): { lap: number; tyre: Compound; tactic?: Tactic }[] {
     const next = this.nextLapIndex();
-    return this.settings.pitPlan.filter((p) => p.lap >= next);
+    return this.planning() ? this.settings.pitPlan.filter((p) => p.lap >= next) : [];
   }
 
   /** Laps (counting from 0) that can still have a stop at their end, and are not taken. */
@@ -1995,7 +1998,6 @@ export class Game {
     const can = options.length > 0 && (onStart || !full);
     this.planLayer.innerHTML = `<div class="panel plan">
       <div class="row"><h2 style="flex:1">Pit strategy <span class="dim" style="font-weight:400;font-size:13px">a stop gives fresh tyres and a full tank</span></h2><span class="dim" style="flex:0 0 auto">${queue.length + (startable ? 1 : 0)} / ${MAX_PIT_STOPS} queued</span><button id="planclose" class="big grey slim">Done</button></div>
-      <label class="autopit"><input type="checkbox" id="autopit" ${s.autoPit !== false ? "checked" : ""} ${this.race ? "disabled" : ""}/> <b>Let the pit wall call the stops</b> <span class="dim">it brings you in for fuel, worn tyres or the wrong tyre for the road; the stops you queue here come first${this.race ? " (set before the start)" : ""}</span></label>
       <div class="timeline">${cells}</div>
       <div class="slots">${slots}</div>
       ${this.run.realism ? `<label>${onStart ? "Tactic to start with" : "Tactic after this stop"} <span class="dim">harder is quicker, but wears the tyres, heats them and burns fuel</span></label>${tacticChips("plan", onStart ? s.startTactic ?? "balanced" : this.planTactic)}` : ""}
@@ -2008,7 +2010,6 @@ export class Game {
     </div>`;
     const root = this.planLayer;
     root.querySelector("#planclose")?.addEventListener("click", () => this.closePlan());
-    root.querySelector<HTMLInputElement>("#autopit")?.addEventListener("change", (e) => { s.autoPit = (e.target as HTMLInputElement).checked; this.persist(); this.afterPlanChange(); });
     const step = (dir: number) => { const i = options.indexOf(this.planLap); const j = Math.min(options.length - 1, Math.max(0, i + dir)); this.planLap = options[j] ?? this.planLap; this.planMsg = ""; this.renderPlan(); };
     root.querySelector("#lapminus")?.addEventListener("click", () => step(-1));
     root.querySelector("#lapplus")?.addEventListener("click", () => step(1));
@@ -2035,7 +2036,8 @@ export class Game {
     this.currentLine = driven; this.shareLine = driven;
     this.me = {
       id: ME, name: this.online.name, car: this.playerCar(), lines: Array.from({ length: r.laps }, () => driven), isPlayer: true,
-      pitPlan: r.realism ? st.pitPlan : [], ...(r.realism && st.autoPit !== false ? { autoPit: true } : {}), startTyre: r.kind === "trial" ? "soft" : st.startTyre, ...(r.realism && st.startTactic ? { startTactic: st.startTactic } : {}),
+      // (on Easy the pit wall makes every call: when to stop, the tyres, the tactic; elsewhere the player's own plan, and no calls made for them)
+      pitPlan: this.planning() ? st.pitPlan : [], ...(r.realism && !this.planning() ? { autoPit: true } : {}), startTyre: r.kind === "trial" ? "soft" : this.planning() ? st.startTyre : "medium", ...(this.planning() && st.startTactic ? { startTactic: st.startTactic } : {}),
       ...(timed ? { gridSlot: 0 } : {}),
       // a quick race is gridded by the time trial: without a time you start last
       ...(r.flow === "quick" ? { gridTime: quickGridTime(tt) } : {}),

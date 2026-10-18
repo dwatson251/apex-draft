@@ -76,7 +76,6 @@ export interface Settings {
   /** Quick Race as an elimination race: the last car is out every lap (the laps follow the field) */
   elimination?: boolean;
   /** the pit wall calls the stops not queued (realism only); on unless turned off */
-  autoPit?: boolean;
   /** how to drive the first stint (realism only); balanced if left out */
   startTactic?: Tactic;
 }

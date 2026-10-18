@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Pit stops are yours to plan, except on Easy.** The *Let the pit wall call the stops* switch is gone. On Medium and Hard you queue your own stops (and a car that is never brought in runs dry). On Easy the pit wall makes every call (when to stop, which tyres, how hard to drive) and the pit strategy panel and the tyre rules are not offered: you only edit your segments in the pits. Easy races can now have tyres, fuel and pit stops (Realism), which before were only on Medium and Hard.
+- **Waveguide engines (an experiment).** Settings → Engine sound switches the engines to a simulation of each cylinder and the exhaust (a port of Antonio-R1's engine-sound-generator, MIT), with a meter of what they cost; a governor keeps them under the audio thread's limit. The engine sound follows the race's gears, and the engines sit at twice the music's level.
+
 - **Gear changes cost a moment of drive.** Every machine with a gearbox now changes up through its gears in the race, and the drive is gone while each change goes through: about 0.2 s for the manuals (the classic F1, muscle and stock cars, buggy, truck, tank), 0.06 s for sequentials (rally, rallycross, touring, GT3, GT4, superbike, dragster) and almost nothing for the seamless boxes (F1, prototype, hypercar). A manual loses about 1% of a lap, a sequential 0.4%, a seamless box 0.1%; electric cars, karts, boats and fans are unchanged. The predicted lap time and the speed colours include it. **SIM_VERSION is 8**: earlier replays no longer play, and online times set before it stop being ranked.
 
 ## 0.2.0-beta.2

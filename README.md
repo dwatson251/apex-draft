@@ -154,9 +154,9 @@ went into them so they come out the same to the last tick. **● Record** on the
 trophies, and the **Atlas** of the real circuits you have found, are under Time Attack.
 
 **Long races and strategy.** You can only change your line while you are in the pits, and then only up to three segments
-per stop. Leave the stops to the pit wall (it calls them as the computer drivers' are called: fuel, worn tyres, the wrong
-tyre for the road), or plan ahead: queue up to five stops, each with a lap to come in on and a tyre to fit. A stop you
-queue always comes first.
+per stop. On Medium and Hard you plan the stops: queue up to five, each with a lap to come in on and a tyre to fit. On
+Easy the pit wall makes every call for you (it calls the stops as the computer drivers' are called: fuel, worn tyres,
+the wrong tyre for the road), and you only edit your segments in the pits.
 
 **Power-ups** (boost, grip and ghost pickups) are in the code but switched off for now.
 
@@ -185,7 +185,7 @@ fades as the lap goes. Cornering hard wears tyres faster than easy driving does.
 tank always lasts a lap and a half. Run dry and the car limps to the pits for an
 emergency refuel: slow, with no new tyres, and then it carries on. Nothing is ever retired.
 
-**Pit stops.** Let the pit wall call them, or queue them in the strategy panel, and the car drives itself into the
+**Pit stops.** Queue them in the strategy panel (on Easy the pit wall calls them), and the car drives itself into the
 pit lane beside the start straight, stops in its bay and rejoins on fresh tyres and a full tank. Cars leave the lane
 first in, first out. Never stopping adds a time penalty, and so does missing a mandatory tyre.
 
@@ -197,7 +197,7 @@ the wet (less grip) and rubbers it in when it is dry (more grip). Reading the ro
 the middle or the end of the race. Never the lap, the strength or how long it lasts.
 
 <p align="center">
-  <img src="docs/images/pit-strategy.png" alt="The pit strategy panel: the pit wall switch, the start tyre and tactic, and the stops to queue" width="800">
+  <img src="docs/images/pit-strategy.png" alt="The pit strategy panel: the start tyre and tactic, and the stops to queue" width="800">
 </p>
 
 ## Seeded tracks

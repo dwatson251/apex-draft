@@ -44,7 +44,7 @@ export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: st
 }
 
 const DIFFICULTY_BLURB: Record<Difficulty, string> = {
-  easy: "Rivals drive at two thirds of their pace. No tyres or fuel to manage.",
+  easy: "Rivals drive at two thirds of their pace. The pit wall calls your stops.",
   medium: "Rivals drive at four fifths of their pace.",
   hard: "Rivals drive flat out, and other players' lines may join the field.",
 };
@@ -74,7 +74,8 @@ export interface SetupData {
   /** the Elimination mode (a Quick Race with the elimination rule: the laps follow the field, no tyres or fuel) */
   elimination: boolean;
   /** easy has no realism: the toggle and the wear options are not shown */
-  noRealism: boolean;
+  /** Easy: the pit wall calls the stops and picks the tyres, so the tyre rules are not offered */
+  pitWall: boolean;
   /** stars and best place on this track and machine, for a race */
   record: { stars: number; place: number | null } | null;
   phrase: string;
@@ -125,10 +126,10 @@ export function setupHtml(d: SetupData): string {
       ${d.nextLock ? `<p class="dim info lock-note">🔒 ${esc(d.nextLock)}</p>` : ""}
       ${d.elimination ? `<div class="opt"><span>Laps <em>one for every rival, 25 at most</em></span><b class="autolaps">${d.laps}</b></div>` : `<div class="opt"><span>Laps</span>${stepper("laps", d.laps, 1, 50)}</div>`}
       <div class="opt"><span>Players</span>${dropdown("rivals", String(d.rivals), FIELD_SIZES.map((n) => ({ value: String(n - 1), label: String(n) })), { label: "Players on the grid, you included" })}</div>
-      ${d.flow === "quick" && !d.noRealism && !d.elimination ? `<div class="opt"><span>Realism <em>tyres, fuel, pit stops, weather</em></span>${toggle("realism", d.realism)}</div>` : ""}
+      ${d.flow === "quick" && !d.elimination ? `<div class="opt"><span>Realism <em>tyres, fuel, pit stops, weather</em></span>${toggle("realism", d.realism)}</div>` : ""}
       ${wear ? `<div class="opt"><span>Fuel use</span>${dropdown("wearFuel", String(d.wearFuel), mult(), { label: "Fuel use" })}</div>
       <div class="opt"><span>Tyre wear</span>${dropdown("wearTyre", String(d.wearTyre), mult(), { label: "Tyre wear" })}</div>
-      <div class="opt wide"><span>Tyres you must use</span>${compoundChips("mandatory", d.mandatory)}</div>` : ""}
+      ${d.pitWall ? '<p class="dim info opt wide">On Easy the pit wall makes the calls: when you stop, which tyres and how hard to drive. In the pits you just edit your segments.</p>' : `<div class="opt wide"><span>Tyres you must use</span>${compoundChips("mandatory", d.mandatory)}</div>`}` : ""}
     </div>` : ""}
     <p class="dim info">${esc(d.carLine)}${d.bestLine ? ` · ${d.bestLine}` : ""}</p>
     ${d.gridLine ? `<p class="dim info">${d.gridLine}</p>` : ""}

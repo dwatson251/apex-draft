@@ -18,7 +18,8 @@ export const SKILL_RANGE: Record<Difficulty, readonly [number, number]> = { easy
 export const RIVAL_PACE: Record<Difficulty, number> = { easy: 0.66, medium: 0.8, hard: 1 };
 
 export const ghostsAllowed = (d: Difficulty): boolean => d === "hard";
-export const realismAllowed = (d: Difficulty): boolean => d !== "easy";
+/** On Easy the pit wall makes every call (when to stop, which tyres, how hard to drive): the player only edits segments in the pits. */
+export const pitWallCalls = (d: Difficulty): boolean => d === "easy";
 
 export const DIFFICULTY_NAMES: Record<Difficulty, string> = { easy: "Easy", medium: "Medium", hard: "Hard" };
 
