@@ -164,7 +164,7 @@ describe("the new pieces in random tracks", () => {
       expect(t.segments[0]!.kind).toBe("straight");
       expect(t.segments.at(-1)!.kind).toBe("straight");
     }
-    for (const k of ["kink", "chicaneA", "chicaneB", "esses", "sweeper", "uturn"]) expect(seen.has(k), k).toBe(true);
+    for (const k of ["kink", "chicaneA", "chicaneB", "esses", "sweepS", "sweeper", "uturn"]) expect(seen.has(k), k).toBe(true);
   });
   it("leave the layout of the cells exactly as it was", () => {
     for (const p of phrases.slice(0, 80)) {

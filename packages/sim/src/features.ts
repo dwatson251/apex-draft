@@ -9,7 +9,7 @@ import type { Segment, Track } from "./track.ts";
  */
 
 /** A segment whose road is (nearly) straight: where a ramp may start, and the road a car comes down on. */
-const flat = (s: Segment): boolean => s.kind === "straight" || s.kind === "kink";
+const flat = (s: Segment): boolean => s.kind === "straight" || s.kind === "kink" || s.kind === "sweepS";
 const crossing = (s: Segment): boolean => s.kind === "cross" || s.kind === "bridge" || s.kind === "under" || s.kind === "fork" || s.kind === "merge";
 
 /** Straight road a ramp needs after its lip, in units: a jump flies about this far at the top speed of an ordinary class, a glide about half as far again. */

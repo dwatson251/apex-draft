@@ -76,6 +76,8 @@ export function funLayout(phrase: string, seed: number, attempt: number, opts: F
   // which crossings are bridges is drawn from a stream of its own, so the shape of the track does not depend on it
   const bridgeRng = new Rng((seed ^ 0xb71d6e31 ^ Math.imul(attempt + 1, 0x85ebca6b)) >>> 0);
   const bridges = opts.bridges ?? FUN_BRIDGES;
+  // the wide S-sweep is in the fun tracks' own layouts only (the bridged ordinary tracks that borrow this layout draw what they always drew)
+  const sweeps = opts.bridges === undefined;
   let cells = rng.chance(0.5) ? eight(rng) : chain(rng);
   // turn and mirror it
   const flip = rng.int(8);
@@ -125,7 +127,7 @@ export function funLayout(phrase: string, seed: number, attempt: number, opts: F
   const out: [number, number, CircuitKind][] = cells.map(([x, y], i) => {
     if (cross.has(i)) return [x, y, crossKind.get(i)!];
     if (turned(i)) return [x, y, rng.chance(0.35) ? "sharp" : "corner"];
-    if (i > 0 && i < n - 1 && rng.chance(0.15)) return [x, y, rng.chance(0.5) ? "kink" : "esses"];
+    if (i > 0 && i < n - 1 && rng.chance(0.15)) return [x, y, sweeps ? (["kink", "esses", "sweepS"] as const)[rng.int(3)]! : rng.chance(0.5) ? "kink" : "esses"];
     return [x, y, "straight"];
   });
 

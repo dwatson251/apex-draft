@@ -44,9 +44,42 @@ describe("landscape", () => {
     }
   });
 
-  it("keeps the hidden circuits as they were, except the oval's banking", () => {
-    expect(cachedTrack("monza").segments.every((s) => !s.elev && !s.surface && !s.bank && !s.tunnel)).toBe(true);
+  it("gives a mapped circuit the real ground it was read from, and the oval its banking, and no surfaces", () => {
+    const monza = cachedTrack("monza");
+    expect(monza.segments.every((s) => s.elev && !s.surface)).toBe(true);
+    const h = monza.segments.flatMap((s) => s.elev!);
+    expect(Math.max(...h) - Math.min(...h)).toBeGreaterThan(4);
     expect(generateTrack("oval").segments.some((s) => s.bank)).toBe(true);
+  });
+
+  it("closes the loop of a circuit's hills, climbs Spa and Laguna Seca, and leaves the kart courses flat", () => {
+    for (const id of ["spa-francorchamps", "laguna-seca", "nurburgring-nordschleife", "interlagos"]) {
+      const t = cachedTrack(id), n = t.segments.length;
+      for (let j = 0; j < n; j++) expect(t.segments[j]!.elev!.at(-1), `${id} ${j}`).toBeCloseTo(t.segments[(j + 1) % n]!.elev![0]!, 1);
+      const h = t.segments.flatMap((s) => s.elev!);
+      expect(Math.max(...h) - Math.min(...h), id).toBeGreaterThan(8);
+    }
+    expect(cachedTrack("luigi-raceway").segments.every((s) => !s.elev)).toBe(true);
+  });
+
+  it("banks Daytona's ends and Zandvoort's last turn, and puts Monaco's tunnel in", () => {
+    expect(cachedTrack("daytona").segments.some((s) => s.bank)).toBe(true);
+    expect(cachedTrack("zandvoort").segments.some((s) => s.bank)).toBe(true);
+    expect(cachedTrack("monaco").segments.some((s) => s.tunnel)).toBe(true);
+    expect(cachedTrack("monza").segments.some((s) => s.bank || s.tunnel)).toBe(false);
+  });
+
+  it("puts a crest or dip on some straights: zero at both gates, a few units high between", () => {
+    let crests = 0;
+    for (const p of phrases) {
+      const t = generateTrack(p);
+      for (const s of t.segments) {
+        if (!s.elev || !(s.kind === "straight" || s.kind === "kink" || s.kind === "sweepS" || s.kind === "bendy")) continue;
+        const peak = Math.max(...s.elev.map(Math.abs));
+        if (peak >= 2 && Math.abs(s.elev[0]! + s.elev.at(-1)!) < Math.abs(s.elev[s.elev.length >> 1]!)) crests++;
+      }
+    }
+    expect(crests).toBeGreaterThan(5);
   });
 
   it("lets bot lines stay on the road", () => {

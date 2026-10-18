@@ -31,7 +31,7 @@ export const CAR_R = 3;
 export const KERB_ALLOW = 2.5;
 const SAMPLES = 24;
 
-export type SegmentKind = "straight" | "bendy" | "kink" | "chicaneA" | "chicaneB" | "esses" | "cross" | "bridge" | "under" | "fork" | "merge" | "corner" | "sharp" | "sweeper" | "uturn";
+export type SegmentKind = "straight" | "bendy" | "kink" | "chicaneA" | "chicaneB" | "esses" | "sweepS" | "cross" | "bridge" | "under" | "fork" | "merge" | "corner" | "sharp" | "sweeper" | "uturn";
 
 /**
  * A cell the road passes through twice is a crossing: a `cross` (the cars meet in the box and can hit each other), or a bridge, where one
@@ -279,7 +279,7 @@ export function buildSegment(rng: Rng, index: number, cell: [number, number], pr
   else kind = rng.chance(0.4) ? "sharp" : "corner";
   const bendSign: 1 | -1 = rng.chance(0.5) ? 1 : -1;
   if (force) {
-    if (straight !== (force === "straight" || force === "bendy" || force === "kink" || force === "chicaneA" || force === "chicaneB" || force === "esses" || isCrossing(force))) throw new Error(`a ${force} cell at ${cx},${cy} does not fit the way the road runs`);
+    if (straight !== (force === "straight" || force === "bendy" || force === "kink" || force === "chicaneA" || force === "chicaneB" || force === "esses" || force === "sweepS" || isCrossing(force))) throw new Error(`a ${force} cell at ${cx},${cy} does not fit the way the road runs`);
     kind = force;
   }
 
@@ -407,7 +407,7 @@ function enrich(segs: Segment[], cyc: [number, number][], seed: number): void {
     const r = rng.next();
     const sign: 1 | -1 = rng.chance(0.5) ? 1 : -1;
     if (r >= 1 - CHICANE_SHARE && free(s.index + 1)) { reshape(s, "chicaneA", sign); reshape(segs[s.index + 1]!, "chicaneB", sign); continue; }
-    reshape(s, r < 0.35 ? "kink" : "esses", sign);
+    reshape(s, r < 0.3 ? "kink" : r < 0.65 ? "esses" : "sweepS", sign);
   }
 }
 

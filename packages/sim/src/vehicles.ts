@@ -46,7 +46,7 @@ export interface Vehicle {
   /** engine sound: pitch multiplier and how buzzy it is, 0 to 1 */
   pitch: number;
   buzz: number;
-  /** relative odds when a phrase picks the field */
+  /** relative odds when a phrase picks the field (0: only a circuit that names the class has it) */
   weight: number;
   domain: Domain;
   /** 0..1: how loose it is, i.e. how slowly a drift recovers */
@@ -76,8 +76,8 @@ export const VEHICLES: Record<VehicleId, Vehicle> = {
   prototype: { id: "prototype", mass: 0.75, name: "Prototype", plural: "prototypes", blurb: "An endurance prototype: low, wide and glued down by its downforce. Quick everywhere, hard on fuel.", accel: 0.998, top: 0.911, grip: 1.749, brake: 1.531, wear: 1.2, fuel: 1.4, length: 9.6, width: 3.8, pitch: 1.4, buzz: 0.5, weight: 10, domain: "land", slip: 0.15, terrain: 0, pitSecs: 45, slipDeg: 5, launch: 0 },
   gt3: { id: "gt3", mass: 1.1, name: "GT3 car", plural: "GT3 cars", blurb: "A road-car shape in race trim: strong brakes, lots of grip and a big wing. The sports-car class everyone races.", accel: 0.812, top: 0.844, grip: 1.167, brake: 1.021, wear: 1.2, fuel: 1.1, length: 8.6, width: 3.6, pitch: 0.9, buzz: 0.4, weight: 10, domain: "land", slip: 0.3, terrain: 0, pitSecs: 40, slipDeg: 7, launch: 0 },
   gt4: { id: "gt4", mass: 1.05, name: "GT4 car", plural: "GT4 cars", blurb: "The entry-level sports car: a mildly tuned road car with a small wing. Forgiving, cheap to run, and easy to slide.", accel: 0.685, top: 0.689, grip: 0.948, brake: 0.829, wear: 0.9, fuel: 0.9, length: 9, width: 3.4, pitch: 0.85, buzz: 0.35, weight: 10, domain: "land", slip: 0.4, terrain: 0, pitSecs: 40, slipDeg: 9, launch: 0 },
-  hypercar: { id: "hypercar", mass: 0.8, name: "Hypercar", plural: "hypercars", blurb: "A Le Mans hypercar: a hybrid prototype with more power and more downforce than the class below it. The fastest thing on a long straight that still turns.", accel: 1.043, top: 1, grip: 1.924, brake: 1.683, wear: 1.3, fuel: 1.5, length: 9.8, width: 3.8, pitch: 1.5, buzz: 0.5, weight: 8, domain: "land", slip: 0.15, terrain: 0, pitSecs: 45, slipDeg: 5, launch: 0 },
-  stock: { id: "stock", mass: 1.35, name: "Stock car", plural: "stock cars", blurb: "A heavy V8 saloon built to be raced door to door: strong, loose at the limit, hard on its tyres and thirsty.", accel: 0.741, top: 0.844, grip: 0.953, brake: 0.886, wear: 1.3, fuel: 1.4, length: 9, width: 3.7, pitch: 0.75, buzz: 0.3, weight: 8, domain: "land", slip: 0.5, terrain: 0, pitSecs: 14, slipDeg: 10, launch: 0 },
+  hypercar: { id: "hypercar", mass: 0.8, name: "Hypercar", plural: "hypercars", blurb: "A Le Mans hypercar: a hybrid prototype with more power and more downforce than the class below it. The fastest thing on a long straight that still turns.", accel: 1.043, top: 1, grip: 1.924, brake: 1.683, wear: 1.3, fuel: 1.5, length: 9.8, width: 3.8, pitch: 1.5, buzz: 0.5, weight: 0, domain: "land", slip: 0.15, terrain: 0, pitSecs: 45, slipDeg: 5, launch: 0 },
+  stock: { id: "stock", mass: 1.35, name: "Stock car", plural: "stock cars", blurb: "A heavy V8 saloon built to be raced door to door: strong, loose at the limit, hard on its tyres and thirsty.", accel: 0.741, top: 0.844, grip: 0.953, brake: 0.886, wear: 1.3, fuel: 1.4, length: 9, width: 3.7, pitch: 0.75, buzz: 0.3, weight: 0, domain: "land", slip: 0.5, terrain: 0, pitSecs: 14, slipDeg: 10, launch: 0 },
   jetski: { id: "jetski", mass: 0.3, name: "Jet ski", plural: "jet skis", blurb: "Tiny and twitchy. It slides wide in every corner and snaps back.", accel: 0.731, top: 0.298, grip: 0.502, brake: 0.219, wear: 0, fuel: 0.7, length: 6, width: 2.4, pitch: 1.5, buzz: 0.8, weight: 20, domain: "water", slip: 0.8, terrain: 1, pitSecs: 25, slipDeg: 25, launch: 0 },
   speedboat: { id: "speedboat", mass: 0.8, name: "Speedboat", plural: "speedboats", blurb: "A balanced hull. Fast in a straight, and it drifts when you carry speed into a turn.", accel: 0.536, top: 0.533, grip: 0.313, brake: 0.165, wear: 0, fuel: 1.1, length: 12, width: 4.4, pitch: 0.8, buzz: 0.3, weight: 25, domain: "water", slip: 0.55, terrain: 1, pitSecs: 60, slipDeg: 12, launch: 0 },
   hovercraft: { id: "hovercraft", mass: 1, name: "Hovercraft", plural: "hovercraft", blurb: "Rides a cushion of air, so nothing grips and everything slides. Huge drifts, slow recovery.", accel: 0.683, top: 0.311, grip: 0.157, brake: 0.11, wear: 0, fuel: 1, length: 9, width: 5, pitch: 0.6, buzz: 0.2, weight: 15, domain: "water", slip: 1, terrain: 1, pitSecs: 30, slipDeg: 40, launch: 0 },
@@ -150,7 +150,8 @@ export function vehicleChoices(seed: number, domain: Domain = "land", circuitId?
     while (out.length < MAX_CHOICES && rest.length) out.push(rest.splice(Math.floor(rng.next() * rest.length), 1)[0]!);
     return out;
   }
-  const pool = VEHICLE_IDS.filter((id) => VEHICLES[id].domain === domain && id !== first);
+  // (a class with no weight is only for the circuits that name it)
+  const pool = VEHICLE_IDS.filter((id) => VEHICLES[id].domain === domain && id !== first && VEHICLES[id].weight > 0);
   while (out.length < MAX_CHOICES && pool.length) {
     const total = pool.reduce((a, id) => a + VEHICLES[id].weight, 0);
     let r = rng.next() * total, k = 0;

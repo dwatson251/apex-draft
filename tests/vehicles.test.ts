@@ -17,7 +17,7 @@ describe("every vehicle class", () => {
       seenLand.add(l); seenWater.add(w);
     }
     expect(seenWater.size).toBe(VEHICLE_IDS.filter((i) => VEHICLES[i].domain === "water").length);
-    expect(seenLand.size).toBe(VEHICLE_IDS.filter((i) => VEHICLES[i].domain === "land").length);
+    expect(seenLand.size).toBe(VEHICLE_IDS.filter((i) => VEHICLES[i].domain === "land" && VEHICLES[i].weight > 0).length); // (the hypercar and stock car are only for circuits)
   });
   it("keeps its character", () => {
     const top = (t: (typeof VEHICLE_IDS)[number]) => carStats({ ...defaultCar(), type: t });

@@ -13,6 +13,9 @@ What is in `packages/sim/src/circuitData.ts` is a derived database: for each cir
 road the cars can drive (no turn tighter than a radius of 36 units, no two parts of the road closer than 60). It is shared here under the
 same licence. The code in `tools/circuits` shows exactly how it is made, and can be run again against the live map.
 
+The heights along each mapped circuit (`circuitRelief.ts`) are read from the Copernicus DEM (a height every 90 m, (c) ESA / the European Union)
+through [Open-Meteo](https://open-meteo.com) (CC BY 4.0), by `tools/circuits/elevation.ts`.
+
 The names of the circuits and their corners belong to their owners and are used only to say what the shape is.
 
 Autodrome Lago Maggiore is the exception: it is a fictional circuit (from Gran Turismo), not a mapped one. Its shape is traced from the

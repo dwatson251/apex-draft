@@ -143,7 +143,7 @@ describe("vehicle classes", () => {
       expect(vehicleForSeed(t.seed)).toBe(vehicleForSeed(generateTrack(p).seed));
       seen.add(vehicleForSeed(t.seed));
     }
-    expect([...seen].sort()).toEqual(VEHICLE_IDS.filter((id) => VEHICLES[id].domain === "land").sort());
+    expect([...seen].sort()).toEqual(VEHICLE_IDS.filter((id) => VEHICLES[id].domain === "land" && VEHICLES[id].weight > 0).sort()); // (the hypercar and stock car are only for circuits)
     // boats are only for water
     expect(vehicleForSeed(12345, "water")).toBe(vehicleForSeed(12345, "water"));
     expect(VEHICLES[vehicleForSeed(777, "water")].domain).toBe("water");

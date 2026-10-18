@@ -3,6 +3,7 @@ import { loadWays, projector, type Pt } from "./osm.ts";
 import { graph, cyclesThrough, bridgeGaps, type Edge } from "./loop.ts";
 import { crossingExempt, dist, fit, length, measure, radii, resample, smoothLoop, straighten, type Limits } from "./process.ts";
 import { SOURCES, type Source } from "./sources.ts";
+import { heightsAlong } from "./elevation.ts";
 
 /**
  * OpenStreetMap -> game track. For each circuit: find the lap among the mapped ways, scale it, bend it the least that makes a
@@ -96,6 +97,7 @@ function build(src: Source): Built {
   console.log(`  start line moved ${((startIdx - nominal + n + n / 2) % n) - n / 2} samples, bend ${bend(startIdx).toFixed(2)} units over ${2 * half} samples`);
   // start there, with the road dead straight beside the pit lane, then bend the whole loop to fit the game
   const fromStart = (a: Pt[]) => [...a.slice(startIdx), ...a.slice(0, startIdx)];
+  if (process.env.RELIEF_ONLY) return { src, real: fromStart(real), startReal: 0, game: [], report: {} as Built["report"], scale: src.scale }; // (only the real lap is wanted, to look up its heights)
   const start = straighten(fromStart(scaled), 0, 18, 14);
   const { points, report } = fit(start, { ...LIMITS, ...src.limits, ...(src.crosses ? { exempt: crossingExempt(start) } : {}) }, src.rounds ?? 60, 18);
   const minX = Math.min(...points.map((p) => p.x)), minY = Math.min(...points.map((p) => p.y));
@@ -155,17 +157,27 @@ export function bestFit(shape: Pt[], real: Pt[]): { mean: number; p90: number; a
 
 const svgPath = (p: Pt[], close = true) => `M${p.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join("L")}${close ? "Z" : ""}`;
 
+const reliefFileText = (relief: Record<string, number[]>): string => `/**
+ * How high the ground is along each mapped circuit: metres above the lowest point, a sample every 40 m from the start line, in driving order.
+ * Made by tools/circuits (RELIEF_ONLY=1 npm run circuits) from the Copernicus DEM via Open-Meteo (CC BY 4.0; see docs/CIRCUIT_CREDITS.md). Do not edit by hand.
+ */
+\n/* data */\nexport const CIRCUIT_RELIEF: Record<string, number[]> = ${JSON.stringify(relief)};\n`;
+
 function main(): void {
   const only = process.argv.slice(2);
   const grid: Record<string, number[][]> | null = existsSync(here("./grid.json")) ? JSON.parse(readFileSync(here("./grid.json"), "utf8")) : null;
   const dataFile = here("../../packages/sim/src/circuitData.ts");
   const existing = existsSync(dataFile) ? readFileSync(dataFile, "utf8") : "";
   const out: Record<string, number[]> = existing.includes("/* data */") ? JSON.parse(existing.slice(existing.indexOf("= ", existing.indexOf("/* data */")) + 2).replace(/;\s*$/, "")) : {};
+  const reliefFile = here("../../packages/sim/src/circuitRelief.ts");
+  const reliefText = existsSync(reliefFile) ? readFileSync(reliefFile, "utf8") : "";
+  const relief: Record<string, number[]> = reliefText.includes("/* data */") ? JSON.parse(reliefText.slice(reliefText.indexOf("= ", reliefText.indexOf("/* data */")) + 2).replace(/;\s*$/, "")) : {};
   const rows: string[] = [];
   for (const src of SOURCES) {
     if (only.length && !only.includes(src.id)) continue;
     if (!existsSync(fileURL(src.id))) { console.log(src.id, "no data yet"); continue; }
     const b = build(src);
+    if (process.env.RELIEF_ONLY) { if (relief[src.id] && !process.env.RELIEF_REDO) { console.log(`${src.id}: relief kept`); continue; } relief[src.id] = heightsAlong(b.real, src.ref); console.log(`${src.id}: relief ${Math.max(...relief[src.id]!).toFixed(0)} m from lowest to highest, ${relief[src.id]!.length} samples`); writeFileSync(reliefFile, reliefFileText(relief)); continue; }
     const gameM = b.game.map((p) => ({ x: p.x / src.scale, y: p.y / src.scale }));
     const fitQ = bestFit(gameM, b.real); // the game shape against the real one, in metres
     let gridQ: ReturnType<typeof bestFit> | null = null;
@@ -174,6 +186,7 @@ function main(): void {
     const r = b.report;
     rows.push(`${src.id.padEnd(32)} ${(length(b.game) / 1000).toFixed(2).padStart(5)}k units  R>=${r.minRadius.toFixed(0).padStart(3)} gap>=${r.minGap.toFixed(0).padStart(3)}  vs real: mean ${fitQ.mean.toFixed(0).padStart(3)} m p90 ${fitQ.p90.toFixed(0).padStart(3)} m   old grid: ${gridQ ? `mean ${gridQ.mean.toFixed(0).padStart(3)} m p90 ${gridQ.p90.toFixed(0).padStart(3)} m` : "-"}`);
     out[src.id] = b.game.flatMap((p) => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]);
+    if (process.env.RELIEF) { relief[src.id] = heightsAlong(b.real, src.ref); console.log(`  relief: ${Math.max(...relief[src.id]!).toFixed(0)} m from lowest to highest, ${relief[src.id]!.length} samples`); }
     // a picture: real (blue), game track (white), old grid (grey), scaled to the same frame
     const pad = 30, W = Math.max(...b.game.map((p) => p.x)) + pad, H = Math.max(...b.game.map((p) => p.y)) + pad;
     const realFit = bestFit(b.real.map((p) => ({ x: p.x * src.scale, y: p.y * src.scale })), b.game); // the real shape laid over the game one
@@ -186,7 +199,8 @@ function main(): void {
  * least that makes a road the cars can use (see docs/CIRCUIT_CREDITS.md). Do not edit by hand.
  */
 `;
-  writeFileSync(dataFile, `${header}\n/* data */\nexport const CIRCUIT_DATA: Record<string, number[]> = ${JSON.stringify(out)};\n`);
+  if (process.env.RELIEF || process.env.RELIEF_ONLY) writeFileSync(reliefFile, reliefFileText(relief));
+  if (!process.env.RELIEF_ONLY) writeFileSync(dataFile, `${header}\n/* data */\nexport const CIRCUIT_DATA: Record<string, number[]> = ${JSON.stringify(out)};\n`);
   console.log(rows.join("\n"));
 }
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()!)) main();

@@ -59,7 +59,7 @@ function joinGates(segs: Segment[], i: number): void {
 }
 
 function plain(s: Segment): boolean {
-  return s.kind === "straight" || s.kind === "bendy" || s.kind === "kink" || s.kind === "esses" || s.kind === "chicaneA" || s.kind === "chicaneB";
+  return s.kind === "straight" || s.kind === "bendy" || s.kind === "kink" || s.kind === "esses" || s.kind === "sweepS" || s.kind === "chicaneA" || s.kind === "chicaneB";
 }
 
 /** Lay pinches and wide runs over a freshly built loop. A separate random stream, so nothing else about the track moves. */
