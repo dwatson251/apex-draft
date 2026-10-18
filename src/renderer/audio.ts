@@ -40,12 +40,19 @@ interface Voice {
   idle: number;
   sim: number[] | null;
   simGear: number;
+  /** whether it is the player's, and how loud it was last told to be (the governor drops the quietest first) */
+  player: boolean;
+  vol: number;
 }
 
 /** Which engine model: the oscillators, or the waveguide engines (an experiment, see waveguide.ts). */
 export type EngineModel = "synth" | "waveguide";
 /** The engines against the music: twice its level (they sat level with it, and they are what the race is about). */
 const ENGINE_GAIN = 2;
+/** The share of the audio thread the waveguide engines may use: past the first, new engines are synth ones; past the second, the quietest is switched back. */
+const WG_BUDGET = 0.8, WG_SHED = 0.95;
+/** What a waveguide engine is guessed to cost until it has measured itself (a second after it starts): about what one costs in desktop Chrome, by its cylinders. */
+const wgGuess = (cfg: WaveguideEngine) => 0.01 + 0.005 * cfg.cylinders;
 /** The waveguide engines are normalised to one loudness; this brings that up to about where the synth engines sit. */
 const WG_LEVEL = 3;
 
@@ -361,6 +368,21 @@ export class CarAudio {
     const far = [...this.voices.keys()].slice(this.maxVoices);
     for (const id of far) this.release(id);
   }
+  /** Past WG_SHED of the audio thread, the quietest waveguide engines (never the player's) go back to the synth until it is under WG_BUDGET; checked twice a second. */
+  private shed(t: number): void {
+    if (t - this.shedAt < 0.5) return;
+    this.shedAt = t;
+    let load = this.engineStats().load;
+    if (load < WG_SHED) return;
+    // as many as it takes to get back under the budget, quietest first (each comes back as a synth engine: see make)
+    const quiet = [...this.voices].filter(([, v]) => v.wg && !v.player).sort((a, b) => a[1].vol - b[1].vol);
+    for (const [id, v] of quiet) {
+      if (load < WG_BUDGET) break;
+      load -= v.wg!.load; this.release(id); this.shedCount++;
+    }
+  }
+  private shedAt = 0;
+  private shedCount = 0;
   /** The default for this device. */
   static defaultVoices(): number { return MAX_VOICES; }
   private loadWaveguide(): void {
@@ -371,13 +393,13 @@ export class CarAudio {
   }
   /** For the meter: the model asked for, whether it is running, the engines built (and how many are waveguides), and the
    *  waveguides' share of the audio thread (above 1 and the sound breaks up). */
-  engineStats(): { model: EngineModel; state: string; voices: number; wg: number; load: number } {
+  engineStats(): { model: EngineModel; state: string; voices: number; wg: number; load: number; shed: number } {
     let wg = 0, load = 0;
     for (const v of this.voices.values()) if (v.wg) { wg++; load += v.wg.load; }
-    return { model: this.model, state: this.model === "waveguide" ? this.wgState : "on", voices: this.voices.size, wg, load };
+    return { model: this.model, state: this.model === "waveguide" ? this.wgState : "on", voices: this.voices.size, wg, load, shed: this.shedCount };
   }
 
-  private make(type: VehicleId | undefined): Voice | null {
+  private make(type: VehicleId | undefined, player = false): Voice | null {
     const ctx = this.ctx!, veh = vehicleOf(type), prof = ENGINES[veh.id] ?? ENGINES.rally;
     const out = ctx.createGain();
     out.connect(this.engineBus!);
@@ -400,13 +422,14 @@ export class CarAudio {
       sh.curve = curve; sh.connect(filter); tone = sh;
     }
     // the waveguide engine, when it is chosen and loaded and this machine has a combustion engine: it replaces the partials
-    const cfg = this.model === "waveguide" && this.wgState === "ready" ? WAVEGUIDE_ENGINES[veh.id] : undefined;
+    // (and only while the audio thread has room: past WG_BUDGET of it, the next engines are synth ones, or the sound would stall)
+    const cfg = this.model === "waveguide" && this.wgState === "ready" && (player || this.engineStats().load < WG_BUDGET) ? WAVEGUIDE_ENGINES[veh.id] : undefined;
     let wg: Voice["wg"] = null;
     if (cfg) {
       try {
         const node = new AudioWorkletNode(ctx, "waveguide-engine", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], processorOptions: cfg });
-        wg = { node, cfg, load: 0 };
-        node.port.onmessage = (e: MessageEvent<number>) => { if (wg) wg.load = e.data; };
+        wg = { node, cfg, load: wgGuess(cfg) };
+        node.port.onmessage = (e: MessageEvent<number | string>) => { if (!wg) return; if (typeof e.data === "number") wg.load = e.data; else console.warn("waveguide engine reset itself (its numbers stopped being finite)", veh.id); };
         node.connect(hum);
       } catch (e) { console.warn("waveguide engine failed, using the synth", e); wg = null; }
     }
@@ -443,7 +466,7 @@ export class CarAudio {
     const osc = [...parts.map((p) => p.o), lfo, ...(whine ? [whine.o] : [])];
     const g = GEARS[veh.id] ?? GEARS["rally"]!;
     return { osc, parts, lfo, whine, rasp: { band: rb, g: rg }, filter, hum, noise, band, squeal, rumble: { f: rf, g: rumG }, sq, pan, out, prof,
-      box: new Gearbox(g.hi, g.idle, g.gap, g.up, g.down), ref: 110 * veh.top, shiftAt: -10, blip: false, pops: POPS[veh.id] ?? 0, last: -1, lastPop: -1, quietSince: -1, wg, idle: g.idle, sim: null, simGear: -1 };
+      box: new Gearbox(g.hi, g.idle, g.gap, g.up, g.down), ref: 110 * veh.top, shiftAt: -10, blip: false, pops: POPS[veh.id] ?? 0, last: -1, lastPop: -1, quietSince: -1, wg, idle: g.idle, sim: null, simGear: -1, player, vol: 0 };
   }
 
   update(id: string, type: VehicleId | undefined, s: CarSound, player: boolean): void {
@@ -453,7 +476,7 @@ export class CarAudio {
     if (!v) {
       // only the engines near the camera are built, and a crowded field on a phone gets fewer of them
       if (!player && (s.vol < 0.08 || this.voices.size >= this.maxVoices)) return;
-      v = this.make(type) ?? undefined; if (!v) return; this.voices.set(id, v);
+      v = this.make(type, player) ?? undefined; if (!v) return; this.voices.set(id, v);
     }
     // nobody hears a car that is far off: let its nodes go, which also keeps the graph small
     if (!player && s.vol < 0.05) {
@@ -461,7 +484,8 @@ export class CarAudio {
       else if (t - v.quietSince > 1.5) { this.release(id); return; }
     } else v.quietSince = -1;
     if (t - v.last < (player ? UPDATE_EVERY * 0.6 : UPDATE_EVERY)) return;
-    v.last = t;
+    v.last = t; v.vol = s.vol;
+    if (this.model === "waveguide") this.shed(t);
     const p = v.prof;
     const lift = clamp(s.accel / 120, -0.6, 1), on = clamp(0.5 + lift, 0, 1);
     // the gearbox decides the revs: they climb in a gear, fall away on a change up, and snap up on a change down. In a race the

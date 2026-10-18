@@ -468,7 +468,7 @@ export class Game {
       const el = document.createElement("div"); el.id = "audiometer"; this.toastLayer.parentElement?.appendChild(el);
       this.meterTimer = window.setInterval(() => {
         const st = this.audio.engineStats();
-        el.textContent = `${st.model}${st.model === "waveguide" && st.state !== "ready" ? ` (${st.state})` : ""} · ${st.voices} engines${st.wg ? ` · ${st.wg} waveguide · audio thread ${Math.round(st.load * 100)}%` : ""}`;
+        el.textContent = `${st.model}${st.model === "waveguide" && st.state !== "ready" ? ` (${st.state})` : ""} · ${st.voices} engines${st.wg ? ` · ${st.wg} waveguide · audio thread ${Math.round(st.load * 100)}%` : ""}${st.shed ? ` · ${st.shed} moved to synth` : ""}`;
         el.classList.toggle("hot", st.load > 0.7);
       }, 500);
     } else if (!meter && this.meterTimer) { clearInterval(this.meterTimer); this.meterTimer = 0; document.getElementById("audiometer")?.remove(); }

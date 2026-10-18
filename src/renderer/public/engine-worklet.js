@@ -130,7 +130,17 @@ class EngineProcessor extends AudioWorkletProcessor {
 
   constructor(options) {
     super();
-    const p = options.processorOptions;
+    this.options = options.processorOptions;
+    this.build(this.options);
+    this.alive = true;
+    // the cost meter: Date.now() is all a worklet has, and it is coarse, but summed over a second the rounding evens out
+    this.busy = 0;
+    this.blocks = 0;
+    this.port.onmessage = (e) => { if (e.data === "stop") this.alive = false; };
+  }
+
+  /** Every pipe and filter, empty. Also how a node starts over if its numbers ever stop being finite. */
+  build(p) {
     const scale = sampleRate / REF_RATE;
     this.cylinders = [];
     for (let i = 0; i < p.cylinders; i++) this.cylinders.push(new Cylinder(p, scale));
@@ -150,11 +160,6 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.crankshaftFilter = new LowpassFilter(75.0);
     this.engineFilter = new LowpassFilter(125.0);
     this.revolution = 0.0;
-    this.alive = true;
-    // the cost meter: Date.now() is all a worklet has, and it is coarse, but summed over a second the rounding evens out
-    this.busy = 0;
-    this.blocks = 0;
-    this.port.onmessage = (e) => { if (e.data === "stop") this.alive = false; };
   }
 
   process(_inputs, outputs, parameters) {
@@ -188,6 +193,11 @@ class EngineProcessor extends AudioWorkletProcessor {
       this.muffler.update(this.straightPipe.outputRight, this.outlet.outputLeft);
       out[s] = gain * this.tone2.get(this.tone1.get(mi * intake + mb * this.engineFilter.get(block) + mo * outlet));
     }
+    // a NaN or an infinity reaching the speakers silences every sound in the page, not just this engine: if one ever appears, this
+    // block is silent and the engine starts over from empty pipes
+    let sum = 0;
+    for (let s = 0; s < out.length; s++) sum += out[s];
+    if (!Number.isFinite(sum)) { out.fill(0); this.build(this.options); this.port.postMessage("reset"); }
     for (let c = 1; c < outputs[0].length; c++) outputs[0][c].set(out);
     this.busy += Date.now() - t0;
     if (++this.blocks * out.length >= sampleRate) {
