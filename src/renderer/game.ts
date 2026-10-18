@@ -760,7 +760,7 @@ export class Game {
 
   private startTutorial(): void {
     this.tutBackup = JSON.parse(JSON.stringify(this.settings)) as Settings;
-    this.settings = { ...this.settings, phrase: "oval", laps: 3, rivals: 3, realism: true, mode: "race", pitPlan: [], mandatory: [], wearFuel: 1, wearTyre: 1, obstacles: false, startTyre: "medium" };
+    this.settings = { ...this.settings, phrase: "oval", laps: 3, rivals: 3, realism: true, mode: "race", pitPlan: [], autoPit: false, mandatory: [], wearFuel: 1, wearTyre: 1, obstacles: false, startTyre: "medium" };
     this.weekend = null;
     this.run = this.runFor("tutorial", "race");
     this.audio.unlock();
@@ -1497,6 +1497,7 @@ export class Game {
 
   /** What the tank and the plan say: the first lap, if any, on which the car would run dry. */
   private fuelProblem(next: number, fuel: number): number | null {
+    if (this.settings.autoPit !== false) return null; // the pit wall brings the car in before it runs dry
     const per = fuelPerLap(this.playerCar(), this.run.laps, trackLength(this.track)) * this.run.wearFuel;
     return firstDryLap(per, this.run.laps, next, fuel, this.settings.pitPlan.map((p) => p.lap), TANK);
   }
@@ -1647,6 +1648,7 @@ export class Game {
     const can = options.length > 0 && (onStart || !full);
     this.planLayer.innerHTML = `<div class="panel plan">
       <div class="row"><h2 style="flex:1">Pit strategy <span class="dim" style="font-weight:400;font-size:13px">a stop gives fresh tyres and a full tank</span></h2><span class="dim" style="flex:0 0 auto">${queue.length + (startable ? 1 : 0)} / ${MAX_PIT_STOPS} queued</span><button id="planclose" class="big grey slim">Done</button></div>
+      <label class="autopit"><input type="checkbox" id="autopit" ${s.autoPit !== false ? "checked" : ""} ${this.race ? "disabled" : ""}/> <b>Let the pit wall call the stops</b> <span class="dim">it brings you in for fuel, worn tyres or the wrong tyre for the road; the stops you queue here come first${this.race ? " (set before the start)" : ""}</span></label>
       <div class="timeline">${cells}</div>
       <div class="slots">${slots}</div>
       ${this.run.realism ? `<label>${onStart ? "Tactic to start with" : "Tactic after this stop"} <span class="dim">harder is quicker, but wears the tyres, heats them and burns fuel</span></label>${tacticChips("plan", onStart ? s.startTactic ?? "balanced" : this.planTactic)}` : ""}
@@ -1659,6 +1661,7 @@ export class Game {
     </div>`;
     const root = this.planLayer;
     root.querySelector("#planclose")?.addEventListener("click", () => this.closePlan());
+    root.querySelector<HTMLInputElement>("#autopit")?.addEventListener("change", (e) => { s.autoPit = (e.target as HTMLInputElement).checked; this.persist(); this.afterPlanChange(); });
     const step = (dir: number) => { const i = options.indexOf(this.planLap); const j = Math.min(options.length - 1, Math.max(0, i + dir)); this.planLap = options[j] ?? this.planLap; this.planMsg = ""; this.renderPlan(); };
     root.querySelector("#lapminus")?.addEventListener("click", () => step(-1));
     root.querySelector("#lapplus")?.addEventListener("click", () => step(1));
@@ -1681,7 +1684,7 @@ export class Game {
     const tt = this.best[trialKey(st.phrase, this.vehicle)];
     this.me = {
       id: ME, name: this.online.name, car: this.playerCar(), lines: Array.from({ length: r.laps }, () => this.driven()), isPlayer: true,
-      pitPlan: r.realism ? st.pitPlan : [], startTyre: r.kind === "trial" ? "soft" : st.startTyre, ...(r.realism && st.startTactic ? { startTactic: st.startTactic } : {}),
+      pitPlan: r.realism ? st.pitPlan : [], ...(r.realism && st.autoPit !== false ? { autoPit: true } : {}), startTyre: r.kind === "trial" ? "soft" : st.startTyre, ...(r.realism && st.startTactic ? { startTactic: st.startTactic } : {}),
       ...(timed ? { gridSlot: 0 } : {}),
       // a quick race is gridded by the time trial: without a time you start last
       ...(r.flow === "quick" ? { gridTime: quickGridTime(tt) } : {}),
@@ -1805,7 +1808,7 @@ export class Game {
     if (!p) return "Skip ahead";
     const mine = this.race?.cars.find((c) => c.entrant.id === ME);
     const planned = this.run.realism && !!mine && (this.me.pitPlan ?? []).some((x) => x.lap >= Math.max(0, mine.lap));
-    return (p.final ? p.atStop : planned) ? "Skip to pit stop" : "Skip to end";
+    return (p.final ? p.atStop : planned) ? "Skip to pit stop" : this.run.realism && this.me.autoPit ? "Skip ahead" : "Skip to end";
   }
 
   /** Work the race out for as long as a frame can spare, to stay a little ahead of the play head; at high speed it may have to wait for the sim. */
@@ -2282,7 +2285,7 @@ export class Game {
     if (r.kind !== "race" || this.special || this.settings.overtake || this.settings.room || r.difficulty !== "hard" || r.rivals > MAX_RACE_RIVALS) return; // only the hard field is one the server can replay // the server will not replay a field bigger than it allows
     this.online.uploadRace({
       kind: r.flow === "weekend" ? "weekend" : "quick", phrase: this.track.phrase, vehicle: this.vehicle, car, laps: r.laps, rivals: r.rivals, realism: r.realism, lines: this.me.lines,
-      wearFuel: r.wearFuel, wearTyre: r.wearTyre, mandatory: r.mandatory, startTyre: this.me.startTyre, startTactic: this.me.startTactic, pitPlan: this.me.pitPlan,
+      wearFuel: r.wearFuel, wearTyre: r.wearTyre, mandatory: r.mandatory, startTyre: this.me.startTyre, startTactic: this.me.startTactic, pitPlan: this.me.pitPlan, autoPit: this.me.autoPit,
       ghostIds: this.rivalEntrants.filter((e) => e.id.startsWith("ghost:")).map((e) => e.id.slice(6)),
     });
   }

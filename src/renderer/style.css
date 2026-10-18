@@ -513,3 +513,7 @@ tr.me td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 button.big.yellow { background: #ffcf3f; } button.big.orange { background: #ff6a2b; } button.big.pink { background: #e0409a; } button.big.cyan { background: #35c4ee; }
 button.big.green { background: #2fbf71; } button.big.violet { background: #7a5cf0; } button.big.blue { background: #3f7dea; } button.big.grey { background: #4a5575; }
 button.big { background-color: #3a4b82; }
+
+/* pit strategy: the pit wall toggle */
+.panel.plan label.autopit { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 4px 0 10px; text-transform: none; letter-spacing: 0; font-size: 14px; cursor: pointer; }
+.panel.plan label.autopit input { transform: translateY(2px) scale(1.25); accent-color: var(--accent); }

@@ -110,8 +110,9 @@ practise somewhere quiet and take the line into a race.
 | **Tutorial** | A guided run on the oval: drawing, locking in segments, queuing a pit stop and editing in the pits. |
 
 **Long races and strategy.** You can only change your line while you are in the pits, and then only up to three segments
-per stop. So in a long race you plan ahead: queue up to five stops in advance, each with a lap to come in on and a tyre
-to fit. The race plays out in real time and your stops happen when you said they would.
+per stop. Leave the stops to the pit wall (it calls them as the computer drivers' are called: fuel, worn tyres, the wrong
+tyre for the road), or plan ahead: queue up to five stops, each with a lap to come in on and a tyre to fit. A stop you
+queue always comes first.
 
 **Power-ups** (boost, grip and ghost pickups) are in the code but switched off for now.
 

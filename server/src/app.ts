@@ -169,7 +169,7 @@ export function createApp(cfg: AppConfig): Server {
       for (const l of parsed.lines) if (!isComplete(track, l) || !validateLine(track, l).ok) throw new HttpError(422, "a line does not go all the way round or leaves the road");
       const id = db.addResult(me.id, t.key, kind, b["vehicle"], {
         car: b["car"], lines: b["lines"], lapLine, laps, rivals, realism: !!b["realism"], wearFuel: b["wearFuel"], wearTyre: b["wearTyre"], mandatory: b["mandatory"],
-        startTyre: b["startTyre"], startTactic: b["startTactic"], pitPlan: b["pitPlan"], ghostIds: Array.isArray(b["ghostIds"]) ? b["ghostIds"].slice(0, 31) : [],
+        startTyre: b["startTyre"], startTactic: b["startTactic"], pitPlan: b["pitPlan"], autoPit: b["autoPit"] === true, ghostIds: Array.isArray(b["ghostIds"]) ? b["ghostIds"].slice(0, 31) : [],
       });
       return send(req, res, 202, { ok: true, id });
     }

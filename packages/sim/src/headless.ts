@@ -131,6 +131,8 @@ export interface RaceInput {
   startTyre?: Compound;
   startTactic?: Tactic;
   pitPlan?: { lap: number; tyre?: Compound; tactic?: Tactic }[];
+  /** the pit wall calls the stops the player did not queue (see `Entrant.autoPit`) */
+  autoPit?: boolean;
   ghosts: GhostRival[];
   /** rivals in all (ghosts included); the rest are computer-driven */
   rivals: number;
@@ -170,7 +172,7 @@ export function runRace(i: RaceInput): RaceOutcome {
   const me: Entrant = {
     id: "me", name: "Driver", car: { ...i.car, name: String(i.car.name).slice(0, 40), type: vehicle },
     lines: i.lapLine.map((k) => i.lines[k]!), isPlayer: true,
-    pitPlan: i.realism ? plan : [], startTyre: i.startTyre && isCompound(i.startTyre) ? i.startTyre : "medium", ...(i.startTactic && isTactic(i.startTactic) ? { startTactic: i.startTactic } : {}),
+    pitPlan: i.realism ? plan : [], ...(i.realism && i.autoPit === true ? { autoPit: true } : {}), startTyre: i.startTyre && isCompound(i.startTyre) ? i.startTyre : "medium", ...(i.startTactic && isTactic(i.startTactic) ? { startTactic: i.startTactic } : {}),
     gridTime: quickGridTime(i.playerTime),
   };
   const ghosts: Entrant[] = i.ghosts.slice(0, i.rivals).map((g, n) => ({ id: `ghost:${g.id}`, name: g.name, car: { ...g.car, type: vehicle }, lines: [g.line], gridTime: g.time, bestLap: g.time }));

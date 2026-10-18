@@ -141,7 +141,7 @@ export class Online {
   /** Send a finished race to be replayed on the server. Fire and forget. */
   uploadRace(r: {
     kind: "quick" | "weekend"; phrase: string; vehicle: string; car: CarConfig; laps: number; rivals: number; realism: boolean; lines: Line[];
-    wearFuel?: number; wearTyre?: number; mandatory?: Compound[]; startTyre?: Compound; startTactic?: Tactic; pitPlan?: { lap: number; tyre?: Compound; tactic?: Tactic }[]; ghostIds: string[];
+    wearFuel?: number; wearTyre?: number; mandatory?: Compound[]; startTyre?: Compound; startTactic?: Tactic; pitPlan?: { lap: number; tyre?: Compound; tactic?: Tactic }[]; autoPit?: boolean; ghostIds: string[];
   }): void {
     // the distinct lines, and which each lap used (an amended lap has a different line from there on)
     const distinct: Line[] = [], lapLine: number[] = [];
@@ -155,7 +155,7 @@ export class Online {
       if (!(await this.ensureRegistered())) return;
       await this.call("POST", "/results", {
         kind: r.kind, phrase: normalizePhrase(r.phrase), vehicle: r.vehicle, car: r.car, lines: distinct.map(lineToWire), lapLine, laps: r.laps, rivals: r.rivals, realism: r.realism,
-        wearFuel: r.wearFuel, wearTyre: r.wearTyre, mandatory: r.mandatory, startTyre: r.startTyre, startTactic: r.startTactic, pitPlan: r.pitPlan, ghostIds: r.ghostIds,
+        wearFuel: r.wearFuel, wearTyre: r.wearTyre, mandatory: r.mandatory, startTyre: r.startTyre, startTactic: r.startTactic, pitPlan: r.pitPlan, autoPit: r.autoPit, ghostIds: r.ghostIds,
       });
     })();
   }

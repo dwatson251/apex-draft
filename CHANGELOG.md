@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Play now.** A tile on the home screen goes straight to drawing a random track: three laps, seven rivals, no tyres or fuel, at Medium once you have opened it. Your own Quick Race setup is left as it was.
+- **Difficulty is chosen on the race setup**, in a dropdown beside the laps and the field, instead of on a screen of its own between the menu and the setup. The next locked difficulty says what opens it.
+- **The pit wall can call your stops.** In the pit strategy panel, *Let the pit wall call the stops* (on by default) brings you in when the computer drivers would come in: for fuel, worn tyres or the wrong tyre for the road. Stops you queue still come first. It is set before the start, and the server replays it.
+- **Computer drivers count all the fuel they burn.** Planning their stops, they left out the race's fuel multiplier, the place and their tactic, so with fuel use turned up they thought a tank went much further than it does and ran dry.
 - **No Time Trial, no back of the grid.** A Quick Race used to start you last if you had no Time Trial time on the track. Now you are placed as the computer drivers are, by the lap time of the line you drew; a Time Trial time still counts when you have one. The server replays races the same way. **SIM_VERSION is 7.**
 - **Long races use a fifth of the memory.** What a race records for playback (every car's place, speed, fuel, tyres... at every tick) is kept in typed arrays instead of plain ones: about 32 bytes a car a tick instead of 156, so a 50-lap race of 32 cars at Spa holds about 0.4 GB instead of 1.7 GB, which phones and the Steam Deck could not spare.
 - **The kart courses are a fan pack now, not part of the game.** Release builds and the online server leave them out; dev builds, the tests and a build made with `VITE_KART_PACK=1` (or a server with `APEX_KART_PACK=1`) put them back. Without the pack a course's name is an ordinary phrase. See DEVELOPER.md.

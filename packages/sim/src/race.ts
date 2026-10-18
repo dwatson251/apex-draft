@@ -303,6 +303,8 @@ export interface Entrant {
   pit?: boolean[];
   /** the stops the player has queued: at most MAX_PIT_STOPS still to come at any time (a long race can have more over its length) */
   pitPlan?: PitStop[];
+  /** let the pit wall call the stops the player has not queued, as the computer drivers' are called: fuel, tyres and the state of the road (a queued stop still comes first) */
+  autoPit?: boolean;
   /** tyre on the grid; medium if left out */
   startTyre?: Compound;
   /** how to drive the first stint; balanced if left out */
@@ -692,7 +694,9 @@ export class Race {
 
   private pairKey(a: RaceCar, b: RaceCar): string { return a.slot < b.slot ? `${a.slot}|${b.slot}` : `${b.slot}|${a.slot}`; }
 
-  private fuelPerLapOf(c: RaceCar): number { return c.perUnit * this.lapLen; }
+  /** What a lap costs this car in fuel: the same factors as the burn in `step` (the tactic, the place and the race's fuel multiplier). Leaving them out
+   *  had cars with fuel use turned up think a tank went four times as far as it does, and run dry. */
+  private fuelPerLapOf(c: RaceCar): number { return c.perUnit * this.lapLen * TACTIC_INFO[c.tactic].fuel * this.biome.fuel * clampWear(this.rules.wearMult?.fuel); }
 
   /** How wet the road looks along this car's line, 0 to 1. */
   private lineWet(c: RaceCar): number {
@@ -710,7 +714,7 @@ export class Race {
     if (c.entrant.isPlayer || c.entrant.pit || c.entrant.pitPlan) {
       const plan = c.entrant.pitPlan?.find((p) => p.lap === lap);
       if (plan) { c.nextTyre = plan.tyre ?? null; c.nextTactic = plan.tactic ?? null; return true; }
-      return !!c.entrant.pit?.[lap];
+      if (!c.entrant.autoPit) return !!c.entrant.pit?.[lap];
     }
     const perLap = this.fuelPerLapOf(c);
     const left = this.laps - lap;
