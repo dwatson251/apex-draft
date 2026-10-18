@@ -157,6 +157,8 @@ export class Game {
     if (this.special?.kind === "champ" && this.special.career) { this.career = { ...this.career, current: c }; void save("career", this.career); }
     else { this.champ = c; void save("championship", c); }
   }
+  /** the records have been read from storage (the difficulty is checked against them only then) */
+  private recordsLoaded = false;
   /** races kept to watch again (replays.ts), newest first */
   private replays: Replay[] = [];
   /** the entrants as they were when the race began, and its rules, for the replay */
@@ -281,6 +283,7 @@ export class Game {
     this.cars = await load<CarConfig[]>("cars", []);
     this.best = await load<Best>("best", {});
     this.records = normaliseRecords(await load<unknown>("records", {}));
+    this.recordsLoaded = true;
     this.dailyRec = normaliseDaily(await load<unknown>("daily", {}));
     this.replays = await loadReplays();
     { const g = await load<unknown>("golf", {}); if (g && typeof g === "object") for (const [k, v] of Object.entries(g as Record<string, { stars?: unknown; points?: unknown }>)) if (typeof v?.stars === "number" && typeof v.points === "number") this.golfRec[k] = { stars: v.stars, points: v.points }; }
@@ -364,7 +367,8 @@ export class Game {
     s.wearTyre = clampWear(s.wearTyre);
     s.mandatory = COMPOUND_IDS.filter((c) => Array.isArray(s.mandatory) && s.mandatory.includes(c));
     s.rivals = snapRivals(Number(s.rivals) || 7);
-    if (!isDifficulty(s.difficulty) || !isUnlocked(s.difficulty, this.records)) s.difficulty = highestUnlocked(this.records);
+    // (only once the records are loaded: checked against none, a saved Medium or Hard fell back to Easy every time the game opened)
+    if (!isDifficulty(s.difficulty) || (this.recordsLoaded && !isUnlocked(s.difficulty, this.records))) s.difficulty = this.recordsLoaded ? highestUnlocked(this.records) : isDifficulty(s.difficulty) ? s.difficulty : "easy";
     if (s.flow !== "trial" && s.flow !== "quick" && s.flow !== "weekend") s.flow = "quick";
     if (s.livery !== undefined) {
       const l = s.livery as Partial<Livery>;

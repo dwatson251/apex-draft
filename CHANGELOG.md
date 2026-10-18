@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **The difficulty you chose is kept.** It was checked against your records before they had loaded, so a saved Medium or Hard went back to Easy every time the game opened.
 - **Your own levels for the sound.** Settings has sliders for the music, the effects and the engines (the engines have a bus of their own now). The win, goal and end-of-round stingers are short brass fanfares instead of beeps.
 - **The tutorial teaches the rest of the drawing.** A tip on each of the first segments: the speed colours, dragging points, inserting and deleting them, sliding the square and the diamond along the road edge, and that a smooth, sparse line is usually the quicker one. Its wording now matches the white preview line.
 - **Two new places, and two old ones on random tracks.** *Jungle* (hot, damp and muddy, rain more often than not) and *Volcano* (black basalt, rough on the tyres, lava where the lakes would be). They, *Mountains and forest* and *Coast* now turn up on random phrases: a share of the countryside and the desert becomes one of them, decided on a stream of its own, so every other phrase keeps its place and no layout moves.
