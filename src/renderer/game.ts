@@ -24,6 +24,7 @@ import {
 } from "@apex/sim";
 import { CIRCUITS, TROPHIES, newTrophies, rewardsOf, type RunSummary, type TrophyMode } from "@apex/sim";
 import { CAREER_TIERS, PROMOTE_PLACE, finishSeason, newCareer, normaliseCareer, startSeason, type Career } from "@apex/sim";
+import { fuelMultFor } from "@apex/sim";
 import { SIM_VERSION, duelCode, readDuel, buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile, type RaceEdit, type RaceRules } from "@apex/sim";
 import { MAX_REPLAYS, MAX_REPLAY_BYTES, keepReplay, loadReplays, rulesIn, rulesOut, type Replay } from "./replays.ts";
 import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
@@ -691,6 +692,7 @@ export class Game {
       record: flow === "trial" ? null : { stars: starsFor(this.records, recordKey(phrase, chosen)), place: bestPlace(this.records, recordKey(phrase, chosen)) },
       gridLine: (flow === "quick" ? (tt !== undefined ? `Your grid place comes from your time trial: <b>${fmt(tt)}</b>` : "Your grid place comes from the lap time of the line you draw. A Time Trial time, once you have one, counts instead.") : flow === "weekend" ? "Your grid place comes from the qualifier." : "")
         // (reportRun only sends a race the server can replay: say so, rather than leave a race off the boards without a word)
+        + (realism && (s.wearFuel ?? 1) > 1 ? (() => { const t = generateTrack(s.phrase, { obstacles: false }), len = trackLength(t), car = { ...s.car, type: chosen }, m = fuelMultFor(car, s.laps, len, BIOMES[t.biome].fuel, s.wearFuel); return m < (s.wearFuel ?? 1) - 0.01 ? ` <span class="unranked">Fuel use is held to ${m.toFixed(1)}× here: a full tank always lasts a lap and a half.</span>` : ""; })() : "")
         + (flow !== "trial" && (s.difficulty !== "hard" || (flow === "quick" && s.elimination)) ? ` <span class="unranked">This race won't go on the online boards: only ${flow === "quick" && s.elimination ? "ordinary races" : "races"} on Hard do. Your lap times still count.</span>` : ""),
       note: this.note,
     }));
@@ -1280,6 +1282,12 @@ export class Game {
   /** What the player drives: their own stats in this track's kind of machine. */
   private playerCar(): CarConfig { return { ...this.settings.car, type: this.vehicle }; }
 
+  /** What a lap costs the player's car in fuel in this session: the place's thirst and the multiplier the race really uses (`fuelMultFor`), as the race burns it. */
+  private fuelLap(): number {
+    const len = trackLength(this.track), place = BIOMES[this.track.biome].fuel;
+    return fuelPerLap(this.playerCar(), this.run.laps, len) * place * fuelMultFor(this.playerCar(), this.run.laps, len, place, this.run.wearFuel);
+  }
+
   /**
    * How fast the player's car goes round a line, for the speed colours and the predicted lap: a flying lap with no tyres, fuel or traffic. A lap still
    * being drawn is filled in the way "finish for me" would (only the part drawn is shown). Kept for the last line asked about: the map is redrawn on
@@ -1800,7 +1808,7 @@ export class Game {
   /** What the tank and the plan say: the first lap, if any, on which the car would run dry. */
   private fuelProblem(next: number, fuel: number): number | null {
     if (this.settings.autoPit !== false) return null; // the pit wall brings the car in before it runs dry
-    const per = fuelPerLap(this.playerCar(), this.run.laps, trackLength(this.track)) * this.run.wearFuel;
+    const per = this.fuelLap();
     return firstDryLap(per, this.run.laps, next, fuel, this.settings.pitPlan.map((p) => p.lap), TANK);
   }
 
@@ -2600,7 +2608,7 @@ export class Game {
       set("#hud-table", rows.map((i, n) => { const c = standing[i]!.c; return `<tr class="${c.entrant.id === ME ? "me" : ""} ${n > 0 && i - rows[n - 1]! > 1 ? "gap" : ""}"><td>${i + 1}</td><td><span style="color:${hex(this.colorOf(c.entrant.id))}">■</span> ${esc(c.entrant.name)}</td><td class="num">${this.splits.get(c.entrant.id) ?? ""}</td></tr>`; }).join(""));
     }
     if (this.run.realism) {
-      const fuel = me.ftrace[mi] ?? 100, tyre = me.ttrace[mi] ?? 1, per = fuelPerLap(this.playerCar(), this.run.laps, trackLength(this.track)) * this.run.wearFuel;
+      const fuel = me.ftrace[mi] ?? 100, tyre = me.ttrace[mi] ?? 1, per = this.fuelLap();
       const comp = (["soft", "medium", "wet"] as const)[me.ctrace[mi] ?? 1]!;
       const col = `#${COMPOUNDS[comp].color.toString(16).padStart(6, "0")}`;
       const lowFuel = fuel < per * 0.5;

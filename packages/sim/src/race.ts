@@ -256,6 +256,17 @@ export function fuelPerUnit(car: CarConfig, distance = 3 * LAP_UNITS): number {
   return (TANK / raceScale(distance).fuelRange) * ((0.85 + 0.025 * (car.accel + car.top)) / 1.15) * vehicleOf(car.type).fuel;
 }
 
+/** A full tank always lasts at least this many laps, whatever the fuel multiplier asks: below a lap, no strategy could keep a car from running dry. */
+export const MIN_TANK_LAPS = 1.5;
+/**
+ * The fuel multiplier a car really races with: the one asked for (`wanted`), but no more than leaves a full tank good for `MIN_TANK_LAPS` laps of this
+ * track at the thirstiest tactic. On a long lap with few laps the asked-for multiplier can be far more than that.
+ */
+export function fuelMultFor(car: CarConfig, laps: number, lapLength: number, placeFuel: number, wanted: unknown): number {
+  const cap = TANK / (fuelPerUnit(car, laps * lapLength) * placeFuel * 1.1 * MIN_TANK_LAPS * lapLength);
+  return Math.min(clampWear(wanted), Math.max(1, cap));
+}
+
 /** Fuel one lap of `lapLength` units costs this car in a race of `laps` laps, in tank units (for showing to a person: the sim works by distance). */
 export function fuelPerLap(car: CarConfig, laps = 3, lapLength = LAP_UNITS): number {
   return fuelPerUnit(car, laps * lapLength) * lapLength;
@@ -518,6 +529,8 @@ export interface RaceCar {
   gripBuilt: number;
   /** elimination race: the order it went out in (1 first), 0 while it is still in */
   elim: number;
+  /** the fuel multiplier it races with (`fuelMultFor`) */
+  fuelMult: number;
   /** ticks it has been in a spin or getting going again (for the safety car) */
   recFor: number;
   /** tyre temperature once a second of ticks, for the interface */
@@ -642,7 +655,7 @@ export class Race {
         s: sNew, gridOff: at.off, v: spread ? 40 : 0, x: 0, y: 0, h: 0,
         ghost: false, stuck: 0, air: 0, airT: 0, peak: 0, pad: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
-        needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
+        needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), fuelMult: fuelMultFor(e.car, laps, this.lapLen, this.biome.fuel, this.rules.wearMult?.fuel), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
         compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, gripBuilt: 1, elim: 0, recFor: 0, wake: 0, used: [],
         hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
       });
@@ -817,7 +830,7 @@ export class Race {
 
   /** What a lap costs this car in fuel: the same factors as the burn in `step` (the tactic, the place and the race's fuel multiplier). Leaving them out
    *  had cars with fuel use turned up think a tank went four times as far as it does, and run dry. */
-  private fuelPerLapOf(c: RaceCar): number { return c.perUnit * this.lapLen * TACTIC_INFO[c.tactic].fuel * this.biome.fuel * clampWear(this.rules.wearMult?.fuel); }
+  private fuelPerLapOf(c: RaceCar): number { return c.perUnit * this.lapLen * TACTIC_INFO[c.tactic].fuel * this.biome.fuel * c.fuelMult; }
 
   /** How wet the road looks along this car's line, 0 to 1. */
   private lineWet(c: RaceCar): number {
@@ -1658,7 +1671,7 @@ export class Race {
       if (c.gridOff !== 0 && moved > 0) c.gridOff = Math.abs(c.gridOff) < 0.01 ? 0 : c.gridOff * Math.exp(-moved / 30);
       if (this.rules.realism && moved > 0) {
         const p = c.prof;
-        c.fuel = Math.max(0, c.fuel - moved * c.perUnit * TACTIC_INFO[c.tactic].fuel * this.biome.fuel * clampWear(this.rules.wearMult?.fuel));
+        c.fuel = Math.max(0, c.fuel - moved * c.perUnit * TACTIC_INFO[c.tactic].fuel * this.biome.fuel * c.fuelMult);
         const st = this.stats(c);
         const load = Math.min(1.2, (p.kap[indexAt(p, c.s)]! * c.v * c.v) / cornerCap(c.entrant.car.type, st.aLat, c.v));
         const tac = TACTIC_INFO[c.tactic];

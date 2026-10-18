@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A full tank lasts at least a lap and a half.** Fuel use turned up on a long lap with few laps (4× over three laps of Spa) left a tank good for less than a lap, so every car ran dry every lap whatever its strategy. The multiplier is now held to what leaves a lap and a half in the tank, and race setup says when it is. The fuel shown for a lap counts the place's thirst too.
 - **No more stuck in the pits.** The race drives your line rounded to a hundredth of a unit (as the server keeps it), but the stop compared it with the unrounded line on screen, so a line with finer points than that (a *Finish for me* lap, often a drawn one) counted every segment as changed and *Back out* stayed greyed out. The line on screen is now the rounded one from the start.
 - **The difficulty you chose is kept.** It was checked against your records before they had loaded, so a saved Medium or Hard went back to Easy every time the game opened.
 - **Your own levels for the sound.** Settings has sliders for the music, the effects and the engines (the engines have a bus of their own now). The win, goal and end-of-round stingers are short brass fanfares instead of beeps.

@@ -7,10 +7,14 @@ describe("pit lane edge cases", () => {
   const me = (extra: Partial<Entrant> = {}): Entrant => ({ id: "me", name: "Me", car: defaultCar(), lines: [botLine(t, 1, 0.8)], isPlayer: true, ...extra });
 
   it("a car that keeps running dry, out lap after out lap, still limps round to the flag", () => {
-    // a tank lasts well under a lap: every lap after the first starts in the pit lane and runs dry before it is over
-    const r = new Race(t, [me()], 4, { realism: true, weather: false, wearMult: { fuel: 40, tyre: 1 } });
-    r.runToEnd();
-    const c = r.cars[0]!, res = r.results()[0]!;
+    // the tank is all but empty on every lap out of the pits: each one starts in the pit lane and runs dry before it is over
+    // (fuel use turned up cannot do it any more: a full tank always lasts a lap and a half)
+    const r = new Race(t, [me()], 4, { realism: true, weather: false });
+    const c = r.cars[0]!;
+    c.fuel = 6;
+    let lap = c.lap;
+    while (!r.over) { r.step(); if (c.lap !== lap) { lap = c.lap; if (c.pitOut) c.fuel = Math.min(c.fuel, 6); } }
+    const res = r.results()[0]!;
     expect(c.finishTime, "finished").not.toBeNull();
     expect(res.emergencies).toBeGreaterThanOrEqual(3);
     expect(res.lapTimes.length).toBe(4);
