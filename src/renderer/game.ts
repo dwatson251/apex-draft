@@ -43,6 +43,9 @@ const START_FIRST = 1;
 const START_GAP = 0.85;
 interface StartSeq { t: number; lit: number; out: number; done: boolean }
 
+/** The longest clip a recording makes. */
+const REC_MAX_MS = 60_000;
+
 /** Laps of an elimination race: one for every rival, so one car goes out on each lap but the last, which is a duel (25 at most). */
 const elimLaps = (rivals: number): number => Math.min(25, Math.max(2, rivals));
 
@@ -428,6 +431,7 @@ export class Game {
   }
 
   private leaveGame(): void {
+    this.rec?.r.stop();
     this.draw = null; this.pick = null; this.play = null; this.race = undefined; this.neighbours.clear();
     this.inGame = false; this.shareLine = undefined; this.previewKey = "";
     this.audio.stopAll();
@@ -2001,8 +2005,36 @@ export class Game {
       },
       { id: "skip", label: this.skipLabel(this.play), color: "blue", tip: "Jump ahead to your next pit stop, or to the end of the race.", onClick: () => { const q = this.play; if (q && q.start && !q.start.done) this.finishStart(q.start); else if (q) this.skipAhead(q); } },
       { id: "sound", label: this.audio.isMuted() ? "Sound off" : "Sound on", color: "violet", tip: "Turn the engines and effects on or off (M).", onClick: () => this.toggleMute() },
+      ...(typeof MediaRecorder !== "undefined" ? [{ id: "rec", label: this.rec ? "■ Stop" : "● Record", color: "pink" as const, tip: "Record the race as a video clip (WebM, a minute at most), saved when you stop.", onClick: () => this.toggleRecord() }] : []),
     ]);
     this.updateTutorial();
+  }
+
+  /** Recording a clip of the race: the canvas as a video, saved as a WebM file when it stops (or after `REC_MAX_MS`). */
+  private rec: { r: MediaRecorder; chunks: Blob[]; timer: number } | null = null;
+  private toggleRecord(): void {
+    if (this.rec) { this.rec.r.stop(); return; }
+    let stream: MediaStream;
+    try { stream = (this.app.canvas as HTMLCanvasElement).captureStream(60); } catch { this.toast("This browser cannot record the game.", "bad"); return; }
+    const type = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t));
+    const r = new MediaRecorder(stream, type ? { mimeType: type, videoBitsPerSecond: 8_000_000 } : undefined);
+    const chunks: Blob[] = [];
+    r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    r.onstop = () => {
+      if (this.rec) window.clearTimeout(this.rec.timer);
+      this.rec = null;
+      this.bar.setLabel("rec", "● Record");
+      const blob = new Blob(chunks, { type: "video/webm" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `apex-draft-${normalizePhrase(this.track.phrase)}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.webm`;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+      this.toast("Clip saved");
+    };
+    r.start(1000);
+    this.rec = { r, chunks, timer: window.setTimeout(() => this.rec?.r.stop(), REC_MAX_MS) };
+    this.bar.setLabel("rec", "■ Stop");
   }
 
   /** What the skip button says: the player's next stop if there is one coming (planned, or the one the race has reached), the end of the race if not. */
@@ -2494,6 +2526,7 @@ export class Game {
   }
 
   private showResults(): void {
+    this.rec?.r.stop(); // (a clip ends with the race)
     this.bar.clear();
     const race = this.race!;
     const res = race.results();
