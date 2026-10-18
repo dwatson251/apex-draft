@@ -22,7 +22,7 @@ import {
   TACTIC_INFO, crossedPlace, firstDryLap, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
   type Challenge, type ChallengeStore, type Championship, type DailyRecord,
 } from "@apex/sim";
-import { buildProfile, segmentTimes, type Profile } from "@apex/sim";
+import { buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile } from "@apex/sim";
 import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
 import { copyText, dropdown, wireControls } from "./menus/controls.ts";
 import { challengesHtml, championshipHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
@@ -44,6 +44,10 @@ interface StartSeq { t: number; lit: number; out: number; done: boolean }
 
 /** Laps of an elimination race: one for every rival, so one car goes out on each lap but the last, which is a duel (25 at most). */
 const elimLaps = (rivals: number): number => Math.min(25, Math.max(2, rivals));
+
+/** Line Golf in the bar under the map: points against par, and the flying lap against the target. */
+const golfBar = (g: { points: number; par: number; lap: number; target: number; stars: number } | null): string =>
+  !g ? "" : `<span class="golfbar">⛳ <b>${g.points}</b> points (par ${g.par}) · ${g.lap <= g.target ? `<span class="good">beats</span>` : `<span class="bad">misses</span>`} the target ${fmt(g.target)}${g.stars ? ` · ${"★".repeat(g.stars)}${"☆".repeat(3 - g.stars)}` : ""}</span><br/>`;
 
 export const fmt = (sim: number | null | undefined) => {
   if (sim === null || sim === undefined) return "–";
@@ -121,7 +125,9 @@ export class Game {
   private planTactic: Tactic = "balanced";
   private champPick: { difficulty: Difficulty; vehicle: VehicleId } = { difficulty: "easy", vehicle: "rally" };
   /** a Daily, a Challenge or a round of the Championship being played: it borrows the settings and gives them back (see `modeBackup`) */
-  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ" } | { kind: "play" } | null = null;
+  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ" } | { kind: "play" } | { kind: "golf"; date: string } | null = null;
+  /** Line Golf: the best stars and fewest points on each course, by phrase */
+  private golfRec: Record<string, { stars: number; points: number }> = {};
   private modeBackup: Settings | null = null;
   /** which segment the edit view last framed, so a new one starts centred */
   private focusKey = "";
@@ -241,6 +247,7 @@ export class Game {
     this.best = await load<Best>("best", {});
     this.records = normaliseRecords(await load<unknown>("records", {}));
     this.dailyRec = normaliseDaily(await load<unknown>("daily", {}));
+    { const g = await load<unknown>("golf", {}); if (g && typeof g === "object") for (const [k, v] of Object.entries(g as Record<string, { stars?: unknown; points?: unknown }>)) if (typeof v?.stars === "number" && typeof v.points === "number") this.golfRec[k] = { stars: v.stars, points: v.points }; }
     this.challenges = normaliseChallenges(await load<unknown>("challenges", {}));
     this.champ = normaliseChampionship(await load<unknown>("championship", null));
     this.normaliseSettings(); // again: the difficulty depends on the records
@@ -581,6 +588,7 @@ export class Game {
     const today = dailyDate(new Date()), ran = this.dailyRec.days[today], streak = dailyStreak(this.dailyRec, today);
     const el = this.menuPanel(groupHtml(kind, {
       daily: ran !== undefined ? `Today ${fmt(ran)}${streak > 1 ? ` · ${streak} days` : ""}` : streak > 0 ? `${streak} day streak: run today` : "One track a day, for all",
+      golf: (() => { const r = this.golfRec[golfPhrase(dailyDate(new Date()))]; return r ? `Today ${"★".repeat(r.stars)}${"☆".repeat(3 - r.stars)} in ${r.points} points` : "Fewest points that beat the clock"; })(),
       champ: this.champ ? (isOver(this.champ) ? "Season over" : `Round ${this.champ.done + 1} of ${this.champ.rounds.length}`) : `${ROUNDS} races, one title`,
     }), "tiles");
     this.on(el, "#back", () => this.go("home"));
@@ -589,6 +597,7 @@ export class Game {
     this.on(el, "#h-champ", () => this.go("championship"));
     this.on(el, "#h-trial", () => this.openSetup("trial"));
     this.on(el, "#h-daily", () => this.startDaily());
+    this.on(el, "#h-golf", () => this.startGolf());
   }
 
   private openSetup(flow: Flow): void {
@@ -736,7 +745,7 @@ export class Game {
   private sessionTitle(): string {
     const r = this.run;
     if (r.flow === "tutorial") return "Tutorial";
-    if (r.kind === "trial") return "Solo time trial";
+    if (r.kind === "trial") return this.special?.kind === "golf" ? "Line Golf" : "Solo time trial";
     if (r.flow === "weekend") return `Race weekend · ${r.kind === "practice" ? "Practice" : r.kind === "qualifying" ? "Qualifier" : "Race"}`;
     return this.run.elimination ? "Elimination race" : "Quick race";
   }
@@ -812,6 +821,29 @@ export class Game {
     this.audio.unlock();
     this.startGame();
   }
+
+  /** Line Golf: today's course, as a Time Trial in the garage car, scored on the points of the line against a target lap (golf.ts). */
+  private startGolf(): void {
+    const date = dailyDate(new Date());
+    this.beginSpecial({ kind: "golf", date }, { phrase: golfPhrase(date) }, "trial");
+    this.weekend = null;
+    this.run = this.runFor("trial", "trial");
+    this.audio.unlock();
+    this.startGame();
+  }
+
+  /** Line Golf on a line: its points, par, flying lap, the target and the stars it would earn. Null outside Line Golf or for a lap not finished. */
+  private golfScore(line: Line | null): { points: number; par: number; lap: number; target: number; stars: number } | null {
+    if (this.special?.kind !== "golf" || !line || !isComplete(this.track, line)) return null;
+    const prof = this.lineProfile(line);
+    if (!prof) return null;
+    const key = `${this.track.phrase}|${this.vehicle}|${JSON.stringify(this.playerCar())}`;
+    if (this.golfTargetKey !== key) { this.golfTargetKey = key; this.golfTargetLap = golfTarget(this.track, this.playerCar()); }
+    const points = linePoints(line), par = golfPar(this.track), made = prof.ideal <= this.golfTargetLap;
+    return { points, par, lap: prof.ideal, target: this.golfTargetLap, stars: golfStars(points, par, made) };
+  }
+  private golfTargetKey = "";
+  private golfTargetLap = 0;
 
   /** Today's track, as a Time Trial in the garage car. */
   private startDaily(): void {
@@ -975,7 +1007,7 @@ export class Game {
     // a Daily and a Championship race the machine they say; a Challenge the one it names, if the track has it
     if (this.special?.kind === "champ" && this.champ && choices.includes(this.champ.vehicle)) return this.champ.vehicle;
     if (this.special?.kind === "challenge") { const c = challengeById(this.special.id); return c?.vehicle && choices.includes(c.vehicle) ? c.vehicle : choices[0]!; }
-    if (this.special?.kind === "daily") return choices[0]!;
+    if (this.special?.kind === "daily" || this.special?.kind === "golf") return choices[0]!;
     const v = this.settings.vehicle;
     // a kart course starts on a kart: a machine picked for some other track is not carried over, only one picked while this course was in setup
     const phrase = normalizePhrase(this.settings.phrase);
@@ -1226,7 +1258,7 @@ export class Game {
       ...(this.run.realism ? [{ id: "pits", label: "Pit strategy", color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap.", onClick: () => this.togglePlan() }] : []),
       { id: "fin", label: "Finish segment", color: "yellow", wide: true, disabled: !(pv && pv.ok && !needStart), tip: "Lock in this segment (Enter). Click to place points; drag any point, the square (where it starts) or the diamond (where it ends) to move it along the road edge; Shift+click inserts a point.", onClick: () => this.finishSegment() },
       ...(d.mode === "amend" ? [{ id: "cancel", label: "Cancel", color: "grey" as const, tip: "Throw these edits away and go back to the map.", onClick: () => { this.draw = null; this.showPicker(null); } }] : []),
-    ], `<b>${title}</b>${last}<br/>${status}${d.warn ? `<br/><span class="bad">${esc(d.warn)}</span>` : ""}`);
+    ], `<b>${title}</b>${last}${this.special?.kind === "golf" && d.mode === "lap" ? ` <span class="golfpts">· ${(d.line ? linePoints(d.line) : 0) + d.pts.length} points so far, par ${golfPar(this.track)}</span>` : ""}<br/>${status}${d.warn ? `<br/><span class="bad">${esc(d.warn)}</span>` : ""}`);
     if (this.planOpen) this.renderPlan();
     this.updateTutorial();
   }
@@ -1619,7 +1651,7 @@ export class Game {
       ...(!firstLap && changed.length ? [{ id: "revert", label: "Revert", color: "orange" as const, tip: "Undo every change you have made to your line during this stop.", onClick: () => { this.currentLine = this.me.lines[this.lapNo]!; this.shareLine = this.currentLine; this.syncHash(); this.pick = null; this.showPicker(null); } }] : []),
       ...(real ? [{ id: "pits", label: `Pit strategy${this.queuedStops().length ? ` (${this.queuedStops().length})` : ""}`, color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap, and none on the last lap.", onClick: () => this.togglePlan() }] : []),
       { id: "go", label: goLabel, color: "yellow", wide: true, disabled: !(check.ok && !tooMany), tip: firstLap ? (this.timed() ? "Start the session with this line." : "Start the race with this line.") : "Leave the pits and carry on with your line as it now is.", onClick: () => { this.pick = null; this.closePlan(); if (firstLap) this.startRace(); else this.resumeRace(); } },
-    ], `${prof ? `<span class="predict">Flying lap <b>${fmt(prof.ideal)}</b> <i class="speedkey"><em>slow</em><em>fast</em></i></span> ` : ""}${firstLap ? `Select segments on the map to edit them, or go. ${this.timed() ? "" : `<span class="dim">Once the race starts you can only change your line during a pit stop.</span>`}` : `You are in the pits: change up to <b>${MAX_AMENDS}</b> segments before you go back out (<b>${used}</b> used).`} <span class="dim">Scroll to zoom, drag to pan.</span>`);
+    ], `${golfBar(this.golfScore(line))}${prof ? `<span class="predict">Flying lap <b>${fmt(prof.ideal)}</b> <i class="speedkey"><em>slow</em><em>fast</em></i></span> ` : ""}${firstLap ? `Select segments on the map to edit them, or go. ${this.timed() ? "" : `<span class="dim">Once the race starts you can only change your line during a pit stop.</span>`}` : `You are in the pits: change up to <b>${MAX_AMENDS}</b> segments before you go back out (<b>${used}</b> used).`} <span class="dim">Scroll to zoom, drag to pan.</span>`);
     if (this.planOpen) this.renderPlan();
     this.updateTutorial();
   }
@@ -2394,6 +2426,13 @@ export class Game {
         const streak = dailyStreak(this.dailyRec, d);
         extra += `<p class="${before === undefined || time < before ? "good" : "dim"}">Daily ${d}: <b>${fmt(this.dailyRec.days[d])}</b>${streak > 1 ? ` · ${streak} days in a row` : ""}</p><div id="daily-board" class="dim">Checking today's board…</div>`;
         dailyDate_ = d;
+      }
+      const golf = this.golfScore(this.me?.lines.at(-1) ?? null);
+      if (golf) {
+        const ph = this.track.phrase, was = this.golfRec[ph];
+        const better = !was || golf.stars > was.stars || (golf.stars === was.stars && golf.stars > 0 && golf.points < was.points);
+        if (better && golf.stars > 0) { this.golfRec[ph] = { stars: golf.stars, points: golf.points }; void save("golf", this.golfRec); }
+        extra = `<div class="golfres"><p>⛳ <b>${golf.points}</b> points, par ${golf.par}: ${golf.stars ? `<b class="good">${"★".repeat(golf.stars)}${"☆".repeat(3 - golf.stars)}</b>` : '<span class="bad">the line misses the target</span>'}</p><p class="dim">Its flying lap ${fmt(golf.lap)} against the target ${fmt(golf.target)}.${better && golf.stars ? " A new best on today's course!" : was ? ` Today's best: ${"★".repeat(was.stars)} in ${was.points} points.` : ""}</p></div>` + extra;
       }
       buttons = '<button class="primary" id="again">Edit line &amp; try again</button><button id="res-menu">Menu</button>';
     } else if (kind === "practice") {

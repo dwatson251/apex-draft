@@ -20,6 +20,8 @@ export const TILE_ART: Record<string, string> = {
   weekend: svg('<rect x="30" y="50" width="140" height="110" rx="6"/><path d="M30 82h140M62 34v28M138 34v28"/><path d="M52 104h22M89 104h22M126 104h22M52 130h22M89 130h22" stroke-width="4"/>'),
   champ: svg('<path d="M70 40h60v40a30 30 0 0 1-60 0z"/><path d="M70 52H44c0 28 10 40 28 44M130 52h26c0 28-10 40-28 44"/><path d="M100 110v32M72 162h56M84 142h32"/>'),
   trial: svg(WATCH),
+  // a flag in a hole on a green, and the line that got there
+  golf: svg('<path d="M30 150c40-30 80-10 108-30" stroke-dasharray="9 11"/><ellipse cx="140" cy="150" rx="38" ry="10"/><path d="M140 150V42"/><path d="M140 44l40 14-40 14z" fill="currentColor"/>'),
   daily: svg('<circle cx="100" cy="100" r="30"/><path d="M100 36v18M100 146v18M36 100h18M146 100h18M55 55l13 13M132 132l13 13M145 55l-13 13M68 132l-13 13"/>'),
   // a gauge with the needle a little further round for each difficulty
   easy: svg('<path d="M30 140a70 70 0 0 1 140 0"/><path d="M100 140L62 104" stroke-width="7"/><path d="M40 140h14M146 140h14M100 62v14M54 90l10 10M146 90l-10 10" stroke-width="3"/><circle cx="100" cy="140" r="8"/>'),

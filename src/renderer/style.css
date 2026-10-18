@@ -529,3 +529,9 @@ button.big { background-color: #3a4b82; }
 .deltas { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
 .deltas p { margin: 0 0 6px; } .deltas ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; }
 .deltas li { display: flex; gap: 8px; align-items: baseline; padding: 4px 10px; border-radius: 999px; background: rgba(255, 207, 63, 0.16); border: 1px solid rgba(255, 207, 63, 0.5); font-size: 13px; }
+
+/* Line Golf */
+.golfbar { white-space: nowrap; } .golfbar b { color: #fff; }
+.golfpts { color: #9fe07a; font-weight: 600; }
+.golfres { margin: 8px 0; padding: 8px 12px; border-radius: 12px; background: rgba(123, 192, 67, 0.12); border: 1px solid rgba(123, 192, 67, 0.45); }
+.golfres p { margin: 0 0 4px; }

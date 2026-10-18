@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Line Golf** (Time Attack): a course a day, and a target flying lap to beat with as few points as you can. Par and the target come from a reference line, the best computer line thinned to the fewest points that keep it on the road, so par can be drawn and a smooth, sparse line is quicker than a busy one. Three stars at par, two within half as many again, one for making the target. The score is worked out from the line, so it is the same every time.
 - **Elimination races.** Turn on *Elimination* in Quick Race: each time the leader starts a new lap, the last car still running is out, down to a duel on the last lap (a lap for every rival, 25 at most). A toast says who has gone; the results list who went out on which lap. Elimination races are kept apart from ordinary ones for best times, and are not sent to the online boards.
 - **Cars pull hardest off the line and fade toward top speed.** Acceleration used to be the same all the way up to top speed. Now a car puts down all its grip at low speed, then its power and the air take over and the pull fades, as a real car's does: getting out of a slow corner well matters more, a long straight a little less. A slipstream or a pad stretches the curve so a car can still go past its top speed.
 - **One grip for turning and braking.** A tyre turning at the limit has less left to brake or accelerate with (the friction circle), so a line that brakes in a straight line before a bend and straightens the exit is quicker than one that brakes and turns at once.

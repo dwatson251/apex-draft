@@ -91,7 +91,7 @@ kart corners like it is on rails and goes nowhere on the straight. A truck is th
 
 ## Race modes
 
-Pick one from the main menu, where they are grouped as **Race** (Quick Race, Race Weekend, Championship) and **Time Attack** (Solo Time Trial, Daily), next to Challenges. Your drawn line carries over from one mode to the next on the same track, so you can
+Pick one from the main menu, where they are grouped as **Race** (Quick Race, Race Weekend, Championship) and **Time Attack** (Solo Time Trial, Daily, Line Golf), next to Challenges. Your drawn line carries over from one mode to the next on the same track, so you can
 practise somewhere quiet and take the line into a race.
 
 <p align="center">
@@ -105,6 +105,7 @@ practise somewhere quiet and take the line into a race.
 | **Quick Race** | A single race of up to 50 laps against up to 31 rivals. Turn **Realism** on for tyres, fuel, pit stops and weather. Scale wear and fuel use up to 40x to make a short race feel like an endurance one, and make some tyres mandatory. You start from the place your Time Trial time earns, or, with none, where the lap time of your line puts you. |
 | **Race Weekend** | **Practice** has no wear, with the others spread round the track. It ends when you say or after 10 minutes, and you can edit your line between runs. **Qualifier** is an out lap, three timed laps and a cool-down, and your best lap counts. Then the **Race** starts from the grid you qualified for. |
 | **Daily** | One track a day, the same for everyone, as a Time Trial in your own car. Your best, your streak and the online board for the day. |
+| **Line Golf** | A course a day: beat the target lap with as few points as you can. Par comes from a line that can be drawn; three stars at par. |
 | **Championship** | Five races on linked tracks against the same rivals, with points for the places. Each round is a qualifier and a race. |
 | **Challenges** | Ten races with a goal, worth one to three stars each. |
 | **Tutorial** | A guided run on the oval: drawing, locking in segments, queuing a pit stop and editing in the pits. |

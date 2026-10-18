@@ -42,3 +42,4 @@ export { checkFx, funPieces } from "./features.ts";
 export * from "./daily.ts";
 export * from "./championship.ts";
 export * from "./challenges.ts";
+export * from "./golf.ts";

@@ -26,7 +26,7 @@ export function homeHtml(o: { version: string; quit: boolean; note: string; chal
 }
 
 /** A group of modes behind one tile on the home screen: Race (against rivals) or Time Attack (against the clock). */
-export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: string }): string {
+export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: string; golf: string }): string {
   const t = (spec: TileSpec) => tile(spec, esc);
   const head = (title: string, sub: string) => `<header class="tilehead"><button class="back" id="back">← Back</button><div><h2>${title}</h2><p class="dim">${sub}</p></div></header>`;
   return kind === "race"
@@ -34,9 +34,10 @@ export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: st
         ${t({ id: "h-quick", art: "quick", colour: "#ff6a2b", title: "Quick Race", sub: "One race: rivals, tyres and fuel" })}
         ${t({ id: "h-weekend", art: "weekend", colour: "#e0409a", title: "Race Weekend", sub: "Practice, qualifier, race" })}
         ${t({ id: "h-champ", art: "champ", colour: "#d6283f", title: "Championship", sub: o.champ })}</div>`
-    : `${head("Time Attack", "You, the track and the clock")}<div class="tilegrid group two">
+    : `${head("Time Attack", "You, the track and the clock")}<div class="tilegrid group">
         ${t({ id: "h-trial", art: "trial", colour: "#f2b705", title: "Solo Time Trial", sub: "Any track, as many tries as you like" })}
-        ${t({ id: "h-daily", art: "daily", colour: "#14b8a6", title: "Daily", sub: o.daily })}</div>`;
+        ${t({ id: "h-daily", art: "daily", colour: "#14b8a6", title: "Daily", sub: o.daily })}
+        ${t({ id: "h-golf", art: "golf", colour: "#7bc043", title: "Line Golf", sub: o.golf })}</div>`;
 }
 
 const DIFFICULTY_BLURB: Record<Difficulty, string> = {
