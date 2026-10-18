@@ -45,6 +45,8 @@ export interface Limits {
   gap: number;
   /** parts of the road closer than this along it are not "other" parts of it */
   near: number;
+  /** points (by index) that may lie on each other: where the road crosses itself on a bridge */
+  exempt?: (i: number, j: number) => boolean;
 }
 
 export interface Report { minRadius: number; minGap: number; worstDrift: number; meanDrift: number; iterations: number }
@@ -160,7 +162,7 @@ function separate(P: Pt[], lim: Limits, pinned: (i: number) => boolean): number 
     const dx = new Float64Array(n), dy = new Float64Array(n);
     bad = 0;
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-      if (Math.min(j - i, n - (j - i)) <= nearIdx) continue;
+      if (Math.min(j - i, n - (j - i)) <= nearIdx || lim.exempt?.(i, j)) continue;
       const a = P[i]!, b = P[j]!, ex = b.x - a.x, ey = b.y - a.y;
       if (Math.abs(ex) >= lim.gap || Math.abs(ey) >= lim.gap) continue;
       const d = Math.hypot(ex, ey);
@@ -206,7 +208,7 @@ export function measure(p: Pt[], original: Pt[], lim: Limits): Report {
   const n = p.length, spacing = length(p) / n, nearIdx = Math.ceil(lim.near / spacing);
   let minGap = Infinity;
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-    if (Math.min(j - i, n - (j - i)) <= nearIdx) continue;
+    if (Math.min(j - i, n - (j - i)) <= nearIdx || lim.exempt?.(i, j)) continue;
     minGap = Math.min(minGap, dist(p[i]!, p[j]!));
   }
   // radius over a few steps, so the noise of single points does not count

@@ -24,7 +24,7 @@ k = 1000 / max(img.size)
 W, H = round(img.width * k), round(img.height * k)
 img = img.resize((W, H), Image.NEAREST)
 a = np.asarray(img).astype(float)
-road = a[int(sy), int(sx)]
+road = np.array(list(map(int, opt['--road'].split(','))), float) if '--road' in opt else a[int(sy), int(sx)]
 targets = [road] + [np.array(c, float) for c in cols]
 mask = np.zeros((H, W), bool)
 for t in targets: mask |= np.linalg.norm(a - t, axis=2) < tol
@@ -52,6 +52,9 @@ for i in range(1, hn + 1):
 # smooth the ragged edge of the road first, or its skeleton wobbles with it
 mask = ndi.gaussian_filter(mask.astype(float), 5) > 0.5
 sk = skeletonize(mask)
+if "--debug" in opt:  # the mask (grey) and its skeleton (red), to see why a road does not close
+    dbg = np.asarray(img).copy() // 3; dbg[mask] = (dbg[mask] * 0 + 170); dbg[sk] = (255, 0, 0)
+    Image.fromarray(dbg.astype(np.uint8)).save(opt["--debug"])
 pts = {(int(y), int(x)) for y, x in zip(*np.nonzero(sk))}
 nb = lambda p: [(p[0] + dy_, p[1] + dx_) for dy_ in (-1, 0, 1) for dx_ in (-1, 0, 1) if (dy_ or dx_) and (p[0] + dy_, p[1] + dx_) in pts]
 for _ in range(3000):  # prune every spur: a loop has no ends, so only the loop is left
@@ -60,31 +63,59 @@ for _ in range(3000):  # prune every spur: a loop has no ends, so only the loop 
     pts -= set(ends)
 if not pts: sys.exit("nothing left of the road: try another --tol / --col")
 start = min(pts, key=lambda p: (p[1] - sx) ** 2 + (p[0] - sy) ** 2)
-# cut the loop at the start and take the shortest way round from just ahead of it to just behind it (a side branch or a small loop in a wide room is left alone)
-from scipy.sparse import coo_matrix
-from scipy.sparse.csgraph import dijkstra
-nodes = sorted(pts); idx = {p: i for i, p in enumerate(nodes)}
-d0 = (dx - sx, dy - sy); l0 = math.hypot(*d0) or 1; d0 = (d0[0] / l0, d0[1] / l0)
-CUT = 12
-def dot_dir(p): return (p[1] - start[1]) * d0[0] + (p[0] - start[0]) * d0[1]
-dist_s = lambda p: math.hypot(p[0] - start[0], p[1] - start[1])
-ahead = [p for p in nodes if CUT <= dist_s(p) <= CUT + 14 and dot_dir(p) > 0]
-behind = [p for p in nodes if CUT <= dist_s(p) <= CUT + 14 and dot_dir(p) < 0]
-order = []
-if ahead and behind:
-    rows, cs, ws = [], [], []
-    for p in nodes:
-        if dist_s(p) < CUT: continue
-        for q in nb(p):
-            if dist_s(q) < CUT: continue
-            rows.append(idx[p]); cs.append(idx[q]); ws.append(math.hypot(p[0] - q[0], p[1] - q[1]))
-    G = coo_matrix((ws, (rows, cs)), shape=(len(nodes), len(nodes))).tocsr()
-    a0 = min(ahead, key=lambda p: -dot_dir(p) / (dist_s(p) or 1)); b0 = min(behind, key=lambda p: dot_dir(p) / (dist_s(p) or 1))
-    dist, pred = dijkstra(G, indices=idx[a0], return_predecessors=True)
-    if math.isfinite(dist[idx[b0]]):
-        path = [idx[b0]]
-        while path[-1] != idx[a0]: path.append(pred[path[-1]])
-        order = [start] + [nodes[i] for i in reversed(path)] + [start]
+if "--walk" in sys.argv:
+    # a course that crosses itself: walk the line keeping the heading, and go straight on through a junction (its pixels may be walked twice)
+    deg = {p: len(nb(p)) for p in pts}
+    free = set()
+    for p, d in deg.items():
+        if d >= 3:
+            for dy_ in range(-7, 8):
+                for dx_ in range(-7, 8):
+                    q = (p[0] + dy_, p[1] + dx_)
+                    if q in pts: free.add(q)
+    d0 = (dx - sx, dy - sy); l0 = math.hypot(*d0) or 1; direction = (d0[0] / l0, d0[1] / l0)
+    cur = start; order = [start]; seen = {start}; steps = 0
+    def pick(cur, dirv):
+        cand = [q for q in nb(cur) if q not in seen or q in free]
+        cand = [q for q in cand if len(order) < 2 or q != order[-2]]
+        if not cand: return None
+        return max(cand, key=lambda q: ((q[1] - cur[1]) * dirv[0] + (q[0] - cur[0]) * dirv[1]) / (math.hypot(q[1] - cur[1], q[0] - cur[0]) or 1))
+    nxt = pick(cur, direction)
+    while nxt is not None and steps < 60000:
+        cur = nxt; order.append(cur); seen.add(cur); steps += 1
+        j = max(0, len(order) - 14); v = (cur[1] - order[j][1], cur[0] - order[j][0]); lv = math.hypot(*v) or 1
+        direction = (v[0] / lv, v[1] / lv)
+        if len(order) > 80 and math.hypot(cur[0] - start[0], cur[1] - start[1]) < 4: break
+        nxt = pick(cur, direction)
+    print(f'walk: {len(order)} steps, ended {math.hypot(order[-1][0] - start[0], order[-1][1] - start[1]):.0f}px from the start', file=sys.stderr)
+    order = order if len(order) > 80 and math.hypot(order[-1][0] - start[0], order[-1][1] - start[1]) < 8 else []
+else:
+    # cut the loop at the start and take the shortest way round from just ahead of it to just behind it (a side branch or a small loop in a wide room is left alone)
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import dijkstra
+    nodes = sorted(pts); idx = {p: i for i, p in enumerate(nodes)}
+    d0 = (dx - sx, dy - sy); l0 = math.hypot(*d0) or 1; d0 = (d0[0] / l0, d0[1] / l0)
+    CUT = 12
+    def dot_dir(p): return (p[1] - start[1]) * d0[0] + (p[0] - start[0]) * d0[1]
+    dist_s = lambda p: math.hypot(p[0] - start[0], p[1] - start[1])
+    ahead = [p for p in nodes if CUT <= dist_s(p) <= CUT + 14 and dot_dir(p) > 0]
+    behind = [p for p in nodes if CUT <= dist_s(p) <= CUT + 14 and dot_dir(p) < 0]
+    order = []
+    if ahead and behind:
+        rows, cs, ws = [], [], []
+        for p in nodes:
+            if dist_s(p) < CUT: continue
+            for q in nb(p):
+                if dist_s(q) < CUT: continue
+                rows.append(idx[p]); cs.append(idx[q]); ws.append(math.hypot(p[0] - q[0], p[1] - q[1]))
+        G = coo_matrix((ws, (rows, cs)), shape=(len(nodes), len(nodes))).tocsr()
+        a0 = min(ahead, key=lambda p: -dot_dir(p) / (dist_s(p) or 1)); b0 = min(behind, key=lambda p: dot_dir(p) / (dist_s(p) or 1))
+        dist, pred = dijkstra(G, indices=idx[a0], return_predecessors=True)
+        if math.isfinite(dist[idx[b0]]):
+            path = [idx[b0]]
+            while path[-1] != idx[a0]: path.append(pred[path[-1]])
+            order = [start] + [nodes[i] for i in reversed(path)] + [start]
+
 closed = len(order) > 60
 print(f"{id}: skeleton {len(pts)} px, walked {len(order)}, {'closed' if closed else 'NOT closed'}", file=sys.stderr)
 P = [(x, y) for y, x in order]

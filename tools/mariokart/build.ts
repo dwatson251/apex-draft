@@ -31,6 +31,26 @@ const known = new Set(roster.map((r) => r.id));
 
 export interface Built { points: number[]; fx: { at: number; len: number; type: string; power?: number }[]; len: number; grew: number; report: string; ok: boolean }
 
+/** Where the loop crosses itself: pairs of edge indices (k, m) whose segments intersect. */
+function crossingsOf(loop: Pt[]): [number, number][] {
+  const n = loop.length, out: [number, number][] = [];
+  const side = (a: Pt, b: Pt, c: Pt): number => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  for (let k = 0; k < n; k++) for (let m = k + 3; m < n; m++) {
+    if (k === 0 && m >= n - 2) continue;
+    const a = loop[k]!, b = loop[(k + 1) % n]!, c = loop[m]!, d = loop[(m + 1) % n]!;
+    if (side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0) out.push([k, m]);
+  }
+  return out;
+}
+const CROSS_WINDOW = 11;
+/** The pairs of points near a crossing, which may lie on each other (two roads, one over the other). */
+const exemptFor = (loop: Pt[]): ((i: number, j: number) => boolean) | undefined => {
+  const cr = crossingsOf(loop), n = loop.length;
+  if (!cr.length) return undefined;
+  const d = (a: number, b: number): number => Math.min(Math.abs(a - b), n - Math.abs(a - b));
+  return (i, j) => cr.some(([k, m]) => (d(i, k) <= CROSS_WINDOW && d(j, m) <= CROSS_WINDOW) || (d(j, k) <= CROSS_WINDOW && d(i, m) <= CROSS_WINDOW));
+};
+
 const RAMPS = new Set(["jump", "glide"]);
 const RAMP_FROM = 0.3, RAMP_TO = 0.62;
 
@@ -98,14 +118,15 @@ export function buildShape(id: string, sh: Shape): Built {
     const k = len / length(smooth);
     const n = Math.round(len / SPACING);
     let loop = resample(smooth.map((p) => ({ x: p.x * k, y: p.y * k })), n);
-    const pre = measure(loop, loop, LIMITS);
+    const limits: Limits = { ...LIMITS, exempt: exemptFor(loop) };
+    const pre = measure(loop, loop, limits);
     loop = straighten(loop, 0, 11, 7);
-    if ((pre.minRadius < PRE_R || pre.minGap < LIMITS.gap * 1.02) && len < MAX_LEN && grew < 13) { len *= 1.05; continue; }
-    const { points, report } = fit(loop, LIMITS, 60, 11);
+    if ((pre.minRadius < PRE_R || pre.minGap < limits.gap * 1.02) && len < MAX_LEN && grew < 13) { len *= 1.05; continue; }
+    const { points, report } = fit(loop, limits, 60, 11);
     const minX = Math.min(...points.map((p) => p.x)), minY = Math.min(...points.map((p) => p.y));
     const game = points.map((p) => ({ x: p.x - minX + MARGIN, y: p.y - minY + MARGIN }));
-    const r = measure(game, loop.map((p) => ({ x: p.x - minX + MARGIN, y: p.y - minY + MARGIN })), LIMITS);
-    const ok = r.minRadius >= LIMITS.rMin * 0.9 && r.minGap >= LIMITS.gap * 0.95;
+    const r = measure(game, loop.map((p) => ({ x: p.x - minX + MARGIN, y: p.y - minY + MARGIN })), limits);
+    const ok = r.minRadius >= limits.rMin * 0.9 && r.minGap >= limits.gap * 0.95;
     const flatPts = game.flatMap((p) => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]);
     best = { points: flatPts, fx: placeFx(id, flatPts, want), len: Math.round(length(game)), grew, ok, report: `${Math.round(length(game))} units, R>=${report.minRadius.toFixed(0)} gap>=${report.minGap.toFixed(0)} drift mean ${r.meanDrift.toFixed(0)} max ${r.worstDrift.toFixed(0)}` };
     if (ok) break;

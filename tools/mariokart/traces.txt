@@ -17,3 +17,9 @@ donut-plains-3 | SMK_Donut_Plains_3_Overhead_Map.png | 144 620 144 400 | --tol=3
 ghost-valley-3 | SMK_Ghost_Valley_3_Overhead_Map.png | 86 500 86 350 | --notbg=0,0,0 --bgtol=20 --close=9
 vanilla-lake-2 | SMK_Vanilla_Lake_2_Overhead_Map.png | 844 560 844 400 | --tol=22 --close=9
 smk-rainbow-road | SMK_Rainbow_Road_Overhead_Map.png | 62 540 62 300 | --notbg=0,0,0 --bgtol=45 --close=7
+moo-moo-farm | MK64_Moo_Moo_Farm_map.jpg | 131 640 131 400 | --tol=40 --close=17
+koopa-troopa-beach | MK64_Kooopa_Troopa_Beach_map.jpg | 437 344 437 250 | --tol=45 --close=9
+mario-raceway | MK64_Mario_Raceway_map.jpg | 127 520 127 600 | --tol=40 --close=11 --bridge=235,603,445,603
+mk64-sherbet-land | MK64_Sherbert_Land_map.jpg | 738 610 738 450 | --tol=45 --close=11
+banshee-boardwalk | MK64_Banshee_Boardwalk_map.jpg | 876 491 876 400 | --road=95,45,20 --tol=32 --close=11 --bridge=140,594,632,612
+dks-jungle-parkway | MK64_DK's_Jungle_Parkway_map.jpg | 306 150 306 220 | --road=150,120,25 --tol=38 --close=11 --bridge=117,539,328,597 --bridge=895,250,875,440

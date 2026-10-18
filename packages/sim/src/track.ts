@@ -76,6 +76,8 @@ export interface Segment {
   bank?: number;
   /** the segment runs through a tunnel: roofed, and rain never reaches the road */
   tunnel?: boolean;
+  /** a bridge (positive) or the road under it (negative) where a mapped circuit crosses itself: +k and -k are the two roads of crossing k (see freetrack.ts) */
+  level?: number;
   /** ramps, speed pads and patches of ice, sand, mud or water on part of the segment (see fx.ts); none when left out */
   fx?: Fx[];
   /** the segment that follows this one when it is not the next in the ring: set on every segment of a shortcut */
@@ -724,6 +726,8 @@ export function levelsOf(t: Track): Int16Array | null {
       k++;
       l[s.index] = k; l[under.index] = -k;
     }
+    // a mapped circuit that crosses itself says its levels outright
+    for (const s of t.allSegments) if (s.level) { l ??= new Int16Array(t.allSegments.length); l[s.index] = s.level; }
     LEVELS.set(t, l);
   }
   return l;

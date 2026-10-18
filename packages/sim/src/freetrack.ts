@@ -107,6 +107,39 @@ function layFx(segments: Segment[], pieces: { at: number; len: number; type: FxT
   }
 }
 
+/** Two roads closer than this (centre to centre) are crossing: a mapped circuit's roads are kept at least 53 apart everywhere else. */
+const CROSSING = 50;
+
+/**
+ * Where a mapped circuit crosses itself, one road goes over the other on a bridge. Segments whose roads come within `CROSSING` of each other are one
+ * crossing; the two runs of segments that make it are the road under (`under`, level -k) and the road over (`bridge`, level +k), so cars on the two never
+ * touch or give way to each other (see `levelsOf`). The later run goes over.
+ */
+export function markCrossings(segments: Segment[]): number {
+  const n = segments.length, parent = segments.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
+  const near = new Set<number>();
+  for (let i = 0; i < n; i++) for (let j = i + 2; j < n; j++) {
+    if (i === 0 && j === n - 1) continue;
+    let best = Infinity;
+    for (const p of segments[i]!.center) for (const q of segments[j]!.center) best = Math.min(best, Math.hypot(p.x - q.x, p.y - q.y));
+    if (best < CROSSING) { parent[find(i)] = find(j); near.add(i); near.add(j); }
+  }
+  const groups = new Map<number, number[]>();
+  for (const i of near) { const r = find(i); groups.set(r, [...(groups.get(r) ?? []), i]); }
+  let k = 0;
+  for (const g of [...groups.values()].sort((a, b) => a[0]! - b[0]!)) {
+    g.sort((a, b) => a - b);
+    // the runs of consecutive segments in the group
+    const runs: number[][] = [];
+    for (const i of g) { const last = runs.at(-1); if (last && i - last.at(-1)! <= 1) last.push(i); else runs.push([i]); }
+    if (runs.length < 2) continue;
+    k++;
+    runs.forEach((run, r) => { for (const i of run) { const s = segments[i]!; s.level = r === 0 ? -k : k; s.kind = r === 0 ? "under" : "bridge"; } });
+  }
+  return k;
+}
+
 export function buildFreeCircuit(c: Circuit, typed: string, opts: { obstacles?: boolean; biome?: Track["biome"] }): Track {
   const seed = phraseToSeed(c.id);
   const flat = c.free!;
@@ -121,6 +154,7 @@ export function buildFreeCircuit(c: Circuit, typed: string, opts: { obstacles?: 
     if (s.index === 0 || s.index === n - 1) s.kind = "straight";
     placeFeatures(s, rng, s.index === 0 || s.index === n - 1);
   }
+  if (c.kart) markCrossings(segments);
   const kart = c.kart ? KART_INFO.get(c.id) : undefined;
   if (kart) layFx(segments, kart.fx);
   if (opts.obstacles === false) for (const s of segments) s.obstacles = [];
