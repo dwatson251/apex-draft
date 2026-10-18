@@ -1996,8 +1996,12 @@ export class Game {
     // practice and qualifying: the rivals are out on the track already, spread round it, and the player is on the line
     if (timed) this.rivalEntrants.forEach((e, i) => { e.startFrac = (i + 1) / (this.rivalEntrants.length + 1); });
     const tt = this.best[trialKey(st.phrase, this.vehicle)];
+    // the race drives the line as the server stores it (points to 0.01), and the line on screen becomes that same line: a stop compares the two point
+    // for point, and an unrounded line on screen counted every segment as changed, which left the car stuck in the pits
+    const driven = this.driven();
+    this.currentLine = driven; this.shareLine = driven;
     this.me = {
-      id: ME, name: this.online.name, car: this.playerCar(), lines: Array.from({ length: r.laps }, () => this.driven()), isPlayer: true,
+      id: ME, name: this.online.name, car: this.playerCar(), lines: Array.from({ length: r.laps }, () => driven), isPlayer: true,
       pitPlan: r.realism ? st.pitPlan : [], ...(r.realism && st.autoPit !== false ? { autoPit: true } : {}), startTyre: r.kind === "trial" ? "soft" : st.startTyre, ...(r.realism && st.startTactic ? { startTactic: st.startTactic } : {}),
       ...(timed ? { gridSlot: 0 } : {}),
       // a quick race is gridded by the time trial: without a time you start last
@@ -2023,7 +2027,9 @@ export class Game {
   /** Back out of the pits: the line as it now is is the line for every lap from here, and the bots read the road again. */
   private resumeRace(): void {
     const race = this.race!, next = this.lapNo + 1;
-    if (next < this.run.laps) race.setLines(ME, next, this.run.laps - next, this.driven());
+    const driven = this.driven();
+    this.currentLine = driven; this.shareLine = driven; // (see startRace)
+    if (next < this.run.laps) race.setLines(ME, next, this.run.laps - next, driven);
     race.setPlan(ME, this.settings.pitPlan);
     race.replanBots(next, this.run.laps - next);
     this.runAndPlay(race.tick);

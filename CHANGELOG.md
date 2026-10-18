@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **No more stuck in the pits.** The race drives your line rounded to a hundredth of a unit (as the server keeps it), but the stop compared it with the unrounded line on screen, so a line with finer points than that (a *Finish for me* lap, often a drawn one) counted every segment as changed and *Back out* stayed greyed out. The line on screen is now the rounded one from the start.
 - **The difficulty you chose is kept.** It was checked against your records before they had loaded, so a saved Medium or Hard went back to Easy every time the game opened.
 - **Your own levels for the sound.** Settings has sliders for the music, the effects and the engines (the engines have a bus of their own now). The win, goal and end-of-round stingers are short brass fanfares instead of beeps.
 - **The tutorial teaches the rest of the drawing.** A tip on each of the first segments: the speed colours, dragging points, inserting and deleting them, sliding the square and the diamond along the road edge, and that a smooth, sparse line is usually the quicker one. Its wording now matches the white preview line.
