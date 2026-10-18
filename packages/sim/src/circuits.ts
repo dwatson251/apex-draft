@@ -151,3 +151,14 @@ for (const [i, c] of KART_CIRCUIT_LIST.entries()) {
 
 /** The circuit a (normalised) phrase names, if any. Random phrases are four words and never match. */
 export const circuitFor = (phrase: string): Circuit | undefined => BY_PHRASE.get(phrase);
+
+/**
+ * What the Random button does on a circuit: the next one of its own kind, round and round (a Mario Kart course goes to the next Mario Kart course, a real or
+ * hidden circuit to the next of those). Undefined when the phrase is not a circuit, and Random draws a new phrase as usual.
+ */
+export function nextCircuit(phrase: string): string | undefined {
+  const here = circuitFor(phrase.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""));
+  if (!here) return undefined;
+  const group = CIRCUITS.filter((c) => !!c.kart === !!here.kart);
+  return group[(group.indexOf(here) + 1) % group.length]!.id;
+}

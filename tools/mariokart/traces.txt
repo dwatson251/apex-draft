@@ -23,3 +23,7 @@ mario-raceway | MK64_Mario_Raceway_map.jpg | 127 520 127 600 | --tol=40 --close=
 mk64-sherbet-land | MK64_Sherbert_Land_map.jpg | 738 610 738 450 | --tol=45 --close=11
 banshee-boardwalk | MK64_Banshee_Boardwalk_map.jpg | 876 491 876 400 | --road=95,45,20 --tol=32 --close=11 --bridge=140,594,632,612
 dks-jungle-parkway | MK64_DK's_Jungle_Parkway_map.jpg | 306 150 306 220 | --road=150,120,25 --tol=38 --close=11 --bridge=117,539,328,597 --bridge=895,250,875,440
+peach-circuit | MKDS_Peach_Circuit_GBA_Map.png | 500 430 500 300 | --tol=40 --close=9
+mksc-bowser-castle-1 | MKSC_Bowser_Castle_1_Map.png | 937 406 937 300 | --tol=60 --close=13 --bridge=430,675,560,675
+mksc-mario-circuit | MKSC_Mario_Circuit_Map.png | 870 330 870 250 | --tol=35 --close=9
+boo-lake | MKSC_Boo_Lake_Map.png | 62 406 62 300 | --notbg=0,0,0 --bgtol=25 --close=9 --bridge=150,28,560,26

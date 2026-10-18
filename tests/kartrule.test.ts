@@ -41,3 +41,22 @@ describe("the kart rule", () => {
     }
   });
 });
+
+describe("Random on a circuit", () => {
+  it("cycles through the circuits of its own kind", async () => {
+    const { nextCircuit, CIRCUITS } = await import("@apex/sim");
+    const real = CIRCUITS.filter((c) => !c.kart), kart = CIRCUITS.filter((c) => c.kart);
+    let p = real[0]!.id;
+    const seen = new Set<string>();
+    for (let i = 0; i < real.length; i++) { p = nextCircuit(p)!; seen.add(p); expect(CIRCUITS.find((c) => c.id === p)!.kart).toBeFalsy(); }
+    expect(seen.size).toBe(real.length);
+    if (kart.length) {
+      let q = kart[0]!.id;
+      const ks = new Set<string>();
+      for (let i = 0; i < kart.length; i++) { q = nextCircuit(q)!; ks.add(q); expect(CIRCUITS.find((c) => c.id === q)!.kart).toBe(true); }
+      expect(ks.size).toBe(kart.length);
+    }
+    expect(nextCircuit("quiet-fox-hugs-kites")).toBeUndefined();
+    expect(nextCircuit("Monza")).toBeDefined();
+  });
+});

@@ -3,7 +3,7 @@ import { activateFocus, clearFocus, moveFocus } from "./input/focus.ts";
 import type { Application } from "pixi.js";
 import {
   BIOMES, CAR_BUDGET, CAR_R, CELL, KERB_ALLOW, halfAt, isDrivable, ROAD_HALF, MAX_AMENDS, pitPenalty, pitStopTime, Race, Rng, STATS, STAT_MAX, STAT_MIN, TANK, VEHICLES, beginLine, botLine, carCost, carStats, changedSegments,
-  circuitFor, KART_CIRCUITS, completeLine, MAX_RACE_RIVALS, snapRivals, NAME_MAX, defaultCar, makeBots, roundLine, sanitiseName, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, linesFromWire, lineToWire, trackLength, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
+  circuitFor, nextCircuit, KART_CIRCUITS, completeLine, MAX_RACE_RIVALS, snapRivals, NAME_MAX, defaultCar, makeBots, roundLine, sanitiseName, distToSegment, biomeForSeed, decodeShare, encodeShare, fuelPerLap, linesFromWire, lineToWire, trackLength, generateTrack, isComplete, joinBefore, lapCurve, moveJoin, normalizePhrase, parseLineFile,
   exitsAfter, idAt, makeLine, nextOf, phraseToSeed, previewSegment, projectToGate, randomPhrase, rerollPhrase, setSegment, smooth, validateCar, validateLine, vehicleForTrack, vehicleChoicesForTrack, migrateBest, isVehicleId, placeFor,
   COMPOUNDS, COMPOUND_IDS, MAX_PIT_STOPS, forecast, forecastText, isCompound, raceDuration, weatherFor,
   PRACTICE_SECONDS, clampWear, finishSession, newWeekend, quickGridTime, sessionBest, sessionLaps, sessionRules, trialKey,
@@ -659,7 +659,7 @@ export class Game {
         setTimeout(() => { copy.classList.remove("done"); if (label) label.textContent = "Copy"; }, 1400);
       });
     });
-    this.on(el, "#rand", () => { if (typedDiffers()) loadTyped(); else void this.changeSeed(() => { s.phrase = rerollPhrase(s.phrase, new Rng((Math.random() * 2 ** 32) >>> 0)); }); });
+    this.on(el, "#rand", () => { if (typedDiffers()) loadTyped(); else void this.changeSeed(() => { s.phrase = nextCircuit(s.phrase) ?? rerollPhrase(s.phrase, new Rng((Math.random() * 2 ** 32) >>> 0)); }); });
     this.on(el, "#back", () => this.go(flow === "trial" ? "attack" : "difficulty"));
     this.on(el, "#garage", () => { this.garageFrom = "setup"; this.go("garage"); });
     this.on(el, "#go", () => {
