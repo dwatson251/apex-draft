@@ -120,8 +120,11 @@ export function buildShape(id: string, sh: Shape): Built {
     return worst / (length(smooth) / N * 2 * W);
   };
   const crs = crossingsOf(smooth), cd = (a: number, b: number): number => Math.min(Math.abs(a - b), N - Math.abs(a - b));
-  const clear = (i: number): boolean => crs.every(([k, m]) => cd(i, k) > W + 14 && cd(i, m) > W + 14);
-  const dev = Array.from({ length: N }, (_, i) => (clear(i) ? bends(i) : Infinity));
+  const margin = (i: number): number => crs.reduce((m, [k, q]) => Math.min(m, cd(i, k), cd(i, q)), N);
+  const clear = (i: number): boolean => margin(i) > W + 6;
+  let dev = Array.from({ length: N }, (_, i) => (clear(i) ? bends(i) : Infinity));
+  // when no place is clear of every crossing, begin as far from them as there is
+  if (dev.every((d) => !Number.isFinite(d))) { const far = Math.max(...Array.from({ length: N }, (_, i) => margin(i))); dev = Array.from({ length: N }, (_, i) => (margin(i) >= far - 1 ? bends(i) : Infinity)); }
   const bestDev = Math.min(...dev);
   if (dev[0]! > Math.max(bestDev * 1.5, 0.02)) {
     const pick = dev.indexOf(bestDev);

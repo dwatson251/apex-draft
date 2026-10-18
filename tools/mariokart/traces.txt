@@ -35,3 +35,4 @@ lakeside-park | MKSC_Lakeside_Park_Map.png | 152 510 152 400 | --road=248,208,15
 broken-pier | MKSC_Broken_Pier_Map.png | 31 460 31 360 | --notbg=0,0,0 --bgtol=30 --close=13
 baby-park | MK8_GCN_Baby_Park_Map.png | 640 540 700 430 | --notbg=235,235,235 --bgtol=40 --close=9
 dry-dry-desert | MK8_GCN_Dry_Dry_Desert_Map.png | 150 590 140 700 | --notbg=235,235,235 --bgtol=40 --close=9
+yoshi-falls | MKDS_Yoshi_Falls_Map.png | 453 688 400 688 | --road=231,123,33 --tol=50 --close=9 --col=140,70,20
