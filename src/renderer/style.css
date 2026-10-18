@@ -535,3 +535,8 @@ button.big { background-color: #3a4b82; }
 .golfpts { color: #9fe07a; font-weight: 600; }
 .golfres { margin: 8px 0; padding: 8px 12px; border-radius: 12px; background: rgba(123, 192, 67, 0.12); border: 1px solid rgba(123, 192, 67, 0.45); }
 .golfres p { margin: 0 0 4px; }
+
+/* Settings: the kept races */
+.replays { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.replays .replay { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; text-align: left; padding: 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); color: inherit; cursor: pointer; }
+.replays .replay:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); } .replays .replay:disabled { opacity: 0.5; cursor: default; }

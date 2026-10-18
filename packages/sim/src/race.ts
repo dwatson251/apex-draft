@@ -289,6 +289,12 @@ export const clampWear = (x: unknown): number => {
   return Math.min(MAX_WEAR_MULT, Math.max(1, n));
 };
 
+/** A change made to the entrants mid-race (see `Race.edits`). */
+export type RaceEdit = { tick: number } & (
+  | { kind: "replan"; from: number; count: number; lines: Record<string, Line> }
+  | { kind: "lines"; id: string; from: number; count: number; line: Line }
+  | { kind: "plan"; id: string; plan: PitStop[] });
+
 /** A pit stop planned in advance: drive in at the end of this lap and come out on this tyre. */
 export interface PitStop { lap: number; tyre?: Compound; /** how to drive the stint that follows (kept as it was if left out) */ tactic?: Tactic }
 /** The most stops that can be queued at once (stops already made do not count). */
@@ -711,15 +717,43 @@ export class Race {
    * tyre wants: the dry line on slicks, the quiet wet line on wets. The player draws their own.
    */
   replanBots(from: number, count: number): void {
+    const lines: Record<string, Line> = {};
     for (const c of this.cars) {
       const e = c.entrant;
       if (!e.bot || e.isPlayer || !this.alive(c)) continue;
-      const line = botLine(this.track, e.bot.seed + from * 7919, e.bot.skill, { compound: c.compound, field: this.field, ...(e.bot.lane !== undefined ? { lane: e.bot.lane } : {}) });
-      for (let k = 0; k < count; k++) e.lines[from + k] = line;
-      this.forget(e.id);
-      c.needProf = true;
+      lines[e.id] = botLine(this.track, e.bot.seed + from * 7919, e.bot.skill, { compound: c.compound, field: this.field, ...(e.bot.lane !== undefined ? { lane: e.bot.lane } : {}) });
+    }
+    this.apply({ tick: this.tick, kind: "replan", from, count, lines });
+  }
+
+  /** Give an entrant a new line for laps `from` to `from + count - 1` (the player, leaving the pits). Logged for replays. */
+  setLines(id: string, from: number, count: number, line: Line): void { this.apply({ tick: this.tick, kind: "lines", id, from, count, line }); }
+
+  /** Change an entrant's queued pit stops. Logged for replays. */
+  setPlan(id: string, plan: PitStop[]): void { this.apply({ tick: this.tick, kind: "plan", id, plan: plan.map((x) => ({ ...x })) }); }
+
+  /** Make a change to the entrants mid-race and log it. A change to a line rebuilds the car's path at once, even mid-lap, as it always did. */
+  private apply(ed: RaceEdit): void {
+    this.edits.push(ed);
+    const carOf = (id: string) => this.cars.find((c) => c.entrant.id === id);
+    if (ed.kind === "plan") { const c = carOf(ed.id); if (c) c.entrant.pitPlan = ed.plan.map((x) => ({ ...x })); return; }
+    const sets: [string, Line][] = ed.kind === "lines" ? [[ed.id, ed.line]] : Object.entries(ed.lines);
+    for (const [id, line] of sets) {
+      const c = carOf(id);
+      if (!c) continue;
+      for (let k = 0; k < ed.count; k++) c.entrant.lines[ed.from + k] = line;
+      this.forget(id);
+      if (ed.kind === "replan") c.needProf = true;
     }
   }
+
+  /**
+   * Every change made to the entrants once the race had begun (`replanBots`, `setLines`, `setPlan`), with its tick. A replay is the entrants as they
+   * were at the start and these changes made again at the same ticks (`replay`), so it is the same race to the last tick.
+   */
+  readonly edits: RaceEdit[] = [];
+  private pending: RaceEdit[] = [];
+  replay(edits: readonly RaceEdit[]): void { this.pending = [...edits].sort((a, b) => a.tick - b.tick); }
 
   /** Call after setting a new line on an entrant so that later laps use it. */
   forget(id: string): void {
@@ -1474,6 +1508,7 @@ export class Race {
   private live: RaceCar[] = [];
 
   step(): void {
+    while (this.pending.length && this.pending[0]!.tick <= this.tick) this.apply(this.pending.shift()!);
     const racing = this.cars.filter(this.alive);
     this.live = racing;
     this.buildNear(racing);

@@ -22,7 +22,8 @@ import {
   TACTIC_INFO, crossedPlace, firstDryLap, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
   type Challenge, type ChallengeStore, type Championship, type DailyRecord,
 } from "@apex/sim";
-import { buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile } from "@apex/sim";
+import { SIM_VERSION, buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile, type RaceEdit, type RaceRules } from "@apex/sim";
+import { MAX_REPLAYS, MAX_REPLAY_BYTES, keepReplay, loadReplays, rulesIn, rulesOut, type Replay } from "./replays.ts";
 import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
 import { copyText, dropdown, wireControls } from "./menus/controls.ts";
 import { challengesHtml, championshipHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
@@ -125,7 +126,11 @@ export class Game {
   private planTactic: Tactic = "balanced";
   private champPick: { difficulty: Difficulty; vehicle: VehicleId } = { difficulty: "easy", vehicle: "rally" };
   /** a Daily, a Challenge or a round of the Championship being played: it borrows the settings and gives them back (see `modeBackup`) */
-  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ" } | { kind: "play" } | { kind: "golf"; date: string } | null = null;
+  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ" } | { kind: "play" } | { kind: "golf"; date: string } | { kind: "replay"; rep: Replay } | null = null;
+  /** races kept to watch again (replays.ts), newest first */
+  private replays: Replay[] = [];
+  /** the entrants as they were when the race began, and its rules, for the replay */
+  private replayStart: { entrants: string; rules: RaceRules } | null = null;
   /** Line Golf: the best stars and fewest points on each course, by phrase */
   private golfRec: Record<string, { stars: number; points: number }> = {};
   private modeBackup: Settings | null = null;
@@ -247,6 +252,7 @@ export class Game {
     this.best = await load<Best>("best", {});
     this.records = normaliseRecords(await load<unknown>("records", {}));
     this.dailyRec = normaliseDaily(await load<unknown>("daily", {}));
+    this.replays = await loadReplays();
     { const g = await load<unknown>("golf", {}); if (g && typeof g === "object") for (const [k, v] of Object.entries(g as Record<string, { stars?: unknown; points?: unknown }>)) if (typeof v?.stars === "number" && typeof v.points === "number") this.golfRec[k] = { stars: v.stars, points: v.points }; }
     this.challenges = normaliseChallenges(await load<unknown>("challenges", {}));
     this.champ = normaliseChampionship(await load<unknown>("championship", null));
@@ -687,9 +693,10 @@ export class Game {
 
   private renderSettings(): void {
     const s = this.settings;
-    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX }));
+    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, replays: this.replays.map((r) => ({ id: r.id, title: r.title, when: r.when, place: r.place, ok: r.version === SIM_VERSION })), version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX }));
     this.on(el, "#back", () => { if (this.inGame) { this.screen = "home"; this.renderMenu(); } else this.go("home"); });
     // committed when the box loses focus or Enter is pressed, not on every key: a re-render would take the focus away
+    el.querySelectorAll<HTMLButtonElement>("[data-watch]").forEach((b) => b.addEventListener("click", () => { const rep = this.replays.find((r) => r.id === b.dataset["watch"]); if (rep) this.watchReplay(rep); }));
     const nameBox = el.querySelector<HTMLInputElement>("#player-name")!;
     nameBox.addEventListener("change", () => { nameBox.value = this.online.setName(nameBox.value); });
     nameBox.addEventListener("keydown", (e) => { if (e.key === "Enter") nameBox.blur(); });
@@ -844,6 +851,69 @@ export class Game {
   }
   private golfTargetKey = "";
   private golfTargetLap = 0;
+
+  /** Keep the race just finished to watch again (the newest replay). False when it cannot be kept (too big, or nothing to keep). */
+  private keepThisRace(title: string, place: number): boolean {
+    const race = this.race, st = this.replayStart;
+    if (!race || !st || this.special?.kind === "replay") return false;
+    const rep: Replay = {
+      id: `${Date.now()}`, when: Date.now(), version: SIM_VERSION, phrase: this.track.phrase, obstacles: this.settings.obstacles, vehicle: this.vehicle, laps: race.laps,
+      run: this.run, rules: st.rules, entrants: JSON.parse(st.entrants) as Entrant[], edits: JSON.parse(JSON.stringify(race.edits)) as RaceEdit[],
+      title: `${this.sessionTitle()} · ${title}`, place, hash: race.hash(),
+    };
+    if (JSON.stringify(rep).length > MAX_REPLAY_BYTES) return false;
+    this.replays = [rep, ...this.replays.filter((x) => x.id !== rep.id)].slice(0, MAX_REPLAYS);
+    void keepReplay(this.replays.slice(1), rep);
+    this.replayStart = null;
+    return true;
+  }
+
+  /** Watch a kept race: the same track, the same entrants as at the start, the stops' changes made again on their ticks, run straight to the end. */
+  private watchReplay(rep: Replay): void {
+    if (rep.version !== SIM_VERSION) { this.toast("That race was run on an older version of the game, so it would not come out the same.", "bad"); return; }
+    this.leaveGame();
+    this.beginSpecial({ kind: "replay", rep }, { phrase: rep.phrase, obstacles: rep.obstacles }, "quick");
+    this.run = rep.run as RunConfig;
+    this.track = generateTrack(rep.phrase, { obstacles: rep.obstacles });
+    this.vehicle = rep.vehicle;
+    this.ambient = null; this.previewKey = "";
+    this.audio.unlock();
+    this.audio.setBiome(this.track.biome);
+    this.play = null; this.audio.stopAll(); this.updateRain(0);
+    this.view.clearCars();
+    this.closeMenu();
+    this.draw = null; this.pick = null; this.planOpen = false; this.eventIdx = 0;
+    this.view.livery = this.settings.livery;
+    this.view.setTrack(this.track);
+    this.roughTrack = this.track.allSegments.some((x) => x.surface);
+    this.view.resetCamera();
+    this.inGame = true;
+    this.menuBtn.style.display = "block";
+    const entrants = JSON.parse(JSON.stringify(rep.entrants)) as Entrant[];
+    this.me = entrants.find((e) => e.id === ME)!;
+    this.rivalEntrants = entrants.filter((e) => e.id !== ME);
+    this.currentLine = this.me.lines[0]!;
+    this.race = new Race(this.track, entrants, rep.laps, rulesIn(rep.rules));
+    this.race.replay(rep.edits);
+    this.lapNo = 0;
+    this.view.clearSkids();
+    this.skidTick = 0;
+    this.runAndPlay(0);
+  }
+
+  /** The end of a replay: the order, and whether it came out as the race did. */
+  private showReplayEnd(rep: Replay, res: CarResult[]): void {
+    const same = this.race?.hash() === rep.hash;
+    const el = this.show("center", `
+      <h2>Replay · ${esc(rep.title)}</h2>
+      <p class="dim">${esc(rep.phrase)} · ${rep.laps} lap(s) · ${new Date(rep.when).toLocaleString()}</p>
+      ${same ? "" : '<p class="bad">This replay did not come out exactly as the race did.</p>'}
+      <table><tr><th>#</th><th>Driver</th><th class="num">Time</th></tr>
+      ${res.map((x) => `<tr class="${x.isPlayer ? "me" : ""}"><td>${x.position}</td><td>${esc(x.name)}</td><td class="num">${x.eliminated ? "out" : fmt(x.finishTime)}</td></tr>`).join("")}</table>
+      <button class="primary" id="rewatch">Watch again</button><button id="res-menu">Menu</button>`);
+    this.on(el, "#rewatch", () => this.watchReplay(rep));
+    this.on(el, "#res-menu", () => this.showMenu());
+  }
 
   /** Today's track, as a Time Trial in the garage car. */
   private startDaily(): void {
@@ -1704,14 +1774,20 @@ export class Game {
   private removeStop(lap: number): void {
     if (lap < this.nextLapIndex()) return; // already behind us
     this.settings.pitPlan = this.settings.pitPlan.filter((p) => p.lap !== lap);
-    this.me && (this.me.pitPlan = this.settings.pitPlan);
+    this.syncPlan();
     this.planMsg = "";
     this.persist();
     this.afterPlanChange();
   }
 
+  /** Hand the queued stops to the race: through `Race.setPlan` once it has begun, so a replay sees the change at the same tick. */
+  private syncPlan(): void {
+    if (this.race && this.me) this.race.setPlan(ME, this.settings.pitPlan);
+    else if (this.me) this.me.pitPlan = this.settings.pitPlan;
+  }
+
   private afterPlanChange(): void {
-    if (this.me) this.me.pitPlan = this.settings.pitPlan;
+    this.syncPlan();
     if (this.draw) this.renderDraw(); else if (this.currentLine) this.showPicker(this.pickMessage);
     else this.renderPlan();
   }
@@ -1789,6 +1865,7 @@ export class Game {
     // the rubber the weekend's earlier sessions laid down stays on the road (not on hard, whose races the server replays from scratch)
     const rubber = r.flow === "weekend" && r.difficulty !== "hard" ? this.weekend?.rubber : undefined;
     const rules = { ...baseRules, ...(rubber ? { rubber } : {}), ...(r.elimination ? { elimination: true } : {}) };
+    this.replayStart = { entrants: JSON.stringify(entrants), rules: rulesOut(rules) };
     this.race = new Race(this.track, entrants, r.laps, rules);
     this.lapNo = 0;
     this.view.clearSkids();
@@ -1799,8 +1876,8 @@ export class Game {
   /** Back out of the pits: the line as it now is is the line for every lap from here, and the bots read the road again. */
   private resumeRace(): void {
     const race = this.race!, next = this.lapNo + 1;
-    for (let l = next; l < this.run.laps; l++) this.me.lines[l] = this.driven();
-    this.me.pitPlan = this.settings.pitPlan;
+    if (next < this.run.laps) race.setLines(ME, next, this.run.laps - next, this.driven());
+    race.setPlan(ME, this.settings.pitPlan);
     race.replanBots(next, this.run.laps - next);
     this.runAndPlay(race.tick);
   }
@@ -1858,7 +1935,7 @@ export class Game {
     const mine = race.cars.find((c) => c.entrant.id === ME)!;
     // A race is worked out a stretch at a time, ahead of the play head, so it starts at once and a big field does not make anyone wait.
     // (A practice or qualifying session needs everyone's laps for its results, so those are worked out in full first.)
-    const stage = { toEnd: false };
+    const stage = { toEnd: this.special?.kind === "replay" }; // (a replay runs straight through: nothing is edited at its stops)
     let state = race.advance(ME, stage, this.run.kind === "race" ? FIRST_TICKS : Infinity);
     if (state === "stop") this.lapNo = mine.lap;
     this.play = { tick: fromTick, end: race.tick, speed: 1, atStop: state === "stop", final: state !== "running", stage };
@@ -2386,6 +2463,7 @@ export class Game {
     this.bar.clear();
     const race = this.race!;
     const res = race.results();
+    if (this.special?.kind === "replay") { this.showReplayEnd(this.special.rep, res); return; }
     if (this.timed()) this.showSessionResults(res); else this.showRaceResults(res);
     // the camera is already easing back out to the whole track
     this.view.setFollow(null);
@@ -2540,8 +2618,9 @@ export class Game {
       <p class="dim">Your laps: ${mine.lapTimes.map(fmt).join(" · ")}</p>
       ${this.lineDeltas()}
       ${season}
-      ${this.special?.kind === "champ" ? `<button class="primary" id="next-round">${this.champ && isOver(this.champ) ? "Final standings" : "Next round"}</button>` : `<button class="primary" id="again">${r.flow === "weekend" ? "Weekend again" : "Race again"}</button>`}<button id="res-menu">Menu</button>`);
+      ${this.special?.kind === "champ" ? `<button class="primary" id="next-round">${this.champ && isOver(this.champ) ? "Final standings" : "Next round"}</button>` : `<button class="primary" id="again">${r.flow === "weekend" ? "Weekend again" : "Race again"}</button>`}${this.keepThisRace(title, mine.position) ? '<button id="watch">Watch replay</button>' : ""}<button id="res-menu">Menu</button>`);
     this.on(el, "#res-menu", () => this.showMenu());
+    this.on(el, "#watch", () => { const rep = this.replays[0]; if (rep) this.watchReplay(rep); });
     this.on(el, "#next-round", () => { if (this.champ && isOver(this.champ)) { this.showMenu(); this.go("championship"); } else this.startChampRound(); });
     this.on(el, "#again", () => {
       this.audio.unlock();
