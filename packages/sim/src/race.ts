@@ -289,7 +289,7 @@ export interface RaceRules {
   wearMult?: { fuel: number; tyre: number };
   /** compounds every car must run at some point; each one missing from a finisher costs PIT_PENALTY */
   mandatory?: Compound[];
-  /** an elimination race: each time the leader starts a new lap, the last car still running is out (it takes the flag there) */
+  /** an elimination race: each time the leader starts a new lap, the last cars still running are out (`elimCut` says how many; they take the flag there) */
   elimination?: boolean;
   /** yellow flags round a wreck, and the safety car when the road is blocked (races; see `updateFlags`) */
   flags?: boolean;
@@ -315,6 +315,18 @@ export const clampWear = (x: unknown): number => {
   const n = typeof x === "number" && isFinite(x) ? Math.round(x) : 1;
   return Math.min(MAX_WEAR_MULT, Math.max(1, n));
 };
+
+/**
+ * How many cars go out of an elimination race as the leader starts a lap, with `running` cars still in and `left` laps to go (this one included). The
+ * field shrinks geometrically toward two on the last lap, so a big field thins fast at first, until it has caught up with one a lap; from there it is
+ * one a lap, and the last lap is always a duel. With fewer cars than laps it is one a lap from the start (the last laps may then have nobody to lose).
+ */
+export function elimCut(running: number, left: number): number {
+  if (running <= 2 || left < 1) return 0;
+  const geometric = Math.ceil(2 * (running / 2) ** ((left - 1) / left));
+  const keep = Math.min(running - 1, Math.max(left + 1, geometric));
+  return running - keep;
+}
 
 /** A change made to the entrants mid-race (see `Race.edits`). */
 export type RaceEdit = { tick: number } & (
@@ -742,15 +754,16 @@ export class Race {
     }
   }
 
-  /** Elimination race: the leader (`leader`) has just started a new lap, so the last car still running is out, as long as two are left. */
+  /** Elimination race: the leader (`leader`) has just started a new lap, so the last `elimCut` cars still running are out, from the back. */
   private eliminate(t: number, leader: RaceCar): void {
-    const running = this.cars.filter((o) => this.alive(o) && o !== leader);
-    if (running.length < 1) return;
-    let last = running[0]!;
-    for (const o of running) if (this.progress(o) < this.progress(last)) last = o;
-    last.finishTime = t;
-    last.elim = ++this.elimOut;
-    this.emit(last.entrant.id, "elim");
+    const running = this.cars.filter((o) => this.alive(o));
+    const cut = elimCut(running.length, this.laps - leader.lap);
+    const back = running.filter((o) => o !== leader).sort((a, b) => this.progress(a) - this.progress(b)).slice(0, cut);
+    for (const last of back) {
+      last.finishTime = t;
+      last.elim = ++this.elimOut;
+      this.emit(last.entrant.id, "elim");
+    }
   }
 
   /** A lap's path with nothing special: fresh tyres and a full tank. Used for qualifying and the grid. */

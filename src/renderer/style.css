@@ -584,3 +584,7 @@ button.big { background-color: #3a4b82; }
 
 /* Settings: the volume sliders */
 input.vol { width: min(220px, 50vw); accent-color: var(--accent); }
+
+/* elimination race: who is out, quietly under the standings */
+.elimbox { margin-top: 6px; padding: 4px 8px; border-radius: 8px; border: 1px dashed rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.04); font-size: 12px; color: rgba(255, 255, 255, 0.7); }
+.elimbox b { color: #fff; } .elimbox.me { border-color: rgba(255, 93, 108, 0.6); color: #ff9aa4; }

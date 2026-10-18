@@ -2568,7 +2568,7 @@ export class Game {
     // the panel is built once and only its contents change
     let el = this.ui.querySelector<HTMLElement>(".panel.top");
     if (!el || !el.querySelector("#hud-head")) {
-      el = this.show("top hud", `<h2 id="hud-head"></h2><div id="hud-weather"></div><div id="hud-best"></div><div id="hud-laps"></div><div id="hud-status"></div><table id="hud-table"></table><div id="hud-gauges" class="bubbles"></div>`);
+      el = this.show("top hud", `<h2 id="hud-head"></h2><div id="hud-weather"></div><div id="hud-best"></div><div id="hud-laps"></div><div id="hud-status"></div><table id="hud-table"></table><div id="hud-elim"></div><div id="hud-gauges" class="bubbles"></div>`);
     }
     const set = (sel: string, html: string) => { const n = el!.querySelector(sel); if (n && n.innerHTML !== html) n.innerHTML = html; };
     set("#hud-head", `${this.lapText(lap)} <span class="dim">${fmt(now)}</span>${this.scOn ? ' <span class="scflag">SAFETY CAR</span>' : ""}`);
@@ -2590,14 +2590,18 @@ export class Game {
     }
     // five rows: the leader, last place, the car ahead of you, you, the car behind (see standingsRows), each with how far it is from you in time
     if (!this.timed()) {
-      const mePos = Math.max(0, standing.findIndex(({ c }) => c.entrant.id === ME));
-      const rows = standingsRows(standing.length, mePos);
+      // an elimination race lists only the cars still in; the ones out are counted in a small box under the table
+      const isOut = (c: RaceCar) => !!this.run.elimination && c.elim > 0 && c.finishTime !== null && c.finishTime <= now;
+      const outCars = standing.filter(({ c }) => isOut(c)).map(({ c }) => c);
+      const listed = outCars.length ? standing.filter(({ c }) => !isOut(c)) : standing;
+      const mePos = Math.max(0, listed.findIndex(({ c }) => c.entrant.id === ME));
+      const rows = standingsRows(listed.length, mePos);
       // the splits are worked out every half second or so, and again when a different car turns up in the list
-      if (k - this.splitTick >= SPLIT_EVERY || k < this.splitTick || rows.some((i) => !this.splits.has(standing[i]!.c.entrant.id))) {
+      if (k - this.splitTick >= SPLIT_EVERY || k < this.splitTick || rows.some((i) => !this.splits.has(listed[i]!.c.entrant.id))) {
         this.splitTick = k; this.splits.clear();
         const lapLen = trackLength(this.track);
         for (const i of rows) {
-          const c = standing[i]!.c;
+          const c = listed[i]!.c;
           if (c === me) continue;
           const laps = lapsApart(me.prog, c.prog, k, lapLen);
           const t = laps === 0 ? splitSeconds(me.prog, c.prog, k, lapLen) : null, secs = t === null ? 0 : realSeconds(Math.abs(t));
@@ -2605,7 +2609,12 @@ export class Game {
         }
         this.splits.set(ME, "");
       }
-      set("#hud-table", rows.map((i, n) => { const c = standing[i]!.c; return `<tr class="${c.entrant.id === ME ? "me" : ""} ${n > 0 && i - rows[n - 1]! > 1 ? "gap" : ""}"><td>${i + 1}</td><td><span style="color:${hex(this.colorOf(c.entrant.id))}">■</span> ${esc(c.entrant.name)}</td><td class="num">${this.splits.get(c.entrant.id) ?? ""}</td></tr>`; }).join(""));
+      set("#hud-table", rows.map((i, n) => { const c = listed[i]!.c; return `<tr class="${c.entrant.id === ME ? "me" : ""} ${n > 0 && i - rows[n - 1]! > 1 ? "gap" : ""}"><td>${i + 1}</td><td><span style="color:${hex(this.colorOf(c.entrant.id))}">■</span> ${esc(c.entrant.name)}</td><td class="num">${this.splits.get(c.entrant.id) ?? ""}</td></tr>`; }).join(""));
+      if (this.run.elimination) {
+        const last = outCars.reduce<RaceCar | null>((a, c) => (!a || c.elim > a.elim ? c : a), null);
+        set("#hud-elim", isOut(me) ? `<div class="elimbox me">✕ You're out · P${race.cars.length - me.elim + 1}</div>`
+          : outCars.length ? `<div class="elimbox">✕ <b>${outCars.length}</b> out · ${listed.length} left${last ? ` · last: ${esc(last.entrant.name)}` : ""}</div>` : `<div class="elimbox">${listed.length} in · the back of the field goes out every lap</div>`);
+      }
     }
     if (this.run.realism) {
       const fuel = me.ftrace[mi] ?? 100, tyre = me.ttrace[mi] ?? 1, per = this.fuelLap();

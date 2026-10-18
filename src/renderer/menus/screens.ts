@@ -119,7 +119,7 @@ export function setupHtml(d: SetupData): string {
     ${race ? `<div class="opts">
       <div class="opt"><span>Rivals <em>${esc(DIFFICULTY_BLURB[d.difficulty ?? "easy"])}</em></span>${dropdown("difficulty", d.difficulty ?? "easy", d.unlocked.map((x) => ({ value: x, label: DIFFICULTY_NAMES[x] })), { label: "How hard the rivals drive" })}</div>
       ${d.nextLock ? `<p class="dim info lock-note">🔒 ${esc(d.nextLock)}</p>` : ""}
-      ${d.flow === "quick" ? `<div class="opt"><span>Elimination <em>the last car is out every lap, down to a duel</em></span>${toggle("elim", d.elimination)}</div>` : ""}
+      ${d.flow === "quick" ? `<div class="opt"><span>Elimination <em>the last cars are out every lap (a big field several at a time), down to a duel</em></span>${toggle("elim", d.elimination)}</div>` : ""}
       <div class="opt"><span>Laps${d.elimination ? " <em>one for every rival</em>" : ""}</span>${stepper("laps", d.laps, 1, 50, { disabled: d.elimination })}</div>
       <div class="opt"><span>Players</span>${dropdown("rivals", String(d.rivals), FIELD_SIZES.map((n) => ({ value: String(n - 1), label: String(n) })), { label: "Players on the grid, you included" })}</div>
       ${d.flow === "quick" && !d.noRealism && !d.elimination ? `<div class="opt"><span>Realism <em>tyres, fuel, pit stops, weather</em></span>${toggle("realism", d.realism)}</div>` : ""}
