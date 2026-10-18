@@ -121,7 +121,7 @@ export function buildShape(id: string, sh: Shape): Built {
   };
   const crs = crossingsOf(smooth), cd = (a: number, b: number): number => Math.min(Math.abs(a - b), N - Math.abs(a - b));
   const margin = (i: number): number => crs.reduce((m, [k, q]) => Math.min(m, cd(i, k), cd(i, q)), N);
-  const clear = (i: number): boolean => margin(i) > W + 6;
+  const clear = (i: number): boolean => margin(i) > W + 13;
   let dev = Array.from({ length: N }, (_, i) => (clear(i) ? bends(i) : Infinity));
   // when no place is clear of every crossing, begin as far from them as there is
   if (dev.every((d) => !Number.isFinite(d))) { const far = Math.max(...Array.from({ length: N }, (_, i) => margin(i))); dev = Array.from({ length: N }, (_, i) => (margin(i) >= far - 1 ? bends(i) : Infinity)); }
