@@ -22,9 +22,9 @@ import {
   TACTIC_INFO, crossedPlace, firstDryLap, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
   type Challenge, type ChallengeStore, type Championship, type DailyRecord,
 } from "@apex/sim";
-import { DIFFICULTIES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
+import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
 import { copyText, dropdown, wireControls } from "./menus/controls.ts";
-import { challengesHtml, championshipHtml, difficultyHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
+import { challengesHtml, championshipHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
 import type { Handle, HandleKind, Skid, WorldView } from "./world.ts";
 
 const ME = "me";
@@ -115,14 +115,14 @@ export class Game {
   private planTactic: Tactic = "balanced";
   private champPick: { difficulty: Difficulty; vehicle: VehicleId } = { difficulty: "easy", vehicle: "rally" };
   /** a Daily, a Challenge or a round of the Championship being played: it borrows the settings and gives them back (see `modeBackup`) */
-  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ" } | null = null;
+  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ" } | { kind: "play" } | null = null;
   private modeBackup: Settings | null = null;
   /** which segment the edit view last framed, so a new one starts centred */
   private focusKey = "";
   private toastLayer: HTMLDivElement;
   /** the track has a rough surface somewhere, so the sound looks for one under the cars */
   private roughTrack = false;
-  private screen: "home" | "difficulty" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack" = "home";
+  private screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack" = "home";
   private flow: Flow = "quick";
   private run: RunConfig = { flow: "quick", kind: "race", laps: 3, realism: false, rivals: 7, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty: "easy" };
   /** the weekend in progress, if any */
@@ -441,8 +441,8 @@ export class Game {
     if (this.menuOpen) {
       if (this.inGame) { if (this.screen === "settings") { this.screen = "home"; this.renderMenu(); } else this.closeMenu(); }
       else if (this.screen === "garage") this.go(this.garageFrom);
-      else if (this.screen === "setup") this.go(this.flow === "trial" ? "attack" : "difficulty");
-      else if (this.screen === "difficulty" || this.screen === "championship") this.go("race");
+      else if (this.screen === "setup") this.go(this.flow === "trial" ? "attack" : "race");
+      else if (this.screen === "championship") this.go("race");
       else if (this.screen !== "home") this.go("home");
     } else if (this.inGame) { this.screen = "home"; this.openMenu(); }
   }
@@ -535,14 +535,13 @@ export class Game {
     if (this.screen === "setup") this.renderSetup();
     else if (this.screen === "settings") this.renderSettings();
     else if (this.screen === "garage") this.showGarage();
-    else if (this.screen === "difficulty") this.renderDifficulty();
     else if (this.screen === "challenges") this.renderChallenges();
     else if (this.screen === "championship") this.renderChampionship();
     else if (this.screen === "race" || this.screen === "attack") this.renderGroup(this.screen);
     else this.renderHome();
   }
 
-  private go(screen: "home" | "difficulty" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack"): void {
+  private go(screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack"): void {
     this.screen = screen;
     this.note = "";
     this.renderMenu();
@@ -561,6 +560,7 @@ export class Game {
     this.note = "";
     this.syncHash();
     this.on(el, "#h-race", () => this.go("race"));
+    this.on(el, "#h-play", () => this.startPlayNow());
     this.on(el, "#h-attack", () => this.go("attack"));
     this.on(el, "#h-challenges", () => this.go("challenges"));
     this.on(el, "#h-tutorial", () => this.startTutorial());
@@ -577,33 +577,11 @@ export class Game {
       champ: this.champ ? (isOver(this.champ) ? "Season over" : `Round ${this.champ.done + 1} of ${this.champ.rounds.length}`) : `${ROUNDS} races, one title`,
     }), "tiles");
     this.on(el, "#back", () => this.go("home"));
-    this.on(el, "#h-quick", () => this.openDifficulty("quick"));
-    this.on(el, "#h-weekend", () => this.openDifficulty("weekend"));
+    this.on(el, "#h-quick", () => this.openSetup("quick"));
+    this.on(el, "#h-weekend", () => this.openSetup("weekend"));
     this.on(el, "#h-champ", () => this.go("championship"));
     this.on(el, "#h-trial", () => this.openSetup("trial"));
     this.on(el, "#h-daily", () => this.startDaily());
-  }
-
-  private openDifficulty(flow: Flow): void {
-    this.flow = flow;
-    this.go("difficulty");
-  }
-
-  /** The step between Quick Race or Race Weekend and its setup: how hard the rivals drive. Locked ones say what opens them. */
-  private renderDifficulty(): void {
-    const s = this.settings;
-    const el = this.menuPanel(difficultyHtml({ flow: this.flow, current: s.difficulty, locks: Object.fromEntries(DIFFICULTIES.map((d) => [d, isUnlocked(d, this.records) ? "" : lockReason(d)])) as Record<Difficulty, string> }), "tiles");
-    this.on(el, "#back", () => this.go("race"));
-    for (const d of DIFFICULTIES) {
-      const b = el.querySelector<HTMLButtonElement>(`#d-${d}`)!;
-      if (isUnlocked(d, this.records)) this.on(el, `#d-${d}`, () => { s.difficulty = d; this.openSetup(this.flow); });
-      // a locked one cannot be chosen: hovering shows its tooltip (CSS), and a tap does too, as a phone has no hover
-      else b.addEventListener("click", () => {
-        el.querySelectorAll(".tipping").forEach((x) => x.classList.remove("tipping"));
-        b.classList.add("tipping");
-        setTimeout(() => b.classList.remove("tipping"), 2600);
-      });
-    }
   }
 
   private openSetup(flow: Flow): void {
@@ -631,7 +609,8 @@ export class Game {
         <span class="chip chip-dd">${dropdown("vehicle", chosen, place.choices.map((id) => ({ value: id, label: VEHICLES[id].name })), { label: "Car type" })}</span>
         ${biome.grip !== 1 ? `<span class="chip dim">grip ${pct(biome.grip)}</span>` : ""}${biome.brake !== 1 ? `<span class="chip dim">braking ${pct(biome.brake)}</span>` : ""}${biome.wear !== 1 ? `<span class="chip dim">tyre wear ${pct(biome.wear, true)}</span>` : ""}`;
     const el = this.menuPanel(setupHtml({
-      flow, phrase: s.phrase, chips, difficulty: flow === "trial" ? null : s.difficulty, noRealism: easy, blurb: circuit ? circuit.blurb : biome.blurb,
+      flow, phrase: s.phrase, chips, difficulty: flow === "trial" ? null : s.difficulty,
+      unlocked: DIFFICULTIES.filter((d) => isUnlocked(d, this.records)), nextLock: (() => { const d = DIFFICULTIES.find((x) => !isUnlocked(x, this.records)); return d ? `${DIFFICULTY_NAMES[d]}: ${lockReason(d)}` : ""; })(), noRealism: easy, blurb: circuit ? circuit.blurb : biome.blurb,
       forecast: realism && flow !== "trial" ? this.forecastFor(s.phrase, s.laps, chosen, true) : null,
       laps: s.laps, rivals: s.rivals, realism, wearFuel: s.wearFuel ?? 1, wearTyre: s.wearTyre ?? 1, mandatory: s.mandatory ?? [],
       carLine: `Car: ${s.car.name} (${carCost(s.car)}/${CAR_BUDGET} points)`,
@@ -664,7 +643,7 @@ export class Game {
       });
     });
     this.on(el, "#rand", () => { if (typedDiffers()) loadTyped(); else void this.changeSeed(() => { s.phrase = nextCircuit(s.phrase) ?? rerollPhrase(s.phrase, new Rng((Math.random() * 2 ** 32) >>> 0)); }); });
-    this.on(el, "#back", () => this.go(flow === "trial" ? "attack" : "difficulty"));
+    this.on(el, "#back", () => this.go(flow === "trial" ? "attack" : "race"));
     this.on(el, "#garage", () => { this.garageFrom = "setup"; this.go("garage"); });
     this.on(el, "#go", () => {
       if (!normalizePhrase(s.phrase)) { this.note = "Type a phrase or press Random."; this.renderMenu(); return; }
@@ -679,6 +658,7 @@ export class Game {
         else if (id === "wearFuel") s.wearFuel = clampWear(Number(v));
         else if (id === "wearTyre") s.wearTyre = clampWear(Number(v));
         else if (id === "realism") s.realism = v === "1";
+        else if (id === "difficulty" && isDifficulty(v) && isUnlocked(v, this.records)) s.difficulty = v;
         else if (id === "vehicle" && isVehicleId(v)) { s.vehicle = v; s.vehiclePhrase = normalizePhrase(s.phrase); }
         this.normaliseSettings();
         this.persist();
@@ -809,6 +789,19 @@ export class Game {
     this.flow = flow;
     Object.assign(this.settings, { pitPlan: [], mandatory: [], wearFuel: 1, wearTyre: 1, obstacles: false, ...patch, mode: flow === "trial" ? "trial" : "race", flow });
     this.normaliseSettings();
+  }
+
+  /**
+   * Play now: a random track, three laps against seven rivals, no tyres or fuel, at Medium if the player has opened it (else Easy). The settings
+   * are borrowed (`beginSpecial`), so the player's own Quick Race setup is still there afterwards.
+   */
+  private startPlayNow(): void {
+    const difficulty: Difficulty = isUnlocked("medium", this.records) ? "medium" : "easy";
+    this.beginSpecial({ kind: "play" }, { phrase: randomPhrase(new Rng((Math.random() * 2 ** 32) >>> 0)), laps: 3, rivals: 7, realism: false, difficulty }, "quick");
+    this.weekend = null;
+    this.run = this.runFor("quick", "race");
+    this.audio.unlock();
+    this.startGame();
   }
 
   /** Today's track, as a Time Trial in the garage car. */

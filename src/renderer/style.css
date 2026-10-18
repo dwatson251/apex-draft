@@ -158,6 +158,8 @@ button.back:hover, .pill:hover { background: rgba(255, 255, 255, 0.24); transfor
 .field-copy { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); margin: 0; padding: 7px 12px; display: flex; gap: 6px; align-items: center; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.28); background: rgba(255, 255, 255, 0.14); color: #fff; font: 800 12px system-ui; cursor: pointer; }
 .field-copy:hover { background: rgba(255, 255, 255, 0.28); } .field-copy.done { background: rgba(79, 210, 138, 0.55); }
 .bubble input.fancy { background: rgba(6, 10, 22, 0.5); border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 999px; padding: 13px 22px; box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.35); backdrop-filter: blur(4px); }
+/* (the bubble's padding above would put a long phrase under the Copy button) */
+.bubble .field input.fancy { padding-right: 104px; }
 .bubble input.fancy:focus { border-color: rgba(255, 207, 63, 0.9); box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(255, 207, 63, 0.2); }
 .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 6px; } .opts.one { grid-template-columns: 1fr; }
 .opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px 9px 18px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); min-height: 54px; }

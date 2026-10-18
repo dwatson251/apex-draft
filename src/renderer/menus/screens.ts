@@ -13,11 +13,12 @@ export function homeHtml(o: { version: string; quit: boolean; note: string; chal
     <header class="tilehead"><h1 class="logo">APEX <span>DRAFT</span></h1><p class="tagline">Draw the racing line. The car has to drive it.</p></header>
     <div class="tilegrid home6">
       ${t({ id: "h-race", art: "race", colour: "#ff6a2b", title: "Race", sub: "Quick Race, Race Weekend, Championship", size: "xl" })}
-      ${t({ id: "h-attack", art: "attack", colour: "#f2b705", title: "Time Attack", sub: "Solo Time Trial and the Daily", size: "w2" })}
+      ${t({ id: "h-play", art: "play", colour: "#ff3d7f", title: "Play now", sub: "A random track, three laps, seven rivals: draw and go", size: "w2" })}
+      ${t({ id: "h-attack", art: "attack", colour: "#f2b705", title: "Time Attack", sub: "Time Trial and the Daily" })}
       ${t({ id: "h-challenges", art: "challenges", colour: "#8cc63f", title: "Challenges", sub: o.challenges })}
       ${t({ id: "h-garage", art: "garage", colour: "#2fbf71", title: "Garage", sub: "Tune and paint your car" })}
-      ${t({ id: "h-tutorial", art: "tutorial", colour: "#1fa5d8", title: "Tutorial", sub: "Learn on the oval", size: "w2" })}
-      ${t({ id: "h-settings", art: "settings", colour: "#7a5cf0", title: "Settings", sub: "Sound and controls", size: "w2" })}
+      ${t({ id: "h-tutorial", art: "tutorial", colour: "#1fa5d8", title: "Tutorial", sub: "Learn on the oval" })}
+      ${t({ id: "h-settings", art: "settings", colour: "#7a5cf0", title: "Settings", sub: "Sound and controls", ...(o.quit ? {} : { size: "w2" as const }) })}
       ${o.quit ? t({ id: "h-quit", art: "quit", colour: "#8a93a8", title: "Quit", sub: "Close the game" }) : ""}
     </div>
     ${o.note ? `<p class="bad note">${esc(o.note)}</p>` : ""}
@@ -46,7 +47,6 @@ const DIFFICULTY_BLURB: Record<Difficulty, string> = {
 
 export const starsText = (n: number, of = 3): string => "★".repeat(n) + "☆".repeat(of - n);
 
-/** The step before a Quick Race or Race Weekend's setup. A locked difficulty is dimmed and cannot be picked; `locks` says what opens it. */
 const DIFFICULTY_COLOUR: Record<Difficulty, string> = { easy: "#2fbf71", medium: "#f2b705", hard: "#e9453b" };
 
 /** The three difficulties as tiles: a locked one is dimmed and cannot be picked, and says what opens it (on hover, or when tapped). `prefix` names their ids. */
@@ -59,16 +59,14 @@ export function difficultyTiles(prefix: string, current: Difficulty, locks: Reco
 }
 
 /** The step before a Quick Race or Race Weekend's setup. */
-export function difficultyHtml(o: { flow: Flow; current: Difficulty; locks: Record<Difficulty, string> }): string {
-  return `
-    <header class="tilehead"><button class="back" id="back">← Back</button><div><h2>${o.flow === "weekend" ? "Race Weekend" : "Quick Race"}</h2><p class="dim">How hard should the rivals drive?</p></div></header>
-    ${difficultyTiles("d", o.current, o.locks)}`;
-}
 
 export interface SetupData {
   flow: Flow;
   /** the difficulty chosen, for a race */
   difficulty: Difficulty | null;
+  /** the difficulties the player has opened, to choose from; and what opens the next one, if one is still locked */
+  unlocked: Difficulty[];
+  nextLock: string;
   /** easy has no realism: the toggle and the wear options are not shown */
   noRealism: boolean;
   /** stars and best place on this track and machine, for a race */
@@ -111,10 +109,11 @@ export function setupHtml(d: SetupData): string {
     ${d.flow === "weekend" ? '<div class="sessions"><span>Practice</span><i></i><span>Qualifier</span><i></i><span>Race</span></div>' : ""}
     <label>Track phrase</label>
     <div class="row">${copyField("phrase", d.phrase)}<button id="rand" class="pill pink">Random</button></div>
-    <div class="chips">${d.chips}${d.forecast ? weatherPill(d.forecast) : ""}</div>
-    ${d.difficulty ? `<div class="chips"><span class="chip diff-chip d-${d.difficulty}">${DIFFICULTY_NAMES[d.difficulty]}</span>${d.record ? `<span class="chip stars" title="Stars for this track: one for Easy, two for Medium, three for Hard">${starsText(d.record.stars)}</span>${d.record.place ? `<span class="chip podium" title="Best finish on this track">${podiumIcon(d.record.place)}</span>` : ""}` : ""}</div>` : ""}
+    <div class="chips">${d.chips}${d.difficulty && d.record ? `<span class="chip stars" title="Stars for this track: one for Easy, two for Medium, three for Hard">${starsText(d.record.stars)}</span>${d.record.place ? `<span class="chip podium" title="Best finish on this track">${podiumIcon(d.record.place)}</span>` : ""}` : ""}${d.forecast ? weatherPill(d.forecast) : ""}</div>
     ${d.flow === "trial" ? '<div class="chips"><span class="chip dim">Soft tyres</span><span class="chip dim">No wear or fuel</span><span class="chip dim">No rivals</span></div>' : ""}
     ${race ? `<div class="opts">
+      <div class="opt"><span>Rivals <em>${esc(DIFFICULTY_BLURB[d.difficulty ?? "easy"])}</em></span>${dropdown("difficulty", d.difficulty ?? "easy", d.unlocked.map((x) => ({ value: x, label: DIFFICULTY_NAMES[x] })), { label: "How hard the rivals drive" })}</div>
+      ${d.nextLock ? `<p class="dim info lock-note">🔒 ${esc(d.nextLock)}</p>` : ""}
       <div class="opt"><span>Laps</span>${stepper("laps", d.laps, 1, 50)}</div>
       <div class="opt"><span>Players</span>${dropdown("rivals", String(d.rivals), FIELD_SIZES.map((n) => ({ value: String(n - 1), label: String(n) })), { label: "Players on the grid, you included" })}</div>
       ${d.flow === "quick" && !d.noRealism ? `<div class="opt"><span>Realism <em>tyres, fuel, pit stops, weather</em></span>${toggle("realism", d.realism)}</div>` : ""}

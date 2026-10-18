@@ -14,6 +14,8 @@ export const TILE_ART: Record<string, string> = {
   garage: svg('<path d="M40 150l60-60M120 50a30 30 0 0 1 36 36l-20-4-12-12-4-20z"/><path d="M52 162l-14-14 22-22 14 14z"/><circle cx="148" cy="148" r="22"/><circle cx="148" cy="148" r="8"/>'),
   tutorial: svg('<path d="M30 60l70-22 70 22v82l-70-22-70 22z"/><path d="M100 38v82"/><path d="M52 78l34 8M52 100l34 8M148 78l-34 8M148 100l-34 8" stroke-width="3"/>'),
   settings: svg('<path d="M30 60h140M30 100h140M30 140h140"/><circle cx="70" cy="60" r="14" fill="currentColor" fill-opacity=".25"/><circle cx="130" cy="100" r="14" fill="currentColor" fill-opacity=".25"/><circle cx="90" cy="140" r="14" fill="currentColor" fill-opacity=".25"/>'),
+  // a play button over a line being drawn: straight into a race
+  play: svg('<path d="M24 160c30-6 44-34 70-40s46 10 82-6" stroke-dasharray="10 12"/><circle cx="100" cy="86" r="56"/><path d="M84 58v56l46-28z" fill="currentColor"/>'),
   quick: svg(FLAG),
   weekend: svg('<rect x="30" y="50" width="140" height="110" rx="6"/><path d="M30 82h140M62 34v28M138 34v28"/><path d="M52 104h22M89 104h22M126 104h22M52 130h22M89 130h22" stroke-width="4"/>'),
   champ: svg('<path d="M70 40h60v40a30 30 0 0 1-60 0z"/><path d="M70 52H44c0 28 10 40 28 44M130 52h26c0 28-10 40-28 44"/><path d="M100 110v32M72 162h56M84 142h32"/>'),
