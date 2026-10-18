@@ -281,12 +281,14 @@ export class Game {
   }
 
   /** What the forecaster would say for this phrase and lap count: rain at the start, middle or end of the race, never the detail. */
-  private forecastFor(phrase: string, laps: number, obstacles: boolean, on = this.run.realism): [boolean, boolean, boolean] | null {
+  /** The race's weather comes from the length of the race in the player's own machine (`Race` takes the first entrant's), so the forecast has to use the same one. */
+  private forecastFor(phrase: string, laps: number, vehicle: VehicleId, on = this.run.realism): [boolean, boolean, boolean] | null {
     if (!on) return null;
-    const key = `${phrase}|${laps}|${obstacles}`;
+    const key = `${phrase}|${laps}|${vehicle}`;
     if (this.fcKey !== key) {
-      const t = generateTrack(phrase, { obstacles });
-      const ph = forecast(weatherFor(t.seed, raceDuration(t, vehicleForTrack(t), laps), t.biome), raceDuration(t, vehicleForTrack(t), laps));
+      const t = generateTrack(phrase, { obstacles: false });
+      const duration = raceDuration(t, vehicle, laps);
+      const ph = forecast(weatherFor(t.seed, duration, t.biome), duration);
       this.fcKey = key;
       this.fcRain = [ph.includes("beginning"), ph.includes("middle"), ph.includes("end")];
     }
@@ -630,7 +632,7 @@ export class Game {
         ${biome.grip !== 1 ? `<span class="chip dim">grip ${pct(biome.grip)}</span>` : ""}${biome.brake !== 1 ? `<span class="chip dim">braking ${pct(biome.brake)}</span>` : ""}${biome.wear !== 1 ? `<span class="chip dim">tyre wear ${pct(biome.wear, true)}</span>` : ""}`;
     const el = this.menuPanel(setupHtml({
       flow, phrase: s.phrase, chips, difficulty: flow === "trial" ? null : s.difficulty, noRealism: easy, blurb: circuit ? circuit.blurb : biome.blurb,
-      forecast: realism && flow !== "trial" ? this.forecastFor(s.phrase, s.laps, false, true) : null,
+      forecast: realism && flow !== "trial" ? this.forecastFor(s.phrase, s.laps, chosen, true) : null,
       laps: s.laps, rivals: s.rivals, realism, wearFuel: s.wearFuel ?? 1, wearTyre: s.wearTyre ?? 1, mandatory: s.mandatory ?? [],
       carLine: `Car: ${s.car.name} (${carCost(s.car)}/${CAR_BUDGET} points)`,
       bestLine: flow === "trial" ? (tt !== undefined ? `Your time: <b>${fmt(tt)}</b>` : "") : "",
@@ -1547,7 +1549,7 @@ export class Game {
     if (dryAt !== null) warns.push(`<p class="bad">As planned you run dry on lap ${dryAt + 1}. Queue a stop before it.</p>`);
     if (tooMany) warns.push('<p class="bad">Too many segments changed. Revert and try again.</p>');
     if (message) warns.push(`<p class="bad">${esc(message)}</p>`);
-    const rainTiles = firstLap && real ? this.forecastFor(this.settings.phrase, this.run.laps, false) : null;
+    const rainTiles = firstLap && real ? this.forecastFor(this.track.phrase, this.run.laps, this.vehicle) : null;
     this.ui.innerHTML = `<div class="tl">${rainTiles ? weatherGrid(rainTiles, 75) : ""}${warns.length ? `<div class="panel warn">${warns.join("")}</div>` : ""}</div>`;
     const goLabel = firstLap ? (this.timed() ? "Go!" : "Race!") : "Back out";
     this.bar.set([
@@ -2207,7 +2209,7 @@ export class Game {
     }
     const set = (sel: string, html: string) => { const n = el!.querySelector(sel); if (n && n.innerHTML !== html) n.innerHTML = html; };
     set("#hud-head", `${this.lapText(lap)} <span class="dim">${fmt(now)}</span>`);
-    const fc = this.forecastFor(this.settings.phrase, this.run.laps, false);
+    const fc = this.forecastFor(this.track.phrase, this.run.laps, this.vehicle);
     set("#hud-weather", fc ? weatherGrid(fc, 75, Math.min(2, Math.floor(((lap - 1) / this.run.laps) * 3))) : "");
     // a time trial or practice: the best lap in a box of its own, with the last three laps listed under it, newest first
     if (this.timed()) {
