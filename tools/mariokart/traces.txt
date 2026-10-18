@@ -27,3 +27,9 @@ peach-circuit | MKDS_Peach_Circuit_GBA_Map.png | 500 430 500 300 | --tol=40 --cl
 mksc-bowser-castle-1 | MKSC_Bowser_Castle_1_Map.png | 937 406 937 300 | --tol=60 --close=13 --bridge=430,675,560,675
 mksc-mario-circuit | MKSC_Mario_Circuit_Map.png | 870 330 870 250 | --tol=35 --close=9
 boo-lake | MKSC_Boo_Lake_Map.png | 62 406 62 300 | --notbg=0,0,0 --bgtol=25 --close=9 --bridge=150,28,560,26
+sky-garden | MKSC_Sky_Garden_Map.png | 172 53 172 150 | --dark=215 --close=9 --bridge=430,190,500,175
+mksc-bowser-castle-2 | MKSC_Bowser_Castle_2_Map.png | 172 390 172 300 | --road=248,232,176 --tol=60 --close=11 --bridge=935,120,935,830 --bridge=935,830,700,820
+yoshi-desert | MKSC_Yoshi_Desert_Map.png | 795 520 795 400 | --road=250,240,170 --tol=35 --close=11
+mksc-bowser-castle-3 | GBA_Bowser_Castle_3_map.png | 895 177 895 280 | --road=144,200,232 --tol=70 --close=11 --bridge=95,220,80,470 --bridge=80,470,40,580 --col=208,64,64
+lakeside-park | MKSC_Lakeside_Park_Map.png | 152 510 152 400 | --road=248,208,152 --tol=40 --close=11 --bridge=470,480,580,480
+broken-pier | MKSC_Broken_Pier_Map.png | 31 460 31 360 | --notbg=0,0,0 --bgtol=30 --close=13

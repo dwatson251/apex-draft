@@ -18,7 +18,10 @@ cols = [tuple(map(int, a.split("=")[1].split(","))) for a in sys.argv[7:] if a.s
 tol = float(opt.get("--tol", 40)); close_r = int(opt.get("--close", 7))
 
 img = Image.open(pic).convert("RGBA")
-bg = Image.new("RGBA", img.size, (0, 0, 0, 255))
+alpha_raw = img.getchannel("A")
+# a picture with a see-through ground is laid on pale grey (as grid.py shows it), an opaque one is left as it is
+transparent = img.getchannel("A").getextrema()[0] < 255
+bg = Image.new("RGBA", img.size, (235, 235, 235, 255) if transparent else (0, 0, 0, 255))
 img = Image.alpha_composite(bg, img).convert("RGB")
 k = 1000 / max(img.size)
 W, H = round(img.width * k), round(img.height * k)
@@ -28,6 +31,12 @@ road = np.array(list(map(int, opt['--road'].split(','))), float) if '--road' in 
 targets = [road] + [np.array(c, float) for c in cols]
 mask = np.zeros((H, W), bool)
 for t in targets: mask |= np.linalg.norm(a - t, axis=2) < tol
+if "--alpha" in opt:  # the road is what is opaque (a picture of a ribbon on a see-through ground, shadow and all)
+    mask = np.asarray(alpha_raw.resize((W, H), Image.NEAREST)) > float(opt["--alpha"])
+if "--light" in opt:  # the road is whatever is brighter than the ground (a white ribbon on grey)
+    mask = a.mean(axis=2) > float(opt["--light"])
+if "--dark" in opt:  # the road is whatever is darker than the picture's pale ground (and the pale halo round the road)
+    mask = a.mean(axis=2) < float(opt["--dark"])
 if "--notbg" in opt:  # the road is whatever is not the background colour (a dark road on a dark ground has many shades)
     mask = np.linalg.norm(a - np.array(list(map(int, opt["--notbg"].split(","))), float), axis=2) > float(opt.get("--bgtol", 20))
 # --bridge=x1,y1,x2,y2 lays road across a gap the cars jump (or a break in the picture)
@@ -111,7 +120,8 @@ else:
         G = coo_matrix((ws, (rows, cs)), shape=(len(nodes), len(nodes))).tocsr()
         a0 = min(ahead, key=lambda p: -dot_dir(p) / (dist_s(p) or 1)); b0 = min(behind, key=lambda p: dot_dir(p) / (dist_s(p) or 1))
         dist, pred = dijkstra(G, indices=idx[a0], return_predecessors=True)
-        if math.isfinite(dist[idx[b0]]):
+        print(f'path length {dist[idx[b0]]}', file=sys.stderr)
+    if math.isfinite(dist[idx[b0]]):
             path = [idx[b0]]
             while path[-1] != idx[a0]: path.append(pred[path[-1]])
             order = [start] + [nodes[i] for i in reversed(path)] + [start]

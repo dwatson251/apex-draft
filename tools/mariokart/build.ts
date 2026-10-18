@@ -110,7 +110,26 @@ export function buildShape(id: string, sh: Shape): Built {
     else { at = frac(f.leg!, f.a!); end = frac(f.to ?? f.leg!, f.b!); }
     return { at, end, type: f.type, power: f.power };
   });
-  const smooth = smoothLoop(resample(raw, 240), 5, 0.5);
+  let smooth = smoothLoop(resample(raw, 240), 5, 0.5);
+  // The start line needs a straight run (the pit lane beside it) clear of any crossing: keep the author's start if it will do, else begin at the straightest such place.
+  const N = smooth.length, W = 13;
+  const bends = (i: number): number => {
+    const a = smooth[(i - W + N) % N]!, b = smooth[(i + W) % N]!, len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    let worst = 0;
+    for (let j = -W; j <= W; j++) { const q = smooth[(i + j + N) % N]!; worst = Math.max(worst, Math.abs(((q.x - a.x) * (b.y - a.y) - (q.y - a.y) * (b.x - a.x)) / len)); }
+    return worst / (length(smooth) / N * 2 * W);
+  };
+  const crs = crossingsOf(smooth), cd = (a: number, b: number): number => Math.min(Math.abs(a - b), N - Math.abs(a - b));
+  const clear = (i: number): boolean => crs.every(([k, m]) => cd(i, k) > W + 14 && cd(i, m) > W + 14);
+  const dev = Array.from({ length: N }, (_, i) => (clear(i) ? bends(i) : Infinity));
+  const bestDev = Math.min(...dev);
+  if (dev[0]! > Math.max(bestDev * 1.5, 0.02)) {
+    const pick = dev.indexOf(bestDev);
+    if (Number.isFinite(bestDev)) {
+      smooth = [...smooth.slice(pick), ...smooth.slice(0, pick)];
+      for (const w of want) { w.at = (((w.at - pick / N) % 1) + 1) % 1; w.end = w.at + Math.min(0.2, Math.max(0.002, w.end - w.at)); }
+    }
+  }
   // Scale it up until its own corners are wide enough (a tight corner at a small scale would be bent wide by `fit`, and the course with it) and the roads are
   // far enough apart; then let `fit` take out what is left.
   let len = sh.len, grew = 0, best: Built | undefined;
@@ -126,7 +145,7 @@ export function buildShape(id: string, sh: Shape): Built {
     const minX = Math.min(...points.map((p) => p.x)), minY = Math.min(...points.map((p) => p.y));
     const game = points.map((p) => ({ x: p.x - minX + MARGIN, y: p.y - minY + MARGIN }));
     const r = measure(game, loop.map((p) => ({ x: p.x - minX + MARGIN, y: p.y - minY + MARGIN })), limits);
-    const ok = r.minRadius >= limits.rMin * 0.9 && r.minGap >= limits.gap * 0.95;
+    const ok = r.minRadius >= limits.rMin * 0.9 && r.minGap >= limits.gap * 0.92;
     const flatPts = game.flatMap((p) => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]);
     best = { points: flatPts, fx: placeFx(id, flatPts, want), len: Math.round(length(game)), grew, ok, report: `${Math.round(length(game))} units, R>=${report.minRadius.toFixed(0)} gap>=${report.minGap.toFixed(0)} drift mean ${r.meanDrift.toFixed(0)} max ${r.worstDrift.toFixed(0)}` };
     if (ok) break;
