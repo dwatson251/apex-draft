@@ -108,6 +108,7 @@ practise somewhere quiet and take the line into a race.
 | **Line Golf** | A course a day: beat the target lap with as few points as you can. Par comes from a line that can be drawn; three stars at par. |
 | **Championship** | Five races on linked tracks against the same rivals, with points for the places. Each round is a qualifier and a race. |
 | **Challenges** | Ten races with a goal, worth one to three stars each. |
+| **Duels** | *Challenge a friend* on your results copies a duel code: your line, car and name. A friend pastes it into the track phrase box and races your lap head to head. |
 | **Tutorial** | A guided run on the oval: drawing, locking in segments, queuing a pit stop and editing in the pits. |
 
 **Long races and strategy.** You can only change your line while you are in the pits, and then only up to three segments

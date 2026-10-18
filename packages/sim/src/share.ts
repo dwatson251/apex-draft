@@ -8,9 +8,10 @@ import type { Vec2 } from "./vec.ts";
  * Everything needed to come back to the same track and the same drawing, and nothing about a race: no lap, no time,
  * no standings. Reloading a link always starts the race afresh.
  *
- * Binary layout (version 5), then base64url. Versions 1 to 4 links still open (5 added the route through shortcuts).
- *   u8 version (5)
- *   u8 flags: 1 obstacles, 2 realism, 4 race mode (else time trial), 8 in a game (else menu), 16 has points, 32 has a route (the line takes a shortcut)
+ * Binary layout (version 6), then base64url. Versions 1 to 5 links still open (5 added the route through shortcuts, 6 duels).
+ *   u8 version (6)
+ *   u8 flags: 1 obstacles, 2 realism, 4 race mode (else time trial), 8 in a game (else menu), 16 has points, 32 has a route (the line takes a shortcut),
+ *     64 a duel (the line is a challenger's, to race against)
  *   u8 laps (1 to 50)
  *   u8 rivals (1 to 255), u8 start tyre (0 soft, 1 medium, 2 wet)
  *   (versions 1 to 3 had rivals in the low nibble of one byte and the tyre in the high nibble: at most 7 rivals)
@@ -23,6 +24,7 @@ import type { Vec2 } from "./vec.ts";
  *   if has points: varint count of segments drawn, then (if has a route) that many varints: the id of the segment each was drawn in,
  *     u16 start x, u16 start y (tenths of a unit), then per segment
  *     varint point count, and each point as zigzag varint deltas (tenths of a unit) from the point before it
+ *   if a duel: u8 length + utf-8 challenger's name, u8 length + utf-8 their machine
  */
 export interface ShareState {
   phrase: string;
@@ -39,9 +41,11 @@ export interface ShareState {
   pitPlan: { lap: number; tyre: Compound }[];
   /** the start point and the segments drawn so far (all of them when the lap is complete) */
   line?: Line;
+  /** a duel: `line` is the challenger's lap, raced against as a rival, in their machine */
+  duel?: { name: string; vehicle: string };
 }
 
-export const SHARE_VERSION = 5;
+export const SHARE_VERSION = 6;
 /** The sizes of field the game offers, you included: the round numbers of a real race. Rivals are one fewer. */
 export const FIELD_SIZES = [2, 4, 8, 16, 24, 32, 64] as const;
 /** A grid is at most 64 cars: you and 63 rivals. */
@@ -86,7 +90,7 @@ export function encodeShare(st: ShareState): string {
   const w = new Writer();
   w.u8(SHARE_VERSION);
   const hasLine = !!st.line && st.line.start !== undefined;
-  w.u8((st.obstacles ? 1 : 0) | (st.realism ? 2 : 0) | (st.mode === "race" ? 4 : 0) | (st.playing ? 8 : 0) | (hasLine ? 16 : 0) | (hasLine && st.line!.path ? 32 : 0));
+  w.u8((st.obstacles ? 1 : 0) | (st.realism ? 2 : 0) | (st.mode === "race" ? 4 : 0) | (st.playing ? 8 : 0) | (hasLine ? 16 : 0) | (hasLine && st.line!.path ? 32 : 0) | (hasLine && st.duel ? 64 : 0));
   w.u8(Math.min(50, Math.max(1, st.laps)));
   w.u8(Math.min(MAX_RIVALS, Math.max(1, st.rivals)));
   w.u8(Math.max(0, COMPOUND_IDS.indexOf(st.startTyre)));
@@ -110,6 +114,7 @@ export function encodeShare(st: ShareState): string {
         px = x; py = y;
       }
     }
+    if (st.duel) { w.str(st.duel.name); w.str(st.duel.vehicle); }
   }
   return b64(w.bytes);
 }
@@ -119,7 +124,7 @@ export function decodeShare(code: string): ShareState | string {
   try {
     const r = new Reader(unb64(code.replace(/^#/, "")));
     const version = r.u8();
-    if (version < 1 || version > 5) return "this link was made by a different version";
+    if (version < 1 || version > 6) return "this link was made by a different version";
     const flags = r.u8();
     let laps: number, rivals: number, startTyre: Compound = "medium";
     const pitPlan: { lap: number; tyre: Compound }[] = [];
@@ -162,9 +167,21 @@ export function decodeShare(code: string): ShareState | string {
         segs.push(seg);
       }
       st.line = path && path.some((id, k) => id !== k) ? { start, segs, path } : { start, segs };
+      if (version >= 6 && flags & 64) st.duel = { name: r.str(), vehicle: r.str() };
     }
     return st;
   } catch (e) {
     return `the link could not be read (${(e as Error).message})`;
   }
+}
+
+/** A duel as text to paste: the share code with a word in front, so it is told apart from a track phrase. A link (anything with `#code`) also works. */
+export const DUEL_PREFIX = "duel:";
+export const duelCode = (st: ShareState): string => DUEL_PREFIX + encodeShare(st);
+/** The duel in pasted text, or null when it is not one (a phrase, a link without a duel, a broken code). */
+export function readDuel(text: string): ShareState | null {
+  const t = text.trim(), code = t.startsWith(DUEL_PREFIX) ? t.slice(DUEL_PREFIX.length) : t.includes("#") ? t.slice(t.indexOf("#") + 1) : null;
+  if (!code) return null;
+  const st = decodeShare(code);
+  return typeof st === "string" || !st.duel || !st.line ? null : st;
 }

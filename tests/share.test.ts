@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botLine, decodeShare, defaultCar, encodeShare, generateTrack, validateLine, type ShareState } from "@apex/sim";
+import { botLine, decodeShare, defaultCar, duelCode, encodeShare, generateTrack, readDuel, validateLine, type ShareState } from "@apex/sim";
 
 const base = (): ShareState => ({ phrase: "Healthy Bear eats tuna", laps: 40, mode: "race", rivals: 6, car: { name: "Zoom ünï", accel: 8, top: 5, grip: 7, brake: 4 }, obstacles: false, realism: true, playing: true, startTyre: "soft", pitPlan: [{ lap: 6, tyre: "wet" }, { lap: 14, tyre: "medium" }] });
 
@@ -70,5 +70,19 @@ describe("share links", () => {
     expect(back.rivals).toBe(4);
     expect(back.startTyre).toBe("wet");
     expect(back.phrase).toBe("quiet-fox-hugs-kites");
+  });
+});
+
+describe("duels", () => {
+  it("carry the challenger's line, name and machine, and read back from a pasted code or a link", () => {
+    const t = generateTrack("brave-owl-rides-melons");
+    const line = botLine(t, 5, 1);
+    const code = duelCode({ phrase: "brave-owl-rides-melons", laps: 3, mode: "race", rivals: 1, car: defaultCar(), obstacles: false, realism: false, playing: true, startTyre: "medium", pitPlan: [], line, duel: { name: "Sam", vehicle: "rally" } });
+    for (const pasted of [code, `  ${code}\n`, `https://example.org/#${code.slice(5)}`]) {
+      const st = readDuel(pasted)!;
+      expect(st.duel).toEqual({ name: "Sam", vehicle: "rally" });
+      expect(st.line!.segs.length).toBe(line.segs.length);
+    }
+    expect(readDuel("brave-owl-rides-melons")).toBeNull();
   });
 });

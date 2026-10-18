@@ -22,7 +22,7 @@ import {
   TACTIC_INFO, crossedPlace, firstDryLap, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
   type Challenge, type ChallengeStore, type Championship, type DailyRecord,
 } from "@apex/sim";
-import { SIM_VERSION, buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile, type RaceEdit, type RaceRules } from "@apex/sim";
+import { SIM_VERSION, duelCode, readDuel, buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile, type RaceEdit, type RaceRules } from "@apex/sim";
 import { MAX_REPLAYS, MAX_REPLAY_BYTES, keepReplay, loadReplays, rulesIn, rulesOut, type Replay } from "./replays.ts";
 import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
 import { copyText, dropdown, wireControls } from "./menus/controls.ts";
@@ -126,7 +126,7 @@ export class Game {
   private planTactic: Tactic = "balanced";
   private champPick: { difficulty: Difficulty; vehicle: VehicleId } = { difficulty: "easy", vehicle: "rally" };
   /** a Daily, a Challenge or a round of the Championship being played: it borrows the settings and gives them back (see `modeBackup`) */
-  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ" } | { kind: "play" } | { kind: "golf"; date: string } | { kind: "replay"; rep: Replay } | null = null;
+  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ" } | { kind: "play" } | { kind: "golf"; date: string } | { kind: "replay"; rep: Replay } | { kind: "duel"; name: string; vehicle: string; line: Line; car: CarConfig } | null = null;
   /** races kept to watch again (replays.ts), newest first */
   private replays: Replay[] = [];
   /** the entrants as they were when the race began, and its rules, for the replay */
@@ -292,7 +292,8 @@ export class Game {
     this.app.ticker.add((t) => this.onFrame(t.deltaMS / 1000));
     // a link brings back the track, the settings and however much of the lap was drawn, never a race in progress
     const link = this.readLink();
-    if (link?.playing) {
+    if (link?.duel) this.startDuel(link);
+    else if (link?.playing) {
       this.flow = this.settings.mode === "trial" ? "trial" : "quick";
       this.run = this.runFor(this.flow, this.flow === "trial" ? "trial" : "race");
       this.startGame(link.line ?? null, true);
@@ -649,12 +650,13 @@ export class Game {
     const input = el.querySelector<HTMLInputElement>("#phrase")!;
     // typing a different track turns Random into Load Track; they swap back when the box matches the current track again
     const rand = el.querySelector<HTMLButtonElement>("#rand")!;
-    const typedDiffers = (): boolean => { const t = normalizePhrase(input.value); return !!t && t !== normalizePhrase(s.phrase); };
-    const syncRand = (): void => { const load = typedDiffers(); rand.textContent = load ? "Load Track" : "Random"; rand.classList.toggle("green", load); rand.classList.toggle("pink", !load); };
-    const loadTyped = (): void => { const next = input.value; if (typedDiffers()) void this.changeSeed(() => { s.phrase = next; }); };
+    // (a pasted duel code is not a phrase: it starts the duel)
+    const typedDiffers = (): boolean => { if (readDuel(input.value)) return true; const t = normalizePhrase(input.value); return !!t && t !== normalizePhrase(s.phrase); };
+    const syncRand = (): void => { const load = typedDiffers(); rand.textContent = readDuel(input.value) ? "Load Duel" : load ? "Load Track" : "Random"; rand.classList.toggle("green", load); rand.classList.toggle("pink", !load); };
+    const loadTyped = (): void => { const duel = readDuel(input.value); if (duel) { this.startDuel(duel); return; } const next = input.value; if (typedDiffers()) void this.changeSeed(() => { s.phrase = next; }); };
     input.addEventListener("input", syncRand);
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") { loadTyped(); input.blur(); } });
-    input.addEventListener("change", () => { if (!normalizePhrase(input.value)) input.value = s.phrase; syncRand(); });
+    input.addEventListener("change", () => { if (!normalizePhrase(input.value) && !readDuel(input.value)) input.value = s.phrase; syncRand(); });
     const copy = el.querySelector<HTMLButtonElement>("#phrase-copy")!;
     copy.addEventListener("click", () => {
       void copyText(input.value.trim()).then((ok) => {
@@ -915,6 +917,35 @@ export class Game {
     this.on(el, "#res-menu", () => this.showMenu());
   }
 
+  /** A duel from a code or a link: the challenger's track and rules, a race of two, their lap against the one the player is about to draw. */
+  private startDuel(st: ShareState): void {
+    if (!st.duel || !st.line) return;
+    const car: CarConfig = { name: st.car.name || "Standard", accel: st.car.accel, top: st.car.top, grip: st.car.grip, brake: st.car.brake };
+    if (this.inGame) this.leaveGame();
+    this.beginSpecial({ kind: "duel", name: st.duel.name || "Challenger", vehicle: st.duel.vehicle, line: st.line, car: validateCar(car) ? defaultCar() : car }, { phrase: st.phrase, laps: st.laps, rivals: 1, realism: st.realism, obstacles: false, startTyre: st.startTyre }, "quick");
+    this.weekend = null;
+    this.run = this.runFor("quick", "race");
+    this.audio.unlock();
+    this.startGame();
+    this.toast(`Duel: draw a lap to beat <b>${esc(st.duel.name || "the challenger")}</b>`);
+  }
+
+  /** The duel code for the line the player has just driven: paste it into the track phrase box to race against it. */
+  private myDuelCode(): string | null {
+    const line = this.me?.lines.at(-1);
+    if (!line || !isComplete(this.track, line)) return null;
+    const r = this.run, s = this.settings;
+    return duelCode({ phrase: this.track.phrase, laps: r.kind === "race" ? r.laps : 3, mode: "race", rivals: 1, car: s.car, obstacles: false, realism: r.kind === "race" && r.realism, playing: true, startTyre: s.startTyre, pitPlan: [], line, duel: { name: this.online.name, vehicle: this.vehicle } });
+  }
+
+  /** A button that copies the player's duel code, and says what to do with it. */
+  private duelButton(label: string): string { return this.myDuelCode() ? `<button id="duelcode" title="Copies a code: a friend pastes it into the track phrase box in race setup and races your line">${label}</button>` : ""; }
+  private wireDuelButton(el: HTMLElement): void {
+    const b = el.querySelector<HTMLButtonElement>("#duelcode");
+    if (!b) return;
+    b.addEventListener("click", () => { const code = this.myDuelCode(); if (code) void copyText(code).then((ok) => { b.textContent = ok ? "Copied: send it to a friend" : "Could not copy"; }); });
+  }
+
   /** Today's track, as a Time Trial in the garage car. */
   private startDaily(): void {
     const date = dailyDate(new Date());
@@ -1078,6 +1109,7 @@ export class Game {
     if (this.special?.kind === "champ" && this.champ && choices.includes(this.champ.vehicle)) return this.champ.vehicle;
     if (this.special?.kind === "challenge") { const c = challengeById(this.special.id); return c?.vehicle && choices.includes(c.vehicle) ? c.vehicle : choices[0]!; }
     if (this.special?.kind === "daily" || this.special?.kind === "golf") return choices[0]!;
+    if (this.special?.kind === "duel") { const v = this.special.vehicle; return choices.includes(v as VehicleId) ? (v as VehicleId) : choices[0]!; }
     const v = this.settings.vehicle;
     // a kart course starts on a kart: a machine picked for some other track is not carried over, only one picked while this course was in setup
     const phrase = normalizePhrase(this.settings.phrase);
@@ -1201,6 +1233,8 @@ export class Game {
     const out: Entrant[] = [];
     const d = this.run.difficulty;
     if (this.special?.kind === "champ" && this.champ) return makeBots(this.track, this.vehicle, 0, count, d, rosterOf(this.champ));
+    // a duel: the challenger's lap and car, and nobody else (their line is the same on every lap: it is the lap they sent)
+    if (this.special?.kind === "duel") return [{ id: "duel", name: this.special.name, car: { ...this.special.car, type: this.vehicle }, lines: [roundLine(this.special.line)] }];
     if (this.special || !ghostsAllowed(d)) return makeBots(this.track, this.vehicle, 0, count, d);
     const q = { ...this.ghostQuery(count), phrase: this.track.phrase, vehicle: this.vehicle };
     const t = this.best[trialKey(this.track.phrase, this.vehicle)];
@@ -2512,7 +2546,7 @@ export class Game {
         if (better && golf.stars > 0) { this.golfRec[ph] = { stars: golf.stars, points: golf.points }; void save("golf", this.golfRec); }
         extra = `<div class="golfres"><p>⛳ <b>${golf.points}</b> points, par ${golf.par}: ${golf.stars ? `<b class="good">${"★".repeat(golf.stars)}${"☆".repeat(3 - golf.stars)}</b>` : '<span class="bad">the line misses the target</span>'}</p><p class="dim">Its flying lap ${fmt(golf.lap)} against the target ${fmt(golf.target)}.${better && golf.stars ? " A new best on today's course!" : was ? ` Today's best: ${"★".repeat(was.stars)} in ${was.points} points.` : ""}</p></div>` + extra;
       }
-      buttons = '<button class="primary" id="again">Edit line &amp; try again</button><button id="res-menu">Menu</button>';
+      buttons = `<button class="primary" id="again">Edit line &amp; try again</button>${this.special?.kind === "golf" ? "" : this.duelButton("Challenge a friend")}<button id="res-menu">Menu</button>`;
     } else if (kind === "practice") {
       this.practiceSecs += early ? this.race!.cars.find((c) => c.entrant.id === ME)!.lapStart[r.laps - 1]! : this.race!.time;
       const w = this.weekend ?? newWeekend();
@@ -2537,6 +2571,7 @@ export class Game {
       <ul class="lap-list">${lastLaps || '<li class="dim"><span>No laps timed</span></li>'}</ul>`}${extra}
       ${this.lineDeltas()}
       ${buttons}`);
+    this.wireDuelButton(el);
     this.on(el, "#res-menu", () => this.showMenu());
     if (dailyDate_) void this.online.daily(dailyDate_).then((b) => {
       const box = el.querySelector("#daily-board");
@@ -2600,7 +2635,8 @@ export class Game {
     if (r.flow === "weekend" && this.weekend) this.weekend = finishSession(this.weekend, "race", null);
     if (r.flow === "tutorial" && this.tutBackup) { this.tutBackup.tutorialDone = true; this.persist(); }
     const crossed = crossedPlace(res, ME);
-    const title = mine.position === 1 ? "You won!" : mine.eliminated ? `Out in P${mine.position}` : `You finished P${mine.position}`;
+    const rival = res.find((x) => x.id === "duel");
+    const title = this.special?.kind === "duel" && rival ? (mine.position === 1 ? `You beat ${esc(rival.name)}!` : `${esc(rival.name)}'s line wins`) : mine.position === 1 ? "You won!" : mine.eliminated ? `Out in P${mine.position}` : `You finished P${mine.position}`;
     // (with tyres and fuel in play the classification adds time penalties, so it can differ from the order the cars crossed the line in)
     const orderNote = !r.elimination && crossed !== null && crossed !== mine.position ? `<p class="dim">You crossed the line <b>P${crossed}</b>; with the time penalties (a car that never stopped in the pits, or never ran a required tyre, is given one) you are classified <b>P${mine.position}</b>.</p>` : "";
     if (mine.position === 1 && !mine.dnf && this.special?.kind !== "challenge") this.audio.stinger("win");
@@ -2618,8 +2654,9 @@ export class Game {
       <p class="dim">Your laps: ${mine.lapTimes.map(fmt).join(" · ")}</p>
       ${this.lineDeltas()}
       ${season}
-      ${this.special?.kind === "champ" ? `<button class="primary" id="next-round">${this.champ && isOver(this.champ) ? "Final standings" : "Next round"}</button>` : `<button class="primary" id="again">${r.flow === "weekend" ? "Weekend again" : "Race again"}</button>`}${this.keepThisRace(title, mine.position) ? '<button id="watch">Watch replay</button>' : ""}<button id="res-menu">Menu</button>`);
+      ${this.special?.kind === "champ" ? `<button class="primary" id="next-round">${this.champ && isOver(this.champ) ? "Final standings" : "Next round"}</button>` : `<button class="primary" id="again">${r.flow === "weekend" ? "Weekend again" : "Race again"}</button>`}${this.keepThisRace(title, mine.position) ? '<button id="watch">Watch replay</button>' : ""}${this.duelButton(this.special?.kind === "duel" ? "Send your line back" : "Challenge a friend")}<button id="res-menu">Menu</button>`);
     this.on(el, "#res-menu", () => this.showMenu());
+    this.wireDuelButton(el);
     this.on(el, "#watch", () => { const rep = this.replays[0]; if (rep) this.watchReplay(rep); });
     this.on(el, "#next-round", () => { if (this.champ && isOver(this.champ)) { this.showMenu(); this.go("championship"); } else this.startChampRound(); });
     this.on(el, "#again", () => {
