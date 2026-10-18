@@ -395,7 +395,7 @@ export class Game {
     const st = decodeShare(raw);
     if (typeof st === "string") { this.note = `That link did not work: ${st}`; return null; }
     const car: CarConfig = { name: st.car.name || "Standard", accel: st.car.accel, top: st.car.top, grip: st.car.grip, brake: st.car.brake };
-    Object.assign(this.settings, { phrase: st.phrase, laps: st.laps, mode: st.mode, rivals: st.rivals, realism: st.realism, obstacles: false, car: validateCar(car) ? defaultCar() : car, startTyre: st.startTyre, pitPlan: st.pitPlan });
+    Object.assign(this.settings, { elimination: false, phrase: st.phrase, laps: st.laps, mode: st.mode, rivals: st.rivals, realism: st.realism, obstacles: false, car: validateCar(car) ? defaultCar() : car, startTyre: st.startTyre, pitPlan: st.pitPlan });
     this.normaliseSettings();
     return st;
   }
@@ -648,7 +648,8 @@ export class Game {
       champ: this.champ ? (isOver(this.champ) ? "Season over" : `Round ${this.champ.done + 1} of ${this.champ.rounds.length}`) : `${ROUNDS} races, one title`,
     }), "tiles");
     this.on(el, "#back", () => this.go("home"));
-    this.on(el, "#h-quick", () => this.openSetup("quick"));
+    this.on(el, "#h-quick", () => { this.settings.elimination = false; this.openSetup("quick"); });
+    this.on(el, "#h-elim", () => { this.settings.elimination = true; this.openSetup("quick"); });
     this.on(el, "#h-weekend", () => this.openSetup("weekend"));
     this.on(el, "#h-champ", () => this.go("championship"));
     this.on(el, "#h-career", () => this.go("career"));
@@ -734,7 +735,6 @@ export class Game {
         else if (id === "wearFuel") s.wearFuel = clampWear(Number(v));
         else if (id === "wearTyre") s.wearTyre = clampWear(Number(v));
         else if (id === "realism") s.realism = v === "1";
-        else if (id === "elim") s.elimination = v === "1";
         else if (id === "difficulty" && isDifficulty(v) && isUnlocked(v, this.records)) s.difficulty = v;
         else if (id === "vehicle" && isVehicleId(v)) { s.vehicle = v; s.vehiclePhrase = normalizePhrase(s.phrase); }
         this.normaliseSettings();
@@ -868,7 +868,7 @@ export class Game {
     if (!this.modeBackup) this.modeBackup = JSON.parse(JSON.stringify(this.settings)) as Settings;
     this.special = special;
     this.flow = flow;
-    Object.assign(this.settings, { pitPlan: [], mandatory: [], wearFuel: 1, wearTyre: 1, obstacles: false, ...patch, mode: flow === "trial" ? "trial" : "race", flow });
+    Object.assign(this.settings, { pitPlan: [], mandatory: [], wearFuel: 1, wearTyre: 1, obstacles: false, elimination: false, ...patch, mode: flow === "trial" ? "trial" : "race", flow });
     this.normaliseSettings();
   }
 

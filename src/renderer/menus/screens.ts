@@ -30,10 +30,11 @@ export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: st
   const t = (spec: TileSpec) => tile(spec, esc);
   const head = (title: string, sub: string) => `<header class="tilehead"><button class="back" id="back">← Back</button><div><h2>${title}</h2><p class="dim">${sub}</p></div></header>`;
   return kind === "race"
-    ? `${head("Race", "Rivals on the track")}<div class="tilegrid group four">
-        ${t({ id: "h-quick", art: "quick", colour: "#ff6a2b", title: "Quick Race", sub: "One race: rivals, tyres and fuel" })}
-        ${t({ id: "h-weekend", art: "weekend", colour: "#e0409a", title: "Race Weekend", sub: "Practice, qualifier, race" })}
+    ? `${head("Race", "Rivals on the track")}<div class="tilegrid group mosaic">
+        ${t({ id: "h-quick", art: "quick", colour: "#ff6a2b", title: "Quick Race", sub: "One race: rivals, tyres and fuel", size: "xl" })}
         ${t({ id: "h-career", art: "career", colour: "#f08c00", title: "Career", sub: o.career })}
+        ${t({ id: "h-weekend", art: "weekend", colour: "#e0409a", title: "Race Weekend", sub: "Practice, qualifier, race" })}
+        ${t({ id: "h-elim", art: "elim", colour: "#9b5de5", title: "Elimination", sub: "The back of the field is out every lap" })}
         ${t({ id: "h-champ", art: "champ", colour: "#d6283f", title: "Championship", sub: o.champ })}</div>`
     : `${head("Time Attack", "You, the track and the clock")}<div class="tilegrid group four">
         ${t({ id: "h-trial", art: "trial", colour: "#f2b705", title: "Solo Time Trial", sub: "Any track, as many tries as you like" })}
@@ -70,7 +71,7 @@ export interface SetupData {
   /** the difficulties the player has opened, to choose from; and what opens the next one, if one is still locked */
   unlocked: Difficulty[];
   nextLock: string;
-  /** Quick Race as an elimination race (the laps then follow the field) */
+  /** the Elimination mode (a Quick Race with the elimination rule: the laps follow the field, no tyres or fuel) */
   elimination: boolean;
   /** easy has no realism: the toggle and the wear options are not shown */
   noRealism: boolean;
@@ -102,11 +103,14 @@ const TITLES: Record<Flow, { title: string; sub: string; go: string }> = {
   weekend: { title: "Race Weekend", sub: "Practice, qualify, then race from where you qualified.", go: "Start weekend" },
 };
 
+/** The Elimination mode's own heading (it runs as a Quick Race with the elimination rule). */
+const ELIM_TITLE = { title: "Elimination", sub: "Each lap the back of the field is out, a big field several at a time, down to a duel on the last lap.", go: "Start race" };
+
 const nums = (from: number, to: number): Opt[] => Array.from({ length: to - from + 1 }, (_, i) => ({ value: String(from + i), label: String(from + i) }));
 const mult = (): Opt[] => nums(1, MAX_WEAR_MULT).map((o) => ({ value: o.value, label: `${o.value}×` }));
 
 export function setupHtml(d: SetupData): string {
-  const t = TITLES[d.flow];
+  const t = d.elimination ? ELIM_TITLE : TITLES[d.flow];
   const race = d.flow !== "trial";
   const wear = race && d.realism;
   return `
@@ -119,8 +123,7 @@ export function setupHtml(d: SetupData): string {
     ${race ? `<div class="opts">
       <div class="opt"><span>Rivals <em>${esc(DIFFICULTY_BLURB[d.difficulty ?? "easy"])}</em></span>${dropdown("difficulty", d.difficulty ?? "easy", d.unlocked.map((x) => ({ value: x, label: DIFFICULTY_NAMES[x] })), { label: "How hard the rivals drive" })}</div>
       ${d.nextLock ? `<p class="dim info lock-note">🔒 ${esc(d.nextLock)}</p>` : ""}
-      ${d.flow === "quick" ? `<div class="opt"><span>Elimination <em>the last cars are out every lap (a big field several at a time), down to a duel</em></span>${toggle("elim", d.elimination)}</div>` : ""}
-      <div class="opt"><span>Laps${d.elimination ? " <em>one for every rival</em>" : ""}</span>${stepper("laps", d.laps, 1, 50, { disabled: d.elimination })}</div>
+      ${d.elimination ? `<div class="opt"><span>Laps <em>one for every rival, 25 at most</em></span><b class="autolaps">${d.laps}</b></div>` : `<div class="opt"><span>Laps</span>${stepper("laps", d.laps, 1, 50)}</div>`}
       <div class="opt"><span>Players</span>${dropdown("rivals", String(d.rivals), FIELD_SIZES.map((n) => ({ value: String(n - 1), label: String(n) })), { label: "Players on the grid, you included" })}</div>
       ${d.flow === "quick" && !d.noRealism && !d.elimination ? `<div class="opt"><span>Realism <em>tyres, fuel, pit stops, weather</em></span>${toggle("realism", d.realism)}</div>` : ""}
       ${wear ? `<div class="opt"><span>Fuel use</span>${dropdown("wearFuel", String(d.wearFuel), mult(), { label: "Fuel use" })}</div>
