@@ -20,6 +20,10 @@
   - **Power and drag** (`accelAt`): a car puts down all its acceleration up to `TRACTION_SHARE` of top speed, then the pull fades
     (`P / v - D v²`, fitted to stop gaining just above top speed, `DRAG_HEADROOM`), in the flying-lap pass and in `Race.step`.
     A target above top speed (a slipstream, a pad, downhill) stretches the curve to reach it.
+  - **Gear changes** (`gears.ts`): a machine with a gearbox changes up at `shiftSpeeds` (shorter low gears) and has no
+    drive for `SHIFT_CUT` on each change up: 0.2 s for a manual's clutch, 0.06 s for a sequential, 0.015 s for a seamless
+    box. Changes down come under braking, cost nothing, and wait until 10% below the change-up point. Electric, karts,
+    boats and fans have none. In `Race.step` (`gear`, `cutUntil`) and in the flying-lap pass (a coast of `v × cut`).
   - **The friction circle** (`combined`): braking into a bend and accelerating out of one get only the share of grip the
     tyre is not using to turn, `sqrt(1 - lat²)`, never less than `COMBINED_FLOOR`.
   - **Tyres** (`wornGrip`, race.ts): wear fades the grip gently, then the cliff past `TYRE_CLIFF`. A lap's path is built

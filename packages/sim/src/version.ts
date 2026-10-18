@@ -4,4 +4,4 @@
  * Bump it with any change to race.ts, profile.ts, car.ts, track.ts, bots.ts, vehicles.ts, biomes.ts, weather.ts, tyres.ts or
  * the circuit data. tests/version.test.ts holds a fingerprint of a fixed race and fails when the sim changes without a bump.
  */
-export const SIM_VERSION = 7;
+export const SIM_VERSION = 8;
