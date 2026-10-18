@@ -22,7 +22,7 @@ for (const r of roster) {
   if (only.length && !only.includes(r.id)) continue;
   const html = readFileSync(join(cache, "pages", `${r.id}.html`), "utf8").slice(readFileSync(join(cache, "pages", `${r.id}.html`), "utf8").indexOf('id="mw-content-text"'));
   const urls = [...new Set([...html.matchAll(/<img[^>]+src="(https:\/\/mario\.wiki\.gallery\/images\/[^"]+)"/g)].map((m) => full(m[1]!)))]
-    .filter((u) => /(minimap|mini_map|[_-]map|overhead|layout|lower-screen)/i.test(decodeURIComponent(u)) && !/Emblem|Icon|Cup_|Tour_|MKT_/i.test(u));
+    .filter((u) => /(map|overhead|layout|lower-screen)/i.test(decodeURIComponent(u)) && !/Emblem|Icon|Cup_|Tour_|MKT_|Logo|Multiplayer|Shortcut|_map_Mario|MK_World|Map_by/i.test(u));
   // the course's own game first, then the others' (retro courses are in later games' maps too)
   urls.sort((a, b) => +!a.includes(`/${PREFIX[r.game]}_`) - +!b.includes(`/${PREFIX[r.game]}_`));
   mkdirSync(join(dir, r.id), { recursive: true });

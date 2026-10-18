@@ -33,3 +33,5 @@ yoshi-desert | MKSC_Yoshi_Desert_Map.png | 795 520 795 400 | --road=250,240,170 
 mksc-bowser-castle-3 | GBA_Bowser_Castle_3_map.png | 895 177 895 280 | --road=144,200,232 --tol=70 --close=11 --bridge=95,220,80,470 --bridge=80,470,40,580 --col=208,64,64
 lakeside-park | MKSC_Lakeside_Park_Map.png | 152 510 152 400 | --road=248,208,152 --tol=40 --close=11 --bridge=470,480,580,480
 broken-pier | MKSC_Broken_Pier_Map.png | 31 460 31 360 | --notbg=0,0,0 --bgtol=30 --close=13
+baby-park | MK8_GCN_Baby_Park_Map.png | 640 540 700 430 | --notbg=235,235,235 --bgtol=40 --close=9
+dry-dry-desert | MK8_GCN_Dry_Dry_Desert_Map.png | 150 590 140 700 | --notbg=235,235,235 --bgtol=40 --close=9
