@@ -24,7 +24,7 @@ import {
 } from "@apex/sim";
 import { CIRCUITS, TROPHIES, newTrophies, rewardsOf, type RunSummary, type TrophyMode } from "@apex/sim";
 import { CAREER_TIERS, PROMOTE_PLACE, finishSeason, newCareer, normaliseCareer, startSeason, type Career } from "@apex/sim";
-import { fuelMultFor } from "@apex/sim";
+import { SHIFTING, fuelMultFor } from "@apex/sim";
 import { SIM_VERSION, duelCode, readDuel, buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile, type RaceEdit, type RaceRules } from "@apex/sim";
 import { MAX_REPLAYS, MAX_REPLAY_BYTES, keepReplay, loadReplays, rulesIn, rulesOut, type Replay } from "./replays.ts";
 import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
@@ -2429,7 +2429,8 @@ export class Game {
       const vol = near * edge * crowd * (isMe ? 1 : 0.8);
       const up = (c.atrace[i] ?? 0) > 0.04, was = this.airborne.get(c.entrant.id) ?? false;
       if (up !== was) { this.airborne.set(c.entrant.id, up); this.audio.air(up ? "up" : "down", vol); }
-      this.audio.update(c.entrant.id, c.entrant.car.type, { speed: m.v, accel: m.acc, slip: m.slip, vol, pan: (x - cx) / half, top: carStats(c.entrant.car).vTop, surface: this.roughTrack ? surfaceAt(this.track, x, y) : undefined }, isMe);
+      const sh = c.shtrace[i];
+      this.audio.update(c.entrant.id, c.entrant.car.type, { speed: m.v, accel: m.acc, slip: m.slip, vol, pan: (x - cx) / half, top: carStats(c.entrant.car).vTop, surface: this.roughTrack ? surfaceAt(this.track, x, y) : undefined, gear: sh === undefined ? undefined : sh & ~SHIFTING, cut: sh === undefined ? undefined : (sh & SHIFTING) !== 0 }, isMe);
     }
   }
 

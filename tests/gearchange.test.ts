@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GEARBOXES, Race, SHIFT_CUT, TICK, botLine, buildProfile, carStats, defaultCar, generateTrack, nextGear, sessionRules, shiftSpeeds, type VehicleId } from "@apex/sim";
+import { GEARBOXES, Race, SHIFTING, SHIFT_CUT, TICK, botLine, buildProfile, carStats, defaultCar, generateTrack, nextGear, sessionRules, shiftSpeeds, type VehicleId } from "@apex/sim";
 
 /** A solo race on a fixed track in one machine: its speed and gear every tick of the first lap and a half. */
 function drive(type: VehicleId, ticks = 2400) {
@@ -39,6 +39,21 @@ describe("gear changes", () => {
       for (let k = i + 1; k <= i + cut; k++) expect(log[k]!.v).toBeLessThanOrEqual(log[k - 1]!.v + 1e-9);
       expect(log[i + cut + 2]!.v).toBeGreaterThan(log[i + cut]!.v);
     }
+  });
+
+  it("are recorded for playback: the gear every tick, flagged while the drive is cut (the engine sound follows it)", () => {
+    const t = generateTrack("monza", { obstacles: false }), line = botLine(t, 5, 1);
+    const me = { id: "me", name: "x", car: { ...defaultCar(), type: "classic" as const }, lines: [line, line], isPlayer: true, startTyre: "soft" as const, gridSlot: 0 };
+    const race = new Race(t, [me], 2, sessionRules("trial"));
+    for (let i = 0; i < 1500; i++) race.step();
+    const sh = race.cars[0]!.shtrace, cut = Math.round(SHIFT_CUT.manual / TICK);
+    const up = sh.findIndex((x, i) => i > 0 && (x & ~SHIFTING) > (sh[i - 1]! & ~SHIFTING));
+    expect(up).toBeGreaterThan(0);
+    // flagged from the change for the length of the cut, then not
+    let flagged = 0;
+    for (let i = up; i < up + cut + 5; i++) if (sh[i]! & SHIFTING) flagged++;
+    expect(Math.abs(flagged - cut)).toBeLessThanOrEqual(1);
+    expect(sh[up + cut + 3]! & SHIFTING).toBe(0);
   });
 
   it("costs a manual more time than a seamless box, and a machine with no gearbox none", () => {

@@ -1,4 +1,4 @@
-import { vehicleOf, type VehicleId } from "@apex/sim";
+import { GEARBOXES, shiftSpeeds, vehicleOf, type VehicleId } from "@apex/sim";
 import { GEARS, Gearbox } from "./gearbox.ts";
 import { WAVEGUIDE_ENGINES, type WaveguideEngine } from "./waveguide.ts";
 
@@ -36,6 +36,10 @@ interface Voice {
   quietSince: number;
   /** the waveguide engine (an experiment) in place of the oscillators, with its share of the audio thread, 0 to 1 */
   wg: { node: AudioWorkletNode; cfg: WaveguideEngine; load: number } | null;
+  /** the revs at idle (0 to 1), and, when the race tells us its gears, the speeds it changes up at and the gear it was last in */
+  idle: number;
+  sim: number[] | null;
+  simGear: number;
 }
 
 /** Which engine model: the oscillators, or the waveguide engines (an experiment, see waveguide.ts). */
@@ -171,11 +175,12 @@ export interface CarSound {
   vol: number;
   /** -1 to 1 */
   pan: number;
+  /** the race's gear (0-based) and whether a change up has the drive cut right now; left out, the sound keeps its own gearbox */
+  gear?: number;
+  cut?: boolean;
 }
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
-/** Whether the power is cut for a change up right now (the clutch is in). */
-const cutting0 = (v: Voice, t: number) => !v.blip && t - v.shiftAt < v.prof.shiftCut;
 /** Stop everything an engine has running and take it out of the graph. */
 function stopVoice(v: Voice): void {
   try { v.osc.forEach((o) => o.stop()); v.noise.stop(); v.out.disconnect(); } catch { /* already stopped */ }
@@ -438,7 +443,7 @@ export class CarAudio {
     const osc = [...parts.map((p) => p.o), lfo, ...(whine ? [whine.o] : [])];
     const g = GEARS[veh.id] ?? GEARS["rally"]!;
     return { osc, parts, lfo, whine, rasp: { band: rb, g: rg }, filter, hum, noise, band, squeal, rumble: { f: rf, g: rumG }, sq, pan, out, prof,
-      box: new Gearbox(g.hi, g.idle, g.gap, g.up, g.down), ref: 110 * veh.top, shiftAt: -10, blip: false, pops: POPS[veh.id] ?? 0, last: -1, lastPop: -1, quietSince: -1, wg };
+      box: new Gearbox(g.hi, g.idle, g.gap, g.up, g.down), ref: 110 * veh.top, shiftAt: -10, blip: false, pops: POPS[veh.id] ?? 0, last: -1, lastPop: -1, quietSince: -1, wg, idle: g.idle, sim: null, simGear: -1 };
   }
 
   update(id: string, type: VehicleId | undefined, s: CarSound, player: boolean): void {
@@ -459,8 +464,19 @@ export class CarAudio {
     v.last = t;
     const p = v.prof;
     const lift = clamp(s.accel / 120, -0.6, 1), on = clamp(0.5 + lift, 0, 1);
-    // the gearbox decides the revs: they climb in a gear, fall away on a change up, and snap up on a change down
-    const { rev, shift } = v.box.step(clamp(s.speed / (s.top ?? v.ref), 0, 1.1), lift, t);
+    // the gearbox decides the revs: they climb in a gear, fall away on a change up, and snap up on a change down. In a race the
+    // gears are the race's own (s.gear): the revs run up to the redline at each change-up speed, and every change is heard on the
+    // tick the car makes it. Without them (the engine lab, or a machine the race gives no gearbox) the sound keeps a gearbox of its own.
+    const simBox = s.gear !== undefined ? GEARBOXES[vehicleOf(type).id] : undefined;
+    let rev: number, shift: number;
+    if (simBox && s.gear !== undefined) {
+      const top = s.top ?? v.ref;
+      v.sim ??= shiftSpeeds(vehicleOf(type).id, top);
+      const g = Math.min(s.gear, v.sim.length), upper = g < v.sim.length ? v.sim[g]! : top;
+      shift = v.simGear < 0 ? 0 : Math.sign(g - v.simGear);
+      v.simGear = g; v.box.gear = g + 1;
+      rev = Math.min(1.04, Math.max(v.idle + 0.12 * Math.max(0, lift), s.speed / upper));
+    } else ({ rev, shift } = v.box.step(clamp(s.speed / (s.top ?? v.ref), 0, 1.1), lift, t));
     if (shift) {
       v.shiftAt = t; v.blip = shift < 0;
       if (shift < 0 && v.pops > 0) this.pops(v, t, 0.5 + 0.5 * rev, s.vol, player);
@@ -472,15 +488,16 @@ export class CarAudio {
     const vs = r * v.ref; // "speed" as far as the engine profile is concerned
     const k = (since < 0.3 ? 0.025 : 0.06) * p.inertia;
     const f = p.base + p.slope * vs + lift * p.lift;
+    // the power is off while a change up goes through: for as long as the race cuts the drive, or the sound's own guess at it
+    const cutting = s.cut ?? (!v.blip && since < p.shiftCut);
     for (const q of v.parts) q.o.frequency.setTargetAtTime(f * q.ratio, t, k);
     if (v.wg) {
       // the same gearbox revs, spread over the machine's real rev range; the throttle sets how hard the cylinders fire
       v.wg.node.parameters.get("rpm")!.setTargetAtTime(v.wg.cfg.idle + r * (v.wg.cfg.redline - v.wg.cfg.idle), t, k);
-      v.wg.node.parameters.get("throttle")!.setTargetAtTime(cutting0(v, t) ? 0 : on, t, 0.03);
+      v.wg.node.parameters.get("throttle")!.setTargetAtTime(cutting ? 0 : on, t, 0.03);
     }
     v.lfo.frequency.setTargetAtTime(f * p.lumpRate, t, k);
     v.filter.frequency.setTargetAtTime(p.cut + p.cutSlope * vs + Math.max(0, lift) * p.cutLift - Math.max(0, -lift) * 80, t, k);
-    const cutting = !v.blip && since < p.shiftCut; // the power is off while the clutch is in
     const level = (player ? 0.05 : 0.026) * p.level * (v.wg ? WG_LEVEL : 1) * (0.65 + 0.35 * on) * s.vol * (cutting ? 0.35 : 1);
     v.hum.gain.setTargetAtTime(s.speed < 1 ? 0 : level, t, cutting || since < 0.1 ? 0.02 : 0.06);
     v.rasp.band.frequency.setTargetAtTime(p.raspHz + p.raspSlope * vs, t, k);

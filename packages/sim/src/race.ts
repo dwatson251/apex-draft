@@ -22,6 +22,7 @@ import { Tape, f32, f64, i8, u8 } from "./tape.ts";
 type Tapes = {
   trace: Tape<Float32Array>; prog: Tape<Float64Array>; vtrace: Tape<Float32Array>; gtrace: Tape<Uint8Array>; ltrace: Tape<Int8Array>; atrace: Tape<Float32Array>;
   ftrace: Tape<Float32Array>; ttrace: Tape<Float32Array>; ptrace: Tape<Uint8Array>; btrace: Tape<Float32Array>; tmtrace: Tape<Float32Array>; ctrace: Tape<Uint8Array>;
+  shtrace: Tape<Uint8Array>;
 };
 type TapeKey = keyof Tapes;
 
@@ -30,6 +31,7 @@ function withTapes(c: Omit<RaceCar, TapeKey | "tapes">): RaceCar {
   const tapes: Tapes = {
     trace: new Tape(f32, 12288), prog: new Tape(f64), vtrace: new Tape(f32), gtrace: new Tape(u8), ltrace: new Tape(i8), atrace: new Tape(f32),
     ftrace: new Tape(f32), ttrace: new Tape(f32), ptrace: new Tape(u8), btrace: new Tape(f32), tmtrace: new Tape(f32), ctrace: new Tape(u8),
+    shtrace: new Tape(u8),
   };
   Object.defineProperty(c, "tapes", { value: tapes, enumerable: false });
   for (const k of Object.keys(tapes) as TapeKey[]) Object.defineProperty(c, k, { get: () => tapes[k].values(), enumerable: true });
@@ -37,6 +39,8 @@ function withTapes(c: Omit<RaceCar, TapeKey | "tapes">): RaceCar {
 }
 
 export const TICK = 1 / 60;
+/** The bit in `RaceCar.shtrace` that is set while a change up has the drive cut. */
+export const SHIFTING = 0x80;
 /** Distance between rows of the starting grid, units; the second car of a row sits half a row back. */
 export const GRID_GAP = 16;
 /** How far either side of the middle of the road the two columns of the grid sit. */
@@ -442,6 +446,8 @@ export interface RaceCar {
   readonly vtrace: Float32Array;
   /** 1 on the ticks the car is a ghost */
   readonly gtrace: Uint8Array;
+  /** the gear at every tick (0-based, see gears.ts), plus SHIFTING while a change up has the drive cut: the engine sound follows it */
+  readonly shtrace: Uint8Array;
   /** the level at every tick: positive on a bridge (which one), negative on the road under it, 0 anywhere else */
   readonly ltrace: Int8Array;
   /** how high the car is above the road at every tick, 0 to 1: 0 on the ground, up to 1 at the top of a jump */
@@ -932,6 +938,7 @@ export class Race {
       t.prog.push(this.progress(c));
       t.vtrace.push(Math.round(c.v * 10) / 10);
       t.gtrace.push(c.ghost ? 1 : 0);
+      t.shtrace.push(c.gear | (c.cutUntil > this.tick ? SHIFTING : 0));
       t.ltrace.push(this.levelOf(c));
       t.atrace.push(c.air > 0 ? Math.round(Math.sin(Math.PI * (1 - c.air / c.airT)) * c.peak * 100) / 100 : 0);
       // (in the box the gauges show the stop as it happens, not the jump at the end of it)
