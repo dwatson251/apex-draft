@@ -45,6 +45,10 @@ export interface Settings {
   volMusic?: number;
   volFx?: number;
   volEngine?: number;
+  /** experimental: the engine model, how many engines are heard at once (else the device default), and the audio load meter */
+  engineModel?: "synth" | "waveguide";
+  engineVoices?: number;
+  audioMeter?: boolean;
   /** tyre wear, fuel and pit stops */
   realism: boolean;
   /** which decision about realism the saved value follows */

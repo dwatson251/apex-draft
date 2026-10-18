@@ -306,6 +306,7 @@ export class Game {
     this.audio.setMuted(!!this.settings.muted);
     this.audio.setMusic(!this.settings.musicOff);
     this.applyVolumes();
+    this.applyEngines();
     this.audio.arm();
     const c = this.app.canvas;
     window.addEventListener("pointermove", (e) => { if (e.movementX || e.movementY || e.pointerType === "touch") this.pad.active = false; }, true);
@@ -456,6 +457,24 @@ export class Game {
   }
   private persist(): void { void save("settings", this.tutBackup ?? this.modeBackup ?? this.settings); this.syncHash(); }
   /** The player's three levels, from the settings, to the sound. */
+  /** The experimental engine settings (a URL can override them for a quick test: ?engines=waveguide&voices=32&meter). */
+  private applyEngines(): void {
+    const s = this.settings, q = new URLSearchParams(location.search);
+    const model = q.get("engines") ?? s.engineModel ?? "synth", voices = Number(q.get("voices")) || s.engineVoices || CarAudio.defaultVoices();
+    this.audio.setEngineModel(model === "waveguide" ? "waveguide" : "synth");
+    this.audio.setMaxVoices(voices);
+    const meter = q.has("meter") || !!s.audioMeter;
+    if (meter && !this.meterTimer) {
+      const el = document.createElement("div"); el.id = "audiometer"; this.toastLayer.parentElement?.appendChild(el);
+      this.meterTimer = window.setInterval(() => {
+        const st = this.audio.engineStats();
+        el.textContent = `${st.model}${st.model === "waveguide" && st.state !== "ready" ? ` (${st.state})` : ""} · ${st.voices} engines${st.wg ? ` · ${st.wg} waveguide · audio thread ${Math.round(st.load * 100)}%` : ""}`;
+        el.classList.toggle("hot", st.load > 0.7);
+      }, 500);
+    } else if (!meter && this.meterTimer) { clearInterval(this.meterTimer); this.meterTimer = 0; document.getElementById("audiometer")?.remove(); }
+  }
+  private meterTimer = 0;
+
   private applyVolumes(): void { const s = this.settings, v = (x: number | undefined) => Math.max(0, Math.min(100, x ?? 100)) / 100; this.audio.setVolumes({ music: v(s.volMusic), fx: v(s.volFx), engine: v(s.volEngine) }); }
 
   private toggleMute(): void {
@@ -750,7 +769,7 @@ export class Game {
 
   private renderSettings(): void {
     const s = this.settings;
-    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, vol: { music: s.volMusic ?? 100, fx: s.volFx ?? 100, engine: s.volEngine ?? 100 }, replays: this.replays.map((r) => ({ id: r.id, title: r.title, when: r.when, place: r.place, ok: r.version === SIM_VERSION })), version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX }));
+    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, vol: { music: s.volMusic ?? 100, fx: s.volFx ?? 100, engine: s.volEngine ?? 100 }, replays: this.replays.map((r) => ({ id: r.id, title: r.title, when: r.when, place: r.place, ok: r.version === SIM_VERSION })), version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX, engines: { model: s.engineModel ?? "synth", voices: s.engineVoices ?? CarAudio.defaultVoices(), meter: !!s.audioMeter } }));
     this.on(el, "#back", () => { if (this.inGame) { this.screen = "home"; this.renderMenu(); } else this.go("home"); });
     // committed when the box loses focus or Enter is pressed, not on every key: a re-render would take the focus away
     el.querySelectorAll<HTMLInputElement>("input[data-vol]").forEach((r) => r.addEventListener("input", () => { const k = r.dataset["vol"] as "volMusic" | "volFx" | "volEngine"; s[k] = Number(r.value); this.audio.unlock(); this.applyVolumes(); }));
@@ -764,6 +783,9 @@ export class Game {
       change: (id, v) => {
         if (id === "sound") { this.audio.unlock(); this.settings.muted = v !== "1"; this.audio.setMuted(!!this.settings.muted); this.persist(); }
         else if (id === "music") { this.audio.unlock(); s.musicOff = v !== "1"; this.audio.setMusic(!s.musicOff); this.persist(); }
+        else if (id === "engine-model") { this.audio.unlock(); s.engineModel = v === "waveguide" ? "waveguide" : "synth"; this.applyEngines(); this.persist(); }
+        else if (id === "engine-voices") { s.engineVoices = Number(v); this.applyEngines(); this.persist(); }
+        else if (id === "audio-meter") { s.audioMeter = v === "1"; this.applyEngines(); this.persist(); }
         this.renderMenu();
       },
     });

@@ -11,3 +11,25 @@ One soundtrack, liquid drum and bass at 172 bpm (ACE-Step plays it at about 174)
 `make_loops.py` finds each loop's length from the music itself (the drums' onset envelope correlated with itself, near 64 bars at the tempo asked for, then fine-tuned on the waveform) and falls back to 32 or 16 bars when a track does not repeat at 64. The loops run 88 to 94 seconds (the old ones were 16 to 21); each folder's `loop.json` has the take, the start, the length and how well it matched itself.
 
 The pit-exit "Go go go" and the crowd cheer are synthesised in `audio.ts`. `make_voice.py` (Kokoro) and `make_cheer.py` (two CC0 OpenGameArt clips) exist but their output is not shipped.
+
+## Waveguide engines (experimental)
+
+`src/renderer/public/engine-worklet.js` is a port of the AudioWorklet in
+[engine-sound-generator](https://github.com/Antonio-R1/engine-sound-generator) by Antonio-R1, used under the MIT License:
+
+> MIT License
+>
+> Copyright (c) 2021-2022 Antonio-R1
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+> documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+> rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+> persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+> Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+> WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+> COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+> OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

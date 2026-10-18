@@ -16,7 +16,7 @@
 <h1>Engine lab</h1>
 <p>Dev only: served by <code>npm run dev:web</code> at <code>/lab.html</code>, never part of a build. Click Start once to let the browser play sound.</p>
 <button id="start">Start</button> <button id="stop">Stop</button> <button id="sweep">Sweep 0 → top → 0</button>
-<label>Vehicle <select id="veh"></select></label>
+<label>Vehicle <select id="veh"></select></label> <label>Model <select id="model"><option value="synth">Synth</option><option value="waveguide">Waveguide</option></select></label> <span id="load"></span>
 <label>Speed <span id="sv"></span> · gear <b id="gv">-</b><input id="speed" type="range" min="0" max="120" value="40" /></label>
 <label>Throttle (accel) <span id="av"></span><input id="accel" type="range" min="-120" max="120" value="0" /></label>
 <label>Tyre slip <span id="lv"></span><input id="slip" type="range" min="0" max="100" value="0" /></label>

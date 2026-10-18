@@ -1,5 +1,6 @@
 import { vehicleOf, type VehicleId } from "@apex/sim";
 import { GEARS, Gearbox } from "./gearbox.ts";
+import { WAVEGUIDE_ENGINES, type WaveguideEngine } from "./waveguide.ts";
 
 /** Everything you hear is synthesised: engines, squeal, a quiet backing track, crowd, wheel guns, radio, aeroplanes. */
 interface Voice {
@@ -33,7 +34,16 @@ interface Voice {
   last: number;
   lastPop: number;
   quietSince: number;
+  /** the waveguide engine (an experiment) in place of the oscillators, with its share of the audio thread, 0 to 1 */
+  wg: { node: AudioWorkletNode; cfg: WaveguideEngine; load: number } | null;
 }
+
+/** Which engine model: the oscillators, or the waveguide engines (an experiment, see waveguide.ts). */
+export type EngineModel = "synth" | "waveguide";
+/** The engines against the music: twice its level (they sat level with it, and they are what the race is about). */
+const ENGINE_GAIN = 2;
+/** The waveguide engines are normalised to one loudness; this brings that up to about where the synth engines sit. */
+const WG_LEVEL = 3;
 
 /** Which engines crackle on the overrun and on downshifts: anti-lag and sports exhausts, V8 burble, race-tuned fours. */
 const POPS: Partial<Record<VehicleId, number>> = { rallycross: 1, classic: 0.5, touring: 0.8, rally: 0.9, muscle: 0.55, superbike: 0.6, dragster: 0.9, gt3: 0.35, gt4: 0.45, prototype: 0.25, hypercar: 0.2, stock: 0.6, formula: 0.2, buggy: 0.3, speedboat: 0.3 };
@@ -164,6 +174,13 @@ export interface CarSound {
 }
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+/** Whether the power is cut for a change up right now (the clutch is in). */
+const cutting0 = (v: Voice, t: number) => !v.blip && t - v.shiftAt < v.prof.shiftCut;
+/** Stop everything an engine has running and take it out of the graph. */
+function stopVoice(v: Voice): void {
+  try { v.osc.forEach((o) => o.stop()); v.noise.stop(); v.out.disconnect(); } catch { /* already stopped */ }
+  if (v.wg) { v.wg.node.port.postMessage("stop"); v.wg.node.disconnect(); }
+}
 const hz = (note: number) => 440 * 2 ** ((note - 69) / 12);
 
 /** A small deterministic generator so the backing track repeats the same way every time. */
@@ -211,6 +228,10 @@ export class CarAudio {
   private vol = { music: 1, fx: 1, engine: 1 };
   private noise: AudioBuffer | null = null;
   private voices = new Map<string, Voice>();
+  private model: EngineModel = "synth";
+  private maxVoices = MAX_VOICES;
+  /** the worklet module: not asked for yet, loading, there, or refused (then every engine is the synth) */
+  private wgState: "none" | "loading" | "ready" | "failed" = "none";
   private muted = false;
   private ducked = false;
   private musicOn = true;
@@ -247,6 +268,7 @@ export class CarAudio {
         const d = this.noise.getChannelData(0);
         for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
         this.applyMaster();
+        if (this.model === "waveguide") this.loadWaveguide();
       }
       if (this.ctx.state === "suspended") void this.ctx.resume();
       if (this.musicOn) this.startMusic();
@@ -283,7 +305,7 @@ export class CarAudio {
     const ctx = this.ctx, t = ctx?.currentTime ?? 0, sq = (x: number) => Math.max(0, Math.min(1, x)) ** 2;
     this.musicOut?.gain.setTargetAtTime(sq(this.vol.music), t, 0.05);
     this.fxUser?.gain.setTargetAtTime(sq(this.vol.fx), t, 0.05);
-    this.engineBus?.gain.setTargetAtTime(this.ducked ? 0 : sq(this.vol.engine), t, 0.05);
+    this.engineBus?.gain.setTargetAtTime(this.ducked ? 0 : ENGINE_GAIN * sq(this.vol.engine), t, 0.05);
   }
   isMuted(): boolean { return this.muted; }
   /** Fast-forward: the engines would just be a chirp. */
@@ -321,6 +343,35 @@ export class CarAudio {
   }
 
   // ---------- engines ----------
+  /** Switch engine model: every engine is rebuilt with the new one as it is next heard. */
+  setEngineModel(m: EngineModel): void {
+    if (m === this.model) return;
+    this.model = m;
+    for (const [id, v] of this.voices) if (!!v.wg !== (m === "waveguide")) this.release(id);
+    if (m === "waveguide") this.loadWaveguide();
+  }
+  /** How many engines are built at once (the nearest to the camera). */
+  setMaxVoices(n: number): void {
+    this.maxVoices = Math.max(1, Math.round(n));
+    const far = [...this.voices.keys()].slice(this.maxVoices);
+    for (const id of far) this.release(id);
+  }
+  /** The default for this device. */
+  static defaultVoices(): number { return MAX_VOICES; }
+  private loadWaveguide(): void {
+    if (!this.ctx || this.wgState !== "none") return;
+    if (!this.ctx.audioWorklet) { this.wgState = "failed"; return; }
+    this.wgState = "loading";
+    this.ctx.audioWorklet.addModule("engine-worklet.js").then(() => { this.wgState = "ready"; }, (e: unknown) => { console.warn("waveguide engines unavailable, keeping the synth", e); this.wgState = "failed"; });
+  }
+  /** For the meter: the model asked for, whether it is running, the engines built (and how many are waveguides), and the
+   *  waveguides' share of the audio thread (above 1 and the sound breaks up). */
+  engineStats(): { model: EngineModel; state: string; voices: number; wg: number; load: number } {
+    let wg = 0, load = 0;
+    for (const v of this.voices.values()) if (v.wg) { wg++; load += v.wg.load; }
+    return { model: this.model, state: this.model === "waveguide" ? this.wgState : "on", voices: this.voices.size, wg, load };
+  }
+
   private make(type: VehicleId | undefined): Voice | null {
     const ctx = this.ctx!, veh = vehicleOf(type), prof = ENGINES[veh.id] ?? ENGINES.rally;
     const out = ctx.createGain();
@@ -343,7 +394,18 @@ export class CarAudio {
       for (let i = 0; i < n; i++) curve[i] = Math.tanh(((i / (n - 1)) * 2 - 1) * (1 + prof.drive * 2)) / Math.tanh(1 + prof.drive * 2);
       sh.curve = curve; sh.connect(filter); tone = sh;
     }
-    const parts = prof.parts.map(([ratio, w, wave, cents]) => {
+    // the waveguide engine, when it is chosen and loaded and this machine has a combustion engine: it replaces the partials
+    const cfg = this.model === "waveguide" && this.wgState === "ready" ? WAVEGUIDE_ENGINES[veh.id] : undefined;
+    let wg: Voice["wg"] = null;
+    if (cfg) {
+      try {
+        const node = new AudioWorkletNode(ctx, "waveguide-engine", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], processorOptions: cfg });
+        wg = { node, cfg, load: 0 };
+        node.port.onmessage = (e: MessageEvent<number>) => { if (wg) wg.load = e.data; };
+        node.connect(hum);
+      } catch (e) { console.warn("waveguide engine failed, using the synth", e); wg = null; }
+    }
+    const parts = (wg ? [] : prof.parts).map(([ratio, w, wave, cents]) => {
       const o = ctx.createOscillator(); o.type = wave; o.detune.value = cents;
       const g = ctx.createGain(); g.gain.value = w / total;
       o.connect(g); g.connect(tone);
@@ -376,7 +438,7 @@ export class CarAudio {
     const osc = [...parts.map((p) => p.o), lfo, ...(whine ? [whine.o] : [])];
     const g = GEARS[veh.id] ?? GEARS["rally"]!;
     return { osc, parts, lfo, whine, rasp: { band: rb, g: rg }, filter, hum, noise, band, squeal, rumble: { f: rf, g: rumG }, sq, pan, out, prof,
-      box: new Gearbox(g.hi, g.idle, g.gap, g.up, g.down), ref: 110 * veh.top, shiftAt: -10, blip: false, pops: POPS[veh.id] ?? 0, last: -1, lastPop: -1, quietSince: -1 };
+      box: new Gearbox(g.hi, g.idle, g.gap, g.up, g.down), ref: 110 * veh.top, shiftAt: -10, blip: false, pops: POPS[veh.id] ?? 0, last: -1, lastPop: -1, quietSince: -1, wg };
   }
 
   update(id: string, type: VehicleId | undefined, s: CarSound, player: boolean): void {
@@ -385,7 +447,7 @@ export class CarAudio {
     let v = this.voices.get(id);
     if (!v) {
       // only the engines near the camera are built, and a crowded field on a phone gets fewer of them
-      if (!player && (s.vol < 0.08 || this.voices.size >= MAX_VOICES)) return;
+      if (!player && (s.vol < 0.08 || this.voices.size >= this.maxVoices)) return;
       v = this.make(type) ?? undefined; if (!v) return; this.voices.set(id, v);
     }
     // nobody hears a car that is far off: let its nodes go, which also keeps the graph small
@@ -411,13 +473,18 @@ export class CarAudio {
     const k = (since < 0.3 ? 0.025 : 0.06) * p.inertia;
     const f = p.base + p.slope * vs + lift * p.lift;
     for (const q of v.parts) q.o.frequency.setTargetAtTime(f * q.ratio, t, k);
+    if (v.wg) {
+      // the same gearbox revs, spread over the machine's real rev range; the throttle sets how hard the cylinders fire
+      v.wg.node.parameters.get("rpm")!.setTargetAtTime(v.wg.cfg.idle + r * (v.wg.cfg.redline - v.wg.cfg.idle), t, k);
+      v.wg.node.parameters.get("throttle")!.setTargetAtTime(cutting0(v, t) ? 0 : on, t, 0.03);
+    }
     v.lfo.frequency.setTargetAtTime(f * p.lumpRate, t, k);
     v.filter.frequency.setTargetAtTime(p.cut + p.cutSlope * vs + Math.max(0, lift) * p.cutLift - Math.max(0, -lift) * 80, t, k);
     const cutting = !v.blip && since < p.shiftCut; // the power is off while the clutch is in
-    const level = (player ? 0.05 : 0.026) * p.level * (0.65 + 0.35 * on) * s.vol * (cutting ? 0.35 : 1);
+    const level = (player ? 0.05 : 0.026) * p.level * (v.wg ? WG_LEVEL : 1) * (0.65 + 0.35 * on) * s.vol * (cutting ? 0.35 : 1);
     v.hum.gain.setTargetAtTime(s.speed < 1 ? 0 : level, t, cutting || since < 0.1 ? 0.02 : 0.06);
     v.rasp.band.frequency.setTargetAtTime(p.raspHz + p.raspSlope * vs, t, k);
-    v.rasp.g.gain.setTargetAtTime(p.rasp * (0.4 + 0.6 * on), t, 0.06);
+    v.rasp.g.gain.setTargetAtTime(v.wg ? 0 : p.rasp * (0.4 + 0.6 * on), t, 0.06); // (the waveguide has its own intake noise)
     if (v.whine) {
       v.whine.o.frequency.setTargetAtTime(1900 + vs * 12, t, 0.12);
       v.whine.g.gain.setTargetAtTime(p.whine * Math.max(0, lift) * (0.3 + vs / 200), t, 0.15);
@@ -477,7 +544,7 @@ export class CarAudio {
   private release(id: string): void {
     const v = this.voices.get(id);
     if (!v) return;
-    try { v.osc.forEach((o) => o.stop()); v.noise.stop(); v.out.disconnect(); } catch { /* already stopped */ }
+    stopVoice(v);
     this.voices.delete(id);
   }
 
@@ -491,9 +558,7 @@ export class CarAudio {
   }
 
   stopAll(): void {
-    for (const v of this.voices.values()) {
-      try { v.osc.forEach((o) => o.stop()); v.noise.stop(); v.out.disconnect(); } catch { /* already stopped */ }
-    }
+    for (const v of this.voices.values()) stopVoice(v);
     this.voices.clear();
     this.planeSound(null);
     this.rain(0);

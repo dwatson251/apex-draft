@@ -22,6 +22,8 @@ setInterval(() => {
 }, 33);
 
 $("start").onclick = () => { audio.setMusic(false); audio.unlock(); };
+$("model").onchange = () => { audio.unlock(); audio.setEngineModel($<HTMLSelectElement>("model").value === "waveguide" ? "waveguide" : "synth"); };
+setInterval(() => { const st = audio.engineStats(); $("load").textContent = st.model === "waveguide" ? `${st.state}${st.wg ? ` · audio thread ${Math.round(st.load * 100)}%` : ""}` : ""; }, 500);
 $("stop").onclick = () => audio.stopAll();
 $("veh").onchange = () => { audio.stopAll(); fitSpeed(); audio.unlock(); }; // a new voice for the new engine
 $("sweep").onclick = () => {

@@ -139,7 +139,7 @@ export function setupHtml(d: SetupData): string {
     </div>`;
 }
 
-export function settingsHtml(o: { muted: boolean; music: boolean; vol: { music: number; fx: number; engine: number }; replays: { id: string; title: string; when: number; place: number; ok: boolean }[]; version: string; fromGame: boolean; name: string; nameMax: number }): string {
+export function settingsHtml(o: { muted: boolean; music: boolean; vol: { music: number; fx: number; engine: number }; replays: { id: string; title: string; when: number; place: number; ok: boolean }[]; version: string; fromGame: boolean; name: string; nameMax: number; engines: { model: string; voices: number; meter: boolean } }): string {
   const key = (k: string, what: string) => `<div class="keyrow"><kbd>${k}</kbd><span>${what}</span></div>`;
   return `
     <div class="head"><button class="back" id="back">← Back</button><div><h2>Settings</h2></div></div>
@@ -149,6 +149,12 @@ export function settingsHtml(o: { muted: boolean; music: boolean; vol: { music: 
       <div class="opt"><span>Sound effects</span>${toggle("sound", !o.muted)}</div>
       <div class="opt"><span>Music</span>${toggle("music", o.music)}</div>
       ${([["volMusic", "Music volume", o.vol.music], ["volFx", "Effects volume", o.vol.fx], ["volEngine", "Engine volume", o.vol.engine]] as const).map(([k, label, v]) => `<div class="opt"><span>${label}</span><input type="range" class="vol" min="0" max="100" step="5" value="${v}" data-vol="${k}" aria-label="${label}"></div>`).join("")}
+    </div>
+    <label>Engine sound <span class="dim">experimental: the waveguide engines simulate each cylinder and the exhaust, and cost far more to run</span></label>
+    <div class="opts one">
+      <div class="opt"><span>Engine model</span>${dropdown("engine-model", o.engines.model, [{ value: "synth", label: "Synth" }, { value: "waveguide", label: "Waveguide" }], { label: "Engine model" })}</div>
+      <div class="opt"><span>Engines heard at once</span>${stepper("engine-voices", o.engines.voices, 1, 32)}</div>
+      <div class="opt"><span>Audio load meter</span>${toggle("audio-meter", o.engines.meter)}</div>
     </div>
     <label>Replays <span class="dim">your last races, to watch again</span></label>
     <div class="replays">${o.replays.length ? o.replays.map((r) => `<button class="replay" data-watch="${esc(r.id)}" ${r.ok ? "" : 'disabled title="Run on an older version of the game"'}><b>${esc(r.title)}</b><span class="dim">${new Date(r.when).toLocaleString()}</span></button>`).join("") : '<p class="dim">Finish a race and it is kept here.</p>'}</div>
