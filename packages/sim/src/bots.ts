@@ -58,7 +58,21 @@ export interface BotLineOpts {
    * other's way, and never has to merge into one file (a big field in single file is longer than a lap).
    */
   lane?: number;
+  /**
+   * How much of the driver's own style to put on the line, 0 to 1 (0 if left out: the line is exact, as a reference line must be). A style is the
+   * driver's, from the seed, whatever the skill: a preferred width (a little inside or outside all the way round) and a shift of its own in every segment
+   * (an earlier or later apex, a wider or tighter entry), blended across the gates so the line never weaves. A weaker driver's style is bigger.
+   */
+  vary?: number;
 }
+
+/** A driver's preferred width, at most this far from the racing line (units); and how far each segment's shift goes, for the best and the weakest driver. */
+const STYLE_BIAS = 5;
+const STYLE_BEST = 6;
+const STYLE_WEAKEST = 12;
+/** How far a styled driver's recipe for the line (`CURVE`) may differ, and how many relaxing passes smooth the style in. */
+const STYLE_CURVE = 0.3;
+const STYLE_SETTLE = 8;
 
 /** How much of the pull is toward least curvature rather than the shortest path: 0.6 laps quickest on most tracks. */
 const CURVE = 0.6;
@@ -196,16 +210,38 @@ export function botLine(track: Track, seed: number, skill: number, opts: BotLine
       if (line) return line;
     }
   }
+  // the driver's style (see `vary`): its own stream, so the wander and everything else drawn from the seed stay as they were
+  const style = (strength: number) => {
+    if (strength <= 0) return;
+    const r = new Rng((seed ^ 0x9a17c3e5) >>> 0);
+    const bias = (r.next() * 2 - 1) * STYLE_BIAS * strength;
+    const amp = (STYLE_BEST + (STYLE_WEAKEST - STYLE_BEST) * (1 - skill)) * strength;
+    const shift = route.map(() => (r.next() * 2 - 1) * amp);
+    const n = TS.length;
+    for (let k = 0; k < m; k++) {
+      const seg = Math.floor(k / n), u = ((k % n) + 1) / n, e = u * u * (3 - 2 * u);
+      const from = shift[(seg + route.length - 1) % route.length]!, to = shift[seg]!;
+      const w = wps[k]!;
+      w.l = Math.min(w.hi, Math.max(w.lo, w.l + bias + from + (to - from) * e));
+    }
+  };
+  const vary = Math.min(1, Math.max(0, opts.vary ?? 0));
   const amount = (1 - skill) * WANDER_MAX;
   const initial = wps.map((w) => w.l);
   const fresh = () => wps.forEach((w, k) => { w.l = initial[k]!; });
   // the wander is dropped if it spoils the line; so is the pruning, as a last resort
-  relax(iterations, CURVE);
+  // (a styled driver has a recipe of its own for the line too: more of the shortest path, or more of the smoothest)
+  const curve = vary > 0 ? CURVE + (new Rng((seed ^ 0x3c0ffee1) >>> 0).next() * 2 - 1) * STYLE_CURVE * vary : CURVE;
+  relax(iterations, curve);
   lean();
   const saved = wps.map((w) => w.l);
-  for (const wob of [amount, 0]) {
+  // a style that would leave the road is tried at half strength, then not at all; so is the wander
+  for (const [wob, sty] of [[amount, vary], [amount, vary / 2], [0, 0]] as const) {
     wps.forEach((w, k) => { w.l = saved[k]!; });
     wander(wob);
+    style(sty);
+    // smoothed a little after the style is put on, so it stays a line a good driver could drive: a shift kept, its kinks taken out
+    if (sty > 0) relax(STYLE_SETTLE, curve);
     const line = emit(true) ?? emit(false);
     if (line) return line;
   }

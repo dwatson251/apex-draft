@@ -52,6 +52,7 @@
     - a recovering car steers only as fast as it is rolling (no movement, no steering), the turning circle shrinks as it slows, and it
       turns about its rear axle (`REC_HINGE`), so its middle swings out as the nose comes round. With its nose well off the road it
       comes round at a crawl and only picks up speed as it straightens.
+- **Computer drivers' styles** (`BotLineOpts.vary`, bots.ts): the rivals `makeBots` gives a race (and the lines `replanBots` draws) carry the driver's own style from its seed: a `CURVE` of its own (±`STYLE_CURVE`), a preferred width (±`STYLE_BIAS`) and a shift per segment (`STYLE_BEST` to `STYLE_WEAKEST` by skill) blended across the gates, then `STYLE_SETTLE` relaxing passes. A style that leaves the road is tried at half strength, then not at all. Reference lines leave `vary` out. `tests/botstyle.test.ts`.
 - **Grid order**: by the ideal lap time of each car's first line.
 - **Amending**: joins stay fixed, so redrawing a segment never breaks the loop. Up to 3 segments may differ from the line
   just raced.

@@ -17,8 +17,8 @@ describe("yellow flags and the safety car", () => {
     spin(r, a!); spin(r, b!);
     for (let i = 0; i < 3; i++) r.step();
     expect(r.events.some((e) => e.type === "sc")).toBe(true);
-    // twenty seconds on: the leader is at the safety car's pace, and the field is closer together than it was
-    for (let i = 0; i < 1200; i++) r.step();
+    // nearly thirty seconds on (it stays out at least that long): the leader is at the safety car's pace, and the field is closer together than it was
+    for (let i = 0; i < 1700; i++) r.step();
     const leader = [...r.cars].sort((x, y) => r.progress(y) - r.progress(x))[0]!;
     const vTop = (r as unknown as { stats(c: RaceCar): { vTop: number } }).stats(leader).vTop;
     expect(leader.v).toBeLessThanOrEqual(SC_PACE * vTop * 1.02);

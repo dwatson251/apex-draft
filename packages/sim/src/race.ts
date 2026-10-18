@@ -791,7 +791,7 @@ export class Race {
     for (const c of this.cars) {
       const e = c.entrant;
       if (!e.bot || e.isPlayer || !this.alive(c)) continue;
-      lines[e.id] = botLine(this.track, e.bot.seed + from * 7919, e.bot.skill, { compound: c.compound, field: this.field, ...(e.bot.lane !== undefined ? { lane: e.bot.lane } : {}) });
+      lines[e.id] = botLine(this.track, e.bot.seed + from * 7919, e.bot.skill, { compound: c.compound, field: this.field, vary: 1, ...(e.bot.lane !== undefined ? { lane: e.bot.lane } : {}) });
     }
     this.apply({ tick: this.tick, kind: "replan", from, count, lines });
   }

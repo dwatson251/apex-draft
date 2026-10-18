@@ -51,7 +51,7 @@ export function makeBots(track: Track, vehicle: VehicleId, from: number, to: num
     const [lo, hi] = SKILL_RANGE[difficulty];
     const skill = lo + (hi - lo) * rng.next();
     const seed = rng.int(2 ** 30);
-    out.push({ id: `bot${i}`, name: names.splice(rng.int(names.length), 1)[0] ?? `Bot ${i}`, car, lines: [botLine(track, seed, skill)], bot: { seed, skill }, ...(RIVAL_PACE[difficulty] < 1 ? { pace: RIVAL_PACE[difficulty] * (0.97 + 0.06 * rng.next()) } : {}) });
+    out.push({ id: `bot${i}`, name: names.splice(rng.int(names.length), 1)[0] ?? `Bot ${i}`, car, lines: [botLine(track, seed, skill, { vary: 1 })], bot: { seed, skill }, ...(RIVAL_PACE[difficulty] < 1 ? { pace: RIVAL_PACE[difficulty] * (0.97 + 0.06 * rng.next()) } : {}) });
   }
   return out;
 }
@@ -77,7 +77,7 @@ function rosterBots(track: Track, vehicle: VehicleId, from: number, to: number, 
     const skill = lo + (hi - lo) * rng.next();
     const seed = new Rng((track.seed ^ roster ^ Math.imul(i + 1, 0x85ebca6b)) >>> 0).int(2 ** 30);
     const pace = RIVAL_PACE[difficulty] < 1 ? RIVAL_PACE[difficulty] * (0.97 + 0.06 * rng.next()) : undefined;
-    out.push({ id: `bot${i}`, name: order[i % order.length] ?? `Bot ${i}`, car, lines: [botLine(track, seed, skill)], bot: { seed, skill }, ...(pace !== undefined ? { pace } : {}) });
+    out.push({ id: `bot${i}`, name: order[i % order.length] ?? `Bot ${i}`, car, lines: [botLine(track, seed, skill, { vary: 1 })], bot: { seed, skill }, ...(pace !== undefined ? { pace } : {}) });
   }
   return out;
 }
