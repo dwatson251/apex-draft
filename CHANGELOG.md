@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Your car no longer overtakes for you.** Held up behind a far slower car, it used to steer off your line and go round on its own after a second and a half. Getting past is yours to do now: draw a line that goes past (in the pits, in a race). It still swerves round a car that has crashed or stopped in the road, and the computer drivers still find their own way past.
+- **No car overtakes on its own.** Held up behind a far slower car, a car used to steer off its line and go round after a second and a half. Now every car drives the line it was given: yours, and the computer drivers', which stand for real drivers' lines. Getting past is done by drawing a line that goes past (in a race, at a stop). Cars still swerve round a wreck or a car stopped in the road, and a car stopped in a jam may steer out of it.
 - **The Race menu is a mosaic.** Quick Race is a large tile on the left; Career, Race Weekend, Elimination and Championship sit in a square beside it. Elimination is a mode of its own there (with its own setup: the laps follow the field) instead of a switch in Quick Race.
 - **The README** has new screenshots and GIFs (drawing in speed colours, a race at Spa, the results, the menus, the career, the atlas, an elimination race) and describes the game as it now is.
 - **A full tank lasts at least a lap and a half.** Fuel use turned up on a long lap with few laps (4× over three laps of Spa) left a tank good for less than a lap, so every car ran dry every lap whatever its strategy. The multiplier is now held to what leaves a lap and a half in the tank, and race setup says when it is. The fuel shown for a lap counts the place's thirst too.

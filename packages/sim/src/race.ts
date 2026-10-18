@@ -164,16 +164,12 @@ const PUSH_AFTER_TICKS = 300;
 const PUSH_TICKS = 150;
 /** A car that has been stopped this long is an obstacle the others steer round rather than queue behind. */
 const OBSTACLE_TICKS = 60;
+/** A car stopped in a jam steers out of it as if it were rolling this fast (see `dodge`). */
+const JAM_STEER = 14;
 /** Centre-to-centre clearance a car leaves when it steers round a stopped one, and how far ahead it starts. */
 const DODGE_GAP = 11.5;
 const DODGE_REACH = 110;
 const DODGE_BLEND = 40;
-/** Held up this long (ticks), a car goes round a far slower one: how slow (the share of its own line speed), and how it can steer while crawling. */
-const HELD_TICKS = 90;
-/** Nobody is held up at the start: the grid takes a few seconds to get going. */
-const HELD_GRACE = 360;
-const SLOW_SHARE = 0.4;
-const SLOW_REACH = 45;
 /**
  * Overtaking (RaceRules.overtake): held this many ticks behind a car that is slower by at least OVT_GAIN, a car looks for a gap between the cars round it
  * (every car going its way within OVT_AHEAD in front and OVT_BEHIND behind counts, with the room of their bodies and OVT_MARGIN) and commits to it for
@@ -194,9 +190,6 @@ const OVT_MAX = 300;
 /** A follower looks ahead of the car in front by this many seconds of its speed (and at least ANTICIPATE_MIN units): the braking zone it is heading for. */
 const ANTICIPATE_SECS = 0.9;
 const ANTICIPATE_MIN = 25;
-/** ...and not speeding up by more than this per tick (about 1.2 units/s²): a car pulling away from the grid is not in the way. */
-const SLOW_STEADY = 0.02;
-const HELD_STEER = 14;
 /** A car does not drive into a crossing unless the road beyond it is clear this far, so nobody sits in the box blocking the cross traffic. */
 const BOX_CLEAR = SAFE_GAP + 10;
 /** A wrecked car with traffic coming up behind it pulls to the side of the road, and waits at most this long for the pack to pass. */
@@ -513,8 +506,6 @@ export interface RaceCar {
   nextTyre: Compound | null;
   /** the tactic for the stint after the coming stop, if the plan sets one */
   nextTactic: Tactic | null;
-  /** ticks it has been held up well below the speed its line wants, by traffic: after a while it goes round what is in the way (see `dodge`) */
-  held: number;
   /** ticks the car has been held to well under its line speed by a slower car ahead; the lateral offset it has committed to for a pass, and until when (see `dodge`) */
   fol: number;
   passTo: number | null;
@@ -668,7 +659,7 @@ export class Race {
         ghost: false, stuck: 0, air: 0, airT: 0, peak: 0, pad: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), fuelMult: fuelMultFor(e.car, laps, this.lapLen, this.biome.fuel, this.rules.wearMult?.fuel), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
-        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, gripBuilt: 1, elim: 0, recFor: 0, wake: 0, used: [],
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, gripBuilt: 1, elim: 0, recFor: 0, wake: 0, used: [],
         hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
       });
       c.used.push(c.compound);
@@ -1037,12 +1028,12 @@ export class Race {
   private dodge(c: RaceCar, p: Profile, racing: RaceCar[]): void {
     let want = 0;
     const i = indexAt(p, c.s);
-    // held up: traffic is keeping the car well below what its line asks. Held long enough it stops waiting and goes round whatever is far slower than
-    // it, stopped or crawling, as soon as there is room, and goes back to its line when the road is clear (the aim returns to 0 below)
+    // (a car never steers off its line to pass a slower one, however long it is held up: every car drives the line it was given, the player's and the
+    // computer drivers', which stand for real drivers' lines. Getting past is done by drawing a line that goes past. Only a wreck is steered round.)
     const lineSpeed = sampleAt(p, p.vLim, c.s);
-    c.held = c.tlVal !== Infinity && c.v < 0.5 * lineSpeed && !c.rec && this.tick > HELD_GRACE ? c.held + 1 : Math.max(0, c.held - 2);
-    // (never the player's car: getting past a slower car is the player's to do, by drawing a line that goes past it, not the game's)
-    const impatient = c.held > HELD_TICKS && !c.entrant.isPlayer;
+    // a car that has been stopped a while may still steer out of a jam, round the stopped car or wreck blocking it (`blocking` only counts those):
+    // getting out of a pile-up, not a pass
+    const jammed = c.stuck > OBSTACLE_TICKS;
     c.fol = this.rules.overtake === true && c.tlWhy === 1 && c.tlBy !== null && c.tlVal < OVT_SHARE * lineSpeed && c.v > 8 && !c.rec && lineSpeed - c.tlBy.v > OVT_GAIN ? c.fol + 1 : Math.max(0, c.fol - 2);
     // a pass in progress is over when the car passed is far enough behind (or it has gone on too long, or the car is in trouble)
     if (c.passOn) {
@@ -1054,21 +1045,16 @@ export class Race {
     const starting = this.rules.overtake === true && !c.rec && !c.passOn && c.fol > OVT_TICKS && !leaderFirst && !this.cars.some((o) => o.passOn === c);
     const overtaking = this.rules.overtake === true && !c.rec && (c.passOn !== null || starting);
     if (!overtaking) c.passTo = null;
-    if (!c.rec && !c.ghost && (c.v > 0.5 || impatient || overtaking) && !p.lane[i] && !this.inPit(c)) {
+    if (!c.rec && !c.ghost && (c.v > 0.5 || jammed || overtaking) && !p.lane[i] && !this.inPit(c)) {
       const nx = -Math.sin(c.hp), ny = Math.cos(c.hp), hx = Math.cos(c.hp), hy = Math.sin(c.hp);
       const lim = Math.max(0, p.half[i]! - CAR_R - 3), own = c.off + c.gridOff;
       const blocked: [number, number][] = [];
       for (const o of this.near(c.x, c.y, DODGE_REACH * 1.5)) {
         if (o === c || this.apart(c, o)) continue;
-        // a car far slower than this one's line wants counts as in the way too, once this one has been held up for a while
-        // (only one that is slow of its own accord, and close: a car in a queue is waiting for the one in front of it, so the cars of a queue go round the
-        // head of it one after another, in turn, and not all at once)
-        const slow = impatient && !o.ghost && o.dwell === 0 && !this.inPit(o) && Math.cos(o.h - c.hp) > 0.5 && o.v < SLOW_SHARE * lineSpeed
-          && o.tlVal === Infinity && o.dv < SLOW_STEADY && (o.x - c.x) * hx + (o.y - c.y) * hy < SLOW_REACH;
         const near = overtaking && !o.ghost && o.dwell === 0 && !this.inPit(o) && Math.cos(o.h - c.hp) > 0.5;
-        if (!slow && !near && !this.blocking(o)) continue;
+        if (!near && !this.blocking(o)) continue;
         const dx = o.x - c.x, dy = o.y - c.y, along = dx * hx + dy * hy;
-        if (near && !slow && !this.blocking(o)) {
+        if (near && !this.blocking(o)) {
           if (along < -OVT_BEHIND || along > OVT_AHEAD) continue;
           const lat = dx * nx + dy * ny + own, dgp = (c.width + o.width) / 2 + this.tune.pass;
           if (lat - dgp < lim && lat + dgp > -lim) blocked.push([lat - dgp, lat + dgp]);
@@ -1099,8 +1085,8 @@ export class Race {
     }
     // it moves across the road only as fast as it is rolling: no movement, no steering
     c.aimWant = want;
-    // (a car held up and crawling can still turn out: it steers as if it were rolling at HELD_STEER)
-    c.aim += (want - c.aim) * Math.min(1, (want !== 0 ? 8 : 1.5) * Math.min(1, Math.max(c.v, impatient ? HELD_STEER : 0) / 25) * TICK);
+    // (a jammed car steers as if it were rolling at JAM_STEER, or it could never turn out)
+    c.aim += (want - c.aim) * Math.min(1, (want !== 0 ? 8 : 1.5) * Math.min(1, Math.max(c.v, jammed ? JAM_STEER : 0) / 25) * TICK);
     if (Math.abs(c.aim) < 0.01) c.aim = 0;
   }
 
