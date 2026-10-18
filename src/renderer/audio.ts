@@ -203,6 +203,11 @@ export class CarAudio {
   private master: GainNode | null = null;
   private musicBus: GainNode | null = null;
   private fx: GainNode | null = null;
+  /** the player's own levels (Settings): the music (both tracks), the effects, and the engines (a bus of their own beside the effects) */
+  private musicOut: GainNode | null = null;
+  private engineBus: GainNode | null = null;
+  private fxUser: GainNode | null = null;
+  private vol = { music: 1, fx: 1, engine: 1 };
   private noise: AudioBuffer | null = null;
   private voices = new Map<string, Voice>();
   private muted = false;
@@ -229,9 +234,13 @@ export class CarAudio {
         this.watchContext();
         this.master = this.ctx.createGain();
         this.master.connect(this.ctx.destination);
-        this.fx = this.ctx.createGain(); this.fx.gain.value = 1; this.fx.connect(this.master);
-        this.musicBus = this.ctx.createGain(); this.musicBus.gain.value = 0.085; this.musicBus.connect(this.master);
-        this.loopBus = this.ctx.createGain(); this.loopBus.gain.value = 1; this.loopBus.connect(this.master);
+        this.fxUser = this.ctx.createGain(); this.fxUser.connect(this.master);
+        this.fx = this.ctx.createGain(); this.fx.gain.value = 1; this.fx.connect(this.fxUser);
+        this.engineBus = this.ctx.createGain(); this.engineBus.connect(this.master);
+        this.musicOut = this.ctx.createGain(); this.musicOut.connect(this.master);
+        this.musicBus = this.ctx.createGain(); this.musicBus.gain.value = 0.085; this.musicBus.connect(this.musicOut);
+        this.loopBus = this.ctx.createGain(); this.loopBus.gain.value = 1; this.loopBus.connect(this.musicOut);
+        this.applyVolumes();
         const len = this.ctx.sampleRate * 2;
         this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
         const d = this.noise.getChannelData(0);
@@ -267,6 +276,14 @@ export class CarAudio {
   }
 
   setMuted(m: boolean): void { this.muted = m; this.applyMaster(); }
+  /** The player's levels, 0 to 1 each. The square keeps a slider's low end usable (the ear hears loudness, not gain). */
+  setVolumes(v: { music: number; fx: number; engine: number }): void { this.vol = v; this.applyVolumes(); }
+  private applyVolumes(): void {
+    const ctx = this.ctx, t = ctx?.currentTime ?? 0, sq = (x: number) => Math.max(0, Math.min(1, x)) ** 2;
+    this.musicOut?.gain.setTargetAtTime(sq(this.vol.music), t, 0.05);
+    this.fxUser?.gain.setTargetAtTime(sq(this.vol.fx), t, 0.05);
+    this.engineBus?.gain.setTargetAtTime(this.ducked ? 0 : sq(this.vol.engine), t, 0.05);
+  }
   isMuted(): boolean { return this.muted; }
   /** Fast-forward: the engines would just be a chirp. */
   setDucked(d: boolean): void { if (d !== this.ducked) { this.ducked = d; this.applyMaster(); } }
@@ -299,13 +316,14 @@ export class CarAudio {
     if (!this.ctx || !this.master) return;
     this.master.gain.setTargetAtTime(this.muted ? 0 : 0.8, this.ctx.currentTime, 0.08);
     this.fx?.gain.setTargetAtTime(this.ducked ? 0 : 1, this.ctx.currentTime, 0.08);
+    this.applyVolumes(); // (the engines duck with the effects)
   }
 
   // ---------- engines ----------
   private make(type: VehicleId | undefined): Voice | null {
     const ctx = this.ctx!, veh = vehicleOf(type), prof = ENGINES[veh.id] ?? ENGINES.rally;
     const out = ctx.createGain();
-    out.connect(this.fx!);
+    out.connect(this.engineBus!);
     let pan: StereoPannerNode | null = null;
     let sink: AudioNode = out;
     if (ctx.createStereoPanner) { pan = ctx.createStereoPanner(); pan.connect(out); sink = pan; }
@@ -705,8 +723,22 @@ export class CarAudio {
 
   /** A short flourish: a win, a goal met, the end of a round. */
   stinger(kind: "win" | "goal" | "round"): void {
-    const notes = kind === "win" ? [523, 659, 784, 1047] : kind === "goal" ? [659, 880] : [392, 523];
-    notes.forEach((f, i) => this.beep(f, 0.16 + (i === notes.length - 1 ? 0.2 : 0), "triangle", 0.09, i * 0.13));
+    // a short brass fanfare: each note a chord of detuned saws through a filter that opens as it sounds, the last one held
+    const ctx = this.ctx, fx = this.fx;
+    if (!ctx || !fx) return;
+    const phrase: [number[], number][] = kind === "win" ? [[[523, 659], 0.14], [[587, 740], 0.14], [[659, 784], 0.14], [[784, 988, 1175], 0.75]] : kind === "goal" ? [[[659, 830], 0.14], [[880, 1109, 1319], 0.55]] : [[[392, 494], 0.14], [[523, 659, 784], 0.45]];
+    let t = ctx.currentTime + 0.03;
+    for (const [chord, dur] of phrase) {
+      const bus = ctx.createGain(), lp = ctx.createBiquadFilter();
+      lp.type = "lowpass"; lp.Q.value = 2; lp.frequency.setValueAtTime(500, t); lp.frequency.exponentialRampToValueAtTime(3800, t + 0.06); lp.frequency.exponentialRampToValueAtTime(1600, t + dur);
+      bus.gain.setValueAtTime(0, t); bus.gain.linearRampToValueAtTime(0.07, t + 0.02); bus.gain.setTargetAtTime(0.045, t + 0.05, 0.08); bus.gain.setTargetAtTime(0, t + dur * 0.85, 0.06);
+      lp.connect(bus); bus.connect(fx);
+      for (const f of chord) for (const cents of [-7, 6]) {
+        const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = f; o.detune.value = cents;
+        o.connect(lp); o.start(t); o.stop(t + dur + 0.4);
+      }
+      t += dur;
+    }
   }
 
   /** Menus: bass and the lead under a low-pass. Racing (and the title screen): the drums join and the top opens up. */

@@ -298,6 +298,7 @@ export class Game {
     this.version = (await window.apex?.version?.()) ?? "dev";
     this.audio.setMuted(!!this.settings.muted);
     this.audio.setMusic(!this.settings.musicOff);
+    this.applyVolumes();
     this.audio.arm();
     const c = this.app.canvas;
     window.addEventListener("pointermove", (e) => { if (e.movementX || e.movementY || e.pointerType === "touch") this.pad.active = false; }, true);
@@ -446,6 +447,9 @@ export class Game {
     el.querySelector(sel)?.addEventListener("click", fn);
   }
   private persist(): void { void save("settings", this.tutBackup ?? this.modeBackup ?? this.settings); this.syncHash(); }
+  /** The player's three levels, from the settings, to the sound. */
+  private applyVolumes(): void { const s = this.settings, v = (x: number | undefined) => Math.max(0, Math.min(100, x ?? 100)) / 100; this.audio.setVolumes({ music: v(s.volMusic), fx: v(s.volFx), engine: v(s.volEngine) }); }
+
   private toggleMute(): void {
     this.settings.muted = !this.audio.isMuted();
     this.audio.setMuted(this.settings.muted);
@@ -737,9 +741,11 @@ export class Game {
 
   private renderSettings(): void {
     const s = this.settings;
-    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, replays: this.replays.map((r) => ({ id: r.id, title: r.title, when: r.when, place: r.place, ok: r.version === SIM_VERSION })), version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX }));
+    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, vol: { music: s.volMusic ?? 100, fx: s.volFx ?? 100, engine: s.volEngine ?? 100 }, replays: this.replays.map((r) => ({ id: r.id, title: r.title, when: r.when, place: r.place, ok: r.version === SIM_VERSION })), version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX }));
     this.on(el, "#back", () => { if (this.inGame) { this.screen = "home"; this.renderMenu(); } else this.go("home"); });
     // committed when the box loses focus or Enter is pressed, not on every key: a re-render would take the focus away
+    el.querySelectorAll<HTMLInputElement>("input[data-vol]").forEach((r) => r.addEventListener("input", () => { const k = r.dataset["vol"] as "volMusic" | "volFx" | "volEngine"; s[k] = Number(r.value); this.audio.unlock(); this.applyVolumes(); }));
+    el.querySelectorAll<HTMLInputElement>("input[data-vol]").forEach((r) => r.addEventListener("change", () => this.persist()));
     el.querySelectorAll<HTMLButtonElement>("[data-watch]").forEach((b) => b.addEventListener("click", () => { const rep = this.replays.find((r) => r.id === b.dataset["watch"]); if (rep) this.watchReplay(rep); }));
     const nameBox = el.querySelector<HTMLInputElement>("#player-name")!;
     nameBox.addEventListener("change", () => { nameBox.value = this.online.setName(nameBox.value); });

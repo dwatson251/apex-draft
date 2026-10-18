@@ -41,6 +41,10 @@ export interface Settings {
   vehiclePhrase?: string;
   muted?: boolean;
   musicOff?: boolean;
+  /** the player's levels, 0 to 100 (100 if left out): music, effects, engines */
+  volMusic?: number;
+  volFx?: number;
+  volEngine?: number;
   /** tyre wear, fuel and pit stops */
   realism: boolean;
   /** which decision about realism the saved value follows */

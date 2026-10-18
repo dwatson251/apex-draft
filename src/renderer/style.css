@@ -581,3 +581,6 @@ button.big { background-color: #3a4b82; }
 
 /* the tutorial's extra tip, one a segment */
 .tut-tip { display: inline-block; margin-top: 6px; color: #9fdcff; font-size: 13px; }
+
+/* Settings: the volume sliders */
+input.vol { width: min(220px, 50vw); accent-color: var(--accent); }
