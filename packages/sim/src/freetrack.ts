@@ -64,7 +64,7 @@ export function freeSegments(points: Vec2[], index0 = 0): { segments: Segment[];
 }
 
 /** What a segment is, from how far its road turns: a straight, a kink, a fast sweep, a corner or a sharp one. */
-function kindOf(s: Segment): SegmentKind {
+export function kindOf(s: Segment): SegmentKind {
   let turn = 0;
   for (let i = 1; i < s.center.length - 1; i++) {
     const a = sub(s.center[i]!, s.center[i - 1]!), b = sub(s.center[i + 1]!, s.center[i]!);

@@ -1,0 +1,19 @@
+# id | picture (in the reference folder) | start x y | a point further along the way the cars go | options     (see autotrace.py; read by trace-all.sh)
+mario-circuit-1 | SNES_Mario_Circuit_1_map.png | 915 640 915 470
+donut-plains-1 | SMK_Donut_Plains_1_Overhead_Map.png | 120 420 110 300 | --col=128,88,48 --col=192,152,88
+ghost-valley-1 | SMK_Ghost_Valley_1_Overhead_Map.png | 945 650 945 400 | --notbg=0,0,0 --bgtol=20 --close=9 --bridge=380,735,430,735
+smk-bowser-castle-1 | SMK_Bowser_Castle_1_Overhead_Map.png | 900 300 900 150 | --tol=70 --bridge=455,440,455,790 --bridge=667,440,667,800 --close=11
+mario-circuit-2 | MKSC_SNES_Mario_Circuit_2_Map.png | 900 520 900 300 | --tol=55 --close=9
+choco-island-1 | SMK_Choco_Island_1_Overhead_Map.png | 870 640 870 450 | --tol=30
+ghost-valley-2 | SMK_Ghost_Valley_2_Overhead_Map.png | 85 500 85 380 | --notbg=0,0,0 --bgtol=20 --close=9 --bridge=380,925,460,925
+donut-plains-2 | SMK_Donut_Plains_2_Overhead_Map.png | 890 640 890 450 | --tol=40
+smk-bowser-castle-2 | SMK_Bowser_Castle_2_Overhead_Map.png | 80 500 80 300 | --tol=70 --close=9 --bridge=150,945,900,945
+mario-circuit-3 | SMK_Mario_Circuit_3_Overhead_Map.png | 78 520 78 300 | --tol=30
+choco-island-2 | SMK_Choco_Island_2_Overhead_Map.png | 94 515 94 400 | --tol=18
+vanilla-lake-1 | SMK_Vanilla_Lake_1_Overhead_Map.png | 169 620 169 400 | --tol=22 --close=9
+smk-bowser-castle-3 | SMK_Bowser_Castle_3_Overhead_Map.png | 906 500 906 300 | --tol=75 --close=9 --bridge=265,70,812,70 --bridge=133,330,160,770
+mario-circuit-4 | SMK_Mario_Circuit_4_Overhead_Map.png | 914 700 914 400 | --tol=30
+donut-plains-3 | SMK_Donut_Plains_3_Overhead_Map.png | 144 620 144 400 | --tol=30 --close=9 --bridge=351,109,656,109 --bridge=437,367,766,367
+ghost-valley-3 | SMK_Ghost_Valley_3_Overhead_Map.png | 86 500 86 350 | --notbg=0,0,0 --bgtol=20 --close=9
+vanilla-lake-2 | SMK_Vanilla_Lake_2_Overhead_Map.png | 844 560 844 400 | --tol=22 --close=9
+smk-rainbow-road | SMK_Rainbow_Road_Overhead_Map.png | 62 540 62 300 | --notbg=0,0,0 --bgtol=45 --close=7

@@ -1,5 +1,9 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { Pt } from "../circuits/osm.ts";
+import type { Vec2 } from "../../packages/sim/src/vec.ts";
+import { freeSegments, kindOf } from "../../packages/sim/src/freetrack.ts";
+import { GLIDE_LANDING_UNITS, LANDING_UNITS, landingRoom } from "../../packages/sim/src/features.ts";
+import { v2 } from "../../packages/sim/src/vec.ts";
 import { fit, length, measure, resample, smoothLoop, straighten, type Limits } from "../circuits/process.ts";
 
 /**
@@ -7,13 +11,17 @@ import { fit, length, measure, resample, smoothLoop, straighten, type Limits } f
  * line, in driving order) -> packages/sim/src/kartdata.ts (each course as a drivable loop in game units, with its pieces). The waypoints are smoothed, scaled
  * to the lap length the shape asks for, the start straightened for the pit lane, and bent the least that makes a road the game can use (as tools/circuits does);
  * when that cannot be done the lap is made longer until it can. Writing the same shapes again gives the same file.
- *   node --no-warnings tools/mariokart/build.ts [id ...]
+ *   npx vite-node tools/mariokart/build.ts [id ...]      (vite-node, not node: it reads the sim's own sources)
  */
-interface FxSpec { leg: number; to?: number; a: number; b: number; type: string; power?: number }
+/** A piece is placed either by two points in the picture (`p` to `q`: the nearest points on the road) or by a leg of the waypoint list (`leg`, `a`..`b` of it, to leg `to`). */
+interface FxSpec { p?: [number, number]; q?: [number, number]; leg?: number; to?: number; a?: number; b?: number; type: string; power?: number }
 interface Shape { pts: [number, number][]; len: number; fx?: FxSpec[]; notes?: string }
 const here = (f: string) => new URL(f, import.meta.url);
-const LIMITS: Limits = { rMin: 36, gap: 60, near: 170 };
+/** Looser than the real circuits (36 and 60): a kart takes a tighter turn, and the lap stays short enough to be a kart lap. */
+const LIMITS: Limits = { rMin: 26, gap: 56, near: 150 };
 const SPACING = 10, MARGIN = 180;
+/** the tightest corner (radius, units) a scaled loop may start with before `fit` and the longest lap it is grown to */
+const PRE_R = 24, MAX_LEN = 3000;
 
 const shapes: Record<string, Shape> = {};
 for (const f of readdirSync(here("./shapes/"))) if (f.endsWith(".json")) Object.assign(shapes, JSON.parse(readFileSync(here(`./shapes/${f}`), "utf8")));
@@ -23,6 +31,42 @@ const known = new Set(roster.map((r) => r.id));
 
 export interface Built { points: number[]; fx: { at: number; len: number; type: string; power?: number }[]; len: number; grew: number; report: string; ok: boolean }
 
+const RAMPS = new Set(["jump", "glide"]);
+const RAMP_FROM = 0.3, RAMP_TO = 0.62;
+
+/**
+ * Turn where the pieces are wanted (fractions of the lap, read off the picture) into where they can go on the road as the game cuts it. A speed pad or a patch goes
+ * where it is wanted. A ramp has to be on a straight with straight road after it (features.ts checkFx), so it goes on the nearest segment that qualifies, within a
+ * fifth of a lap; when there is none it is left out (and said so).
+ */
+function placeFx(id: string, flat: number[], want: { at: number; end: number; type: string; power?: number }[]): Built["fx"] {
+  const pts: Vec2[] = [];
+  for (let i = 0; i < flat.length; i += 2) pts.push(v2(flat[i]!, flat[i + 1]!));
+  const { segments } = freeSegments(pts);
+  const n = segments.length;
+  segments.forEach((sg) => { sg.kind = kindOf(sg); if (sg.index === 0 || sg.index === n - 1) sg.kind = "straight"; });
+  const taken = new Set<number>();
+  const out: Built["fx"] = [];
+  for (const w of want) {
+    const r = (x: number) => Math.round(x * 10000) / 10000;
+    if (!RAMPS.has(w.type)) { out.push({ at: r(w.at), len: r(Math.max(w.end - w.at, 0.002)), type: w.type, ...(w.power !== undefined ? { power: w.power } : {}) }); continue; }
+    const need = w.type === "glide" ? GLIDE_LANDING_UNITS : LANDING_UNITS;
+    const mid = (w.at + w.end) / 2;
+    let best = -1, bestD = Infinity;
+    for (let k = 2; k <= n - 3; k++) {
+      if (taken.has(k) || taken.has(k - 1) || taken.has(k + 1)) continue;
+      if (segments[k]!.kind !== "straight" && segments[k]!.kind !== "kink") continue;
+      if (landingRoom(segments, k, RAMP_TO) < need) continue;
+      const d = Math.min(Math.abs((k + 0.5) / n - mid), 1 - Math.abs((k + 0.5) / n - mid));
+      if (d < bestD) { bestD = d; best = k; }
+    }
+    if (best < 0 || bestD > 0.2) { console.log(`   ${id}: no room for the ${w.type} near ${(mid * 100).toFixed(0)}% of the lap (nearest ${best < 0 ? "none" : (bestD * 100).toFixed(0) + "% away"}): left out`); continue; }
+    taken.add(best);
+    out.push({ at: r((best + RAMP_FROM) / n), len: r((RAMP_TO - RAMP_FROM) / n), type: w.type, ...(w.power !== undefined ? { power: w.power } : {}) });
+  }
+  return out;
+}
+
 export function buildShape(id: string, sh: Shape): Built {
   const raw: Pt[] = sh.pts.map(([x, y]) => ({ x, y }));
   // where each waypoint is along the authored loop, as a fraction of it (the pieces are placed against these)
@@ -30,30 +74,47 @@ export function buildShape(id: string, sh: Shape): Built {
   for (let i = 1; i <= raw.length; i++) cum.push(cum[i - 1]! + Math.hypot(raw[i % raw.length]!.x - raw[i - 1]!.x, raw[i % raw.length]!.y - raw[i - 1]!.y));
   const total = cum.at(-1)!;
   const frac = (leg: number, t: number): number => (cum[leg]! + t * (cum[leg + 1]! - cum[leg]!)) / total;
-  const fx = (sh.fx ?? []).map((f) => {
-    const at = frac(f.leg, f.a), end = frac(f.to ?? f.leg, f.b);
-    return { at: Math.round(at * 10000) / 10000, len: Math.round(Math.max(end - at, 0.002) * 10000) / 10000, type: f.type, ...(f.power !== undefined ? { power: f.power } : {}) };
+  // where the point of the picture nearest (px, py) is along the loop, as a fraction of it
+  const near = (px: number, py: number): number => {
+    let best = Infinity, at = 0;
+    for (let i = 0; i < raw.length; i++) {
+      const a = raw[i]!, b = raw[(i + 1) % raw.length]!, dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1;
+      const u = Math.min(1, Math.max(0, ((px - a.x) * dx + (py - a.y) * dy) / l2)), d = Math.hypot(a.x + dx * u - px, a.y + dy * u - py);
+      if (d < best) { best = d; at = (cum[i]! + u * Math.sqrt(l2)) / total; }
+    }
+    return at;
+  };
+  const want = (sh.fx ?? []).map((f) => {
+    let at: number, end: number;
+    if (f.p && f.q) { at = near(f.p[0], f.p[1]); end = near(f.q[0], f.q[1]); if (end < at) end += 1; if (end > 1) end = 1; }
+    else { at = frac(f.leg!, f.a!); end = frac(f.to ?? f.leg!, f.b!); }
+    return { at, end, type: f.type, power: f.power };
   });
-  const smooth = smoothLoop(resample(raw, 240), 6, 0.5);
+  const smooth = smoothLoop(resample(raw, 240), 5, 0.5);
+  // Scale it up until its own corners are wide enough (a tight corner at a small scale would be bent wide by `fit`, and the course with it) and the roads are
+  // far enough apart; then let `fit` take out what is left.
   let len = sh.len, grew = 0, best: Built | undefined;
-  for (; grew < 8; grew++) {
+  for (; grew < 14; grew++) {
     const k = len / length(smooth);
     const n = Math.round(len / SPACING);
     let loop = resample(smooth.map((p) => ({ x: p.x * k, y: p.y * k })), n);
-    loop = straighten(loop, 0, 18, 14);
-    const { points, report } = fit(loop, LIMITS, 60, 18);
+    const pre = measure(loop, loop, LIMITS);
+    loop = straighten(loop, 0, 11, 7);
+    if ((pre.minRadius < PRE_R || pre.minGap < LIMITS.gap * 1.02) && len < MAX_LEN && grew < 13) { len *= 1.05; continue; }
+    const { points, report } = fit(loop, LIMITS, 60, 11);
     const minX = Math.min(...points.map((p) => p.x)), minY = Math.min(...points.map((p) => p.y));
     const game = points.map((p) => ({ x: p.x - minX + MARGIN, y: p.y - minY + MARGIN }));
     const r = measure(game, loop.map((p) => ({ x: p.x - minX + MARGIN, y: p.y - minY + MARGIN })), LIMITS);
     const ok = r.minRadius >= LIMITS.rMin * 0.9 && r.minGap >= LIMITS.gap * 0.95;
-    best = { points: game.flatMap((p) => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]), fx, len: Math.round(length(game)), grew, ok, report: `${Math.round(length(game))} units, R>=${report.minRadius.toFixed(0)} gap>=${report.minGap.toFixed(0)} drift mean ${r.meanDrift.toFixed(0)} max ${r.worstDrift.toFixed(0)}` };
+    const flatPts = game.flatMap((p) => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]);
+    best = { points: flatPts, fx: placeFx(id, flatPts, want), len: Math.round(length(game)), grew, ok, report: `${Math.round(length(game))} units, R>=${report.minRadius.toFixed(0)} gap>=${report.minGap.toFixed(0)} drift mean ${r.meanDrift.toFixed(0)} max ${r.worstDrift.toFixed(0)}` };
     if (ok) break;
-    len *= 1.08;
+    len *= 1.05;
   }
   return best!;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+{
   const dataFile = here("../../packages/sim/src/kartdata.ts");
   const text = readFileSync(dataFile, "utf8");
   const out: Record<string, { points: number[]; fx?: Built["fx"] }> = {};

@@ -12,10 +12,32 @@ import type { Segment, Track } from "./track.ts";
 const flat = (s: Segment): boolean => s.kind === "straight" || s.kind === "kink";
 const crossing = (s: Segment): boolean => s.kind === "cross" || s.kind === "bridge" || s.kind === "under" || s.kind === "fork" || s.kind === "merge";
 
-/** Segments of straight road a ramp needs after it (a glide ramp one more): enough for the longest flight at the fastest car's top speed. */
+/** Straight road a ramp needs after its lip, in units: a jump flies about this far at the top speed of an ordinary class, a glide about half as far again. */
+export const LANDING_UNITS = 110;
+export const GLIDE_LANDING_UNITS = 170;
+/** Segments checked after a ramp for stones in the way (a glide lands further out). */
 export const LANDING_SEGMENTS = 2;
 
-/** Why a track's ramps will not do, if they will not: the ramp's segment is bent or crossed, the landing is not straight, the pit lane is under it, or something stands in the way. */
+const segLen = (s: Segment): number => {
+  let len = 0;
+  for (let i = 1; i < s.center.length; i++) len += Math.hypot(s.center[i]!.x - s.center[i - 1]!.x, s.center[i]!.y - s.center[i - 1]!.y);
+  return len;
+};
+
+/** How much straight road lies after a ramp that ends `t1` of the way along segment `i`: what is left of its own segment, and the flat segments that follow it. */
+export function landingRoom(segments: Segment[], i: number, t1: number): number {
+  const n = segments.length;
+  let room = (1 - t1) * segLen(segments[i]!);
+  for (let k = 1; k < n; k++) {
+    const o = segments[(i + k) % n]!;
+    if (!flat(o) || crossing(o) || o.index === 0 || o.index === n - 1) break;
+    room += segLen(o);
+    if (room > GLIDE_LANDING_UNITS * 2) break;
+  }
+  return room;
+}
+
+/** Why a track's ramps will not do, if they will not: the ramp's segment is bent or crossed, the road after it is not straight for long enough, the pit lane is under it, or something stands in the way. */
 export function checkFx(t: Track): string[] {
   const problems: string[] = [];
   const n = t.segments.length;
@@ -23,16 +45,13 @@ export function checkFx(t: Track): string[] {
     for (const fx of s.fx ?? []) {
       if (fx.t0 < 0 || fx.t1 > 1 || fx.t1 <= fx.t0) problems.push(`segment ${s.index}: ${fx.type} spans ${fx.t0}..${fx.t1}`);
       if (!isRamp(fx.type)) continue;
-      const need = fx.type === "glide" ? LANDING_SEGMENTS + 1 : LANDING_SEGMENTS;
+      const need = fx.type === "glide" ? GLIDE_LANDING_UNITS : LANDING_UNITS;
       if (!flat(s)) problems.push(`segment ${s.index}: a ${fx.type} on a ${s.kind}`);
       if (s.index < 2 || s.index > n - 3) problems.push(`segment ${s.index}: a ${fx.type} beside the pit straight`);
-      for (let k = 1; k <= need; k++) {
-        const nx = t.segments[(s.index + k) % n]!;
-        if (!flat(nx) || crossing(nx)) problems.push(`segment ${s.index}: the road ${k} on from the ${fx.type} is a ${nx.kind}`);
-        if (nx.index === 0 || nx.index === n - 1) problems.push(`segment ${s.index}: the ${fx.type} lands on the pit straight`);
-        if (nx.obstacles.length) problems.push(`segment ${nx.index}: an obstacle where a ${fx.type} lands`);
-      }
+      const room = landingRoom(t.segments, s.index, fx.t1);
+      if (room < need) problems.push(`segment ${s.index}: only ${Math.round(room)} units of straight road after the ${fx.type} (needs ${need})`);
       if (s.obstacles.length) problems.push(`segment ${s.index}: an obstacle on the ${fx.type}`);
+      for (let k = 1; k <= LANDING_SEGMENTS + (fx.type === "glide" ? 1 : 0); k++) if (t.segments[(s.index + k) % n]!.obstacles.length) problems.push(`segment ${(s.index + k) % n}: an obstacle where a ${fx.type} lands`);
     }
   }
   return problems;
@@ -63,10 +82,10 @@ export function funPieces(t: Track): void {
     return true;
   };
   const rampOk = (i: number, glide: boolean): boolean => {
-    if (!ok(i)) return false;
+    if (!ok(i) || landingRoom(t.segments, i, 0.5) < (glide ? GLIDE_LANDING_UNITS : LANDING_UNITS)) return false;
     for (let k = 1; k <= LANDING_SEGMENTS + (glide ? 1 : 0); k++) {
       const o = near(i, k);
-      if (!flat(o) || crossing(o) || forked.has(o.index) || o.index >= n - 1 || o.fx || o.powerup) return false;
+      if (crossing(o) || forked.has(o.index) || o.fx || o.powerup) return false;
     }
     return true;
   };
