@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Gear changes cost a moment of drive.** Every machine with a gearbox now changes up through its gears in the race, and the drive is gone while each change goes through: about 0.2 s for the manuals (the classic F1, muscle and stock cars, buggy, truck, tank), 0.06 s for sequentials (rally, rallycross, touring, GT3, GT4, superbike, dragster) and almost nothing for the seamless boxes (F1, prototype, hypercar). A manual loses about 1% of a lap, a sequential 0.4%, a seamless box 0.1%; electric cars, karts, boats and fans are unchanged. The predicted lap time and the speed colours include it. **SIM_VERSION is 8**: earlier replays no longer play, and online times set before it stop being ranked.
+
 ## 0.2.0-beta.2
 
 The second playtest build: the menus and results made for a phone on its side, and trophies as cards.

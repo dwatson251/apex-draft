@@ -1,4 +1,5 @@
 import { accelAt, carStats, combined, tractionShare, type CarConfig } from "./car.ts";
+import { GEARBOXES, SHIFT_CUT, nextGear } from "./gears.ts";
 import { biomeOf, terrainMul, type Biome } from "./biomes.ts";
 import { vehicleOf, type Vehicle } from "./vehicles.ts";
 import { impact, lastImpact } from "./impact.ts";
@@ -391,6 +392,9 @@ export interface RaceCar {
   ghost: boolean;
   /** consecutive ticks spent stopped behind something */
   stuck: number;
+  /** the gear it is in (0-based), and the tick its drive comes back after a change up (see gears.ts) */
+  gear: number;
+  cutUntil: number;
   /** ticks a ghost has lingered after its power-up ran out */
   ghostFor: number;
   /** true while the ghost power-up itself is active (as opposed to lingering until clear) */
@@ -656,7 +660,7 @@ export class Race {
       const c: RaceCar = withTapes({
         entrant: e, slot, lap: slot === 0 ? 0 : -1,
         s: sNew, gridOff: at.off, v: spread ? 40 : 0, x: 0, y: 0, h: 0,
-        ghost: false, stuck: 0, air: 0, airT: 0, peak: 0, pad: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
+        ghost: false, stuck: 0, gear: 0, cutUntil: 0, air: 0, airT: 0, peak: 0, pad: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), fuelMult: fuelMultFor(e.car, laps, this.lapLen, this.biome.fuel, this.rules.wearMult?.fuel), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
         compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, gripBuilt: 1, elim: 0, recFor: 0, wake: 0, used: [],
@@ -1640,10 +1644,18 @@ export class Race {
       // the pull fades with speed (power and drag: a target above the top speed, in a slipstream or off a pad, stretches the curve to reach it), and a
       // tyre working hard in a bend has less of it to give (the friction circle, as in the profile)
       const lat = Math.min(1, (p.kap[i]! * c.v * c.v) / Math.max(cornerCap(c.entrant.car.type, st.aLat * p.gripMul[i]!, c.v), 1e-6));
-      const pull = accelAt(st.accel, Math.max(st.vTop, target), c.v, tractionShare(quirksOf(c.entrant.car.type).downforce)) * combined(lat);
+      // (no drive at all while a change up goes through)
+      const pull = c.cutUntil > this.tick ? 0 : accelAt(st.accel, Math.max(st.vTop, target), c.v, tractionShare(quirksOf(c.entrant.car.type).downforce)) * combined(lat);
       let v = c.v > target ? Math.max(target, c.v - st.brake * p.brakeMul[i]! * TICK) : Math.min(target, c.v + pull * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * launchMul(c, st.vTop) * TICK);
       // in the air there is no throttle and no brake: only the air itself slows the car
       if (c.air > 0) v = c.v * (1 - AIR_DRAG);
+      // the gearbox: a change up takes the drive away for a moment (a manual's clutch, a sequential's cut); a change down costs nothing
+      const box = GEARBOXES[c.entrant.car.type ?? "rally"];
+      if (box) {
+        const g = nextGear(box, st.vTop, v, c.gear);
+        if (g > c.gear && v > c.v) c.cutUntil = this.tick + 1 + Math.round(SHIFT_CUT[box.kind] / TICK); // (from the next tick on: this one's speed is already set)
+        c.gear = g;
+      }
       // a car pointing the wrong way slows down, and one that is sliding travels along the line only as far as its direction takes it
       let s = c.s + (c.rec ? v * Math.cos(c.phi) : v) * TICK;
       if (stopping && !c.boxed && c.bay !== undefined && stopS - s < 0.5 && v < 5) { s = stopS; v = 0; arrived.push(c); }

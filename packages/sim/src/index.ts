@@ -34,6 +34,7 @@ export * from "./wire.ts";
 export * from "./difficulty.ts";
 export * from "./tactics.ts";
 export * from "./quirks.ts";
+export * from "./gears.ts";
 export * from "./landscape.ts";
 export * from "./fx.ts";
 export type { KartRow } from "./kartroster.ts";

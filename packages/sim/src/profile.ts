@@ -1,4 +1,5 @@
 import { accelAt, carStats, combined, tractionShare, type CarConfig } from "./car.ts";
+import { GEARBOXES, SHIFT_CUT, nextGear } from "./gears.ts";
 import { quirksOf } from "./quirks.ts";
 import { terrainMul } from "./biomes.ts";
 import { BOOST_FX_ACCEL, BOOST_FX_TOP, FX_GROUND, isRamp } from "./fx.ts";
@@ -284,13 +285,23 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   }
   // flying-lap time with the acceleration limit
   const v = Float64Array.from(vLim);
+  // the gearbox, as in the race: each change up leaves the car rolling without drive for a moment (here, for the distance it covers in that time)
+  const box = GEARBOXES[car.type ?? "rally"], cut = box ? SHIFT_CUT[box.kind] : 0;
+  let gear = 0, coast = 0;
   for (let pass = 0; pass < 2; pass++) {
     for (let k = 0; k < n; k++) {
       const prev = v[(k + n - 1) % n]!;
       // the pull fades with speed (power and drag), and is shared with the turning the tyre is doing
       const lat = Math.min(1, (kap[k]! * prev * prev) / Math.max(latCap[k]! + (q.downforce ?? 0) * prev * prev, 1e-6));
-      const a = accelAt(st.accel, st.vTop * topMul[k]!, prev, tractionShare(q.downforce)) * accelMul[k]! * combined(lat);
+      // (a cut shorter than a sample takes only its share of that sample's drive)
+      const a = (1 - Math.min(1, coast / ds)) * accelAt(st.accel, st.vTop * topMul[k]!, prev, tractionShare(q.downforce)) * accelMul[k]! * combined(lat);
+      coast = Math.max(0, coast - ds);
       v[k] = Math.min(v[k]!, Math.sqrt(prev * prev + 2 * a * ds));
+      if (box) {
+        const g = nextGear(box, st.vTop, v[k]!, gear);
+        if (g > gear && v[k]! > prev) coast = v[k]! * cut;
+        gear = g;
+      }
     }
   }
   let ideal = 0;
