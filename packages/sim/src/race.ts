@@ -1041,7 +1041,8 @@ export class Race {
     // it, stopped or crawling, as soon as there is room, and goes back to its line when the road is clear (the aim returns to 0 below)
     const lineSpeed = sampleAt(p, p.vLim, c.s);
     c.held = c.tlVal !== Infinity && c.v < 0.5 * lineSpeed && !c.rec && this.tick > HELD_GRACE ? c.held + 1 : Math.max(0, c.held - 2);
-    const impatient = c.held > HELD_TICKS;
+    // (never the player's car: getting past a slower car is the player's to do, by drawing a line that goes past it, not the game's)
+    const impatient = c.held > HELD_TICKS && !c.entrant.isPlayer;
     c.fol = this.rules.overtake === true && c.tlWhy === 1 && c.tlBy !== null && c.tlVal < OVT_SHARE * lineSpeed && c.v > 8 && !c.rec && lineSpeed - c.tlBy.v > OVT_GAIN ? c.fol + 1 : Math.max(0, c.fol - 2);
     // a pass in progress is over when the car passed is far enough behind (or it has gone on too long, or the car is in trouble)
     if (c.passOn) {

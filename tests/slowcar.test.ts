@@ -32,4 +32,17 @@ describe("cars held up by a far slower one", () => {
     expect(passed.length).toBeGreaterThanOrEqual(4);
     for (const c of passed) expect(Math.abs(c.aim), c.entrant.id).toBeLessThan(2);
   }, 60000);
+
+  it("leave the player's car behind it: getting past is the player's to do, by drawing a line round it", () => {
+    const phrase = "alpha", t = cachedTrack(phrase), v = placeFor(phrase).vehicle, line = botLine(t, 3, 0.9);
+    const slow: Entrant = { id: "slow", name: "Slow", car: { ...defaultCar(), type: v }, lines: [line], bot: { seed: 3, skill: 0.9 }, pace: 0.12, gridSlot: 0 };
+    // on the very line of the slow car, so nothing but steering out of it would get past
+    const me: Entrant = { id: "me", name: "Me", car: { ...defaultCar(), type: v }, lines: [line], isPlayer: true, gridSlot: 1 };
+    const bot: Entrant = { id: "bot", name: "Bot", car: { ...defaultCar(), type: v }, lines: [line], bot: { seed: 3, skill: 0.9 }, gridSlot: 2 };
+    const r = new Race(t, [slow, me, bot], 3, { realism: false, weather: false });
+    for (let i = 0; i < 45 * 60; i++) r.step();
+    const at = (id: string) => r.progress(r.cars.find((c) => c.entrant.id === id)!);
+    expect(at("me")).toBeLessThan(at("slow"));
+    expect(Math.abs(r.cars.find((c) => c.entrant.id === "me")!.aim)).toBeLessThan(1);
+  }, 60000);
 });

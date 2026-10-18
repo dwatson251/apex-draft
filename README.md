@@ -95,7 +95,8 @@ start, run it once from a terminal and open an issue with what it prints.
 
 - **Rivals.** Up to 63 computer drivers can race you. They start in two staggered columns, quickest lap first (yours counts too),
   and each has its own line. Rivals on the same road give each other room and try not to touch, so the same line can
-  give a different result against a different field.
+  give a different result against a different field. Your car never steers off your line to pass: to get by a slower
+  car, draw a line that goes past it.
 - **Drafting.** Sit close behind a car, in its lane, and you get a slipstream: more top speed and acceleration, the
   closer you are and the faster you are going. It works in every mode.
 - **Contact.** Cars can touch. A shunt from behind, a squeeze alongside and a T-bone each do what you would expect, and

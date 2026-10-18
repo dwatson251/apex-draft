@@ -2,8 +2,9 @@
 """Turn Demucs stems into seamless, bar-aligned OGG loops for the game.
 
 Needs: numpy, soundfile, librosa, imageio-ffmpeg (see tools/audio/README.md).
-Usage: python3 -I tools/audio/make_loops.py <stems_dir> <out_dir> biome=trackname ...
-  e.g. make_loops.py stems/htdemucs src/renderer/public/audio city=city_1000 moon=moon_1000
+Usage: python3 -I tools/audio/make_loops.py <stems_dir> <out_dir> [--bars=N] [--bpm=N] biome=trackname ...
+  e.g. make_loops.py stems/htdemucs src/renderer/public/audio --bars=64 --bpm=172 city=city_1000 moon=moon_1000
+  (--bpm is the tempo the beat tracker starts from; --bars falls back to fewer when a track is too short)
 
 Per biome writes drums.ogg, bass.ogg, music.ogg (Demucs "other" + "vocals") plus loop.json.
 All three stems share one start and length so they stay in sync when looped together.
@@ -11,7 +12,8 @@ All three stems share one start and length so they stay in sync when looped toge
 import json, pathlib, subprocess, sys
 import numpy as np, soundfile as sf, librosa, imageio_ffmpeg
 
-BARS = 8          # loop length in bars (4/4)
+START_BPM = 100
+BARS = 8          # loop length in bars (4/4), unless the command line says `--bars N`; a long track takes a long loop (fewer repeats in a race)
 XFADE = 0.25      # seconds of crossfade to hide the seam
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
@@ -37,7 +39,7 @@ def make_loop(stem_dir, out_dir, name):
     mix = d["drums"] + d["bass"] + music
 
     mono = d["drums"].mean(1)
-    tempo, beats = librosa.beat.beat_track(y=mono, sr=sr, units="time", start_bpm=100)
+    tempo, beats = librosa.beat.beat_track(y=mono, sr=sr, units="time", start_bpm=START_BPM)
     tempo = float(np.atleast_1d(tempo)[0])
     # Refine the beat period from the median inter-beat gap (more stable than the tempo estimate).
     period = float(np.median(np.diff(beats)))
@@ -79,10 +81,20 @@ def make_loop(stem_dir, out_dir, name):
 
 
 def main():
+    global BARS, START_BPM
     stems, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+    want = BARS
     for arg in sys.argv[3:]:
+        if arg.startswith("--bars="): want = int(arg[7:]); continue
+        if arg.startswith("--bpm="): START_BPM = float(arg[6:]); continue
         biome, track = arg.split("=")
-        make_loop(stems / track, out / biome, track)
+        # the longest loop the track holds, halving down from what was asked
+        BARS = want
+        while True:
+            try: make_loop(stems / track, out / biome, track); break
+            except SystemExit:
+                if BARS <= 8: raise
+                BARS //= 2
 
 
 if __name__ == "__main__":

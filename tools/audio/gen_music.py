@@ -9,20 +9,21 @@ import argparse, json, pathlib, sys, time, urllib.parse, urllib.request
 
 OUT = pathlib.Path(__file__).parent / "out"
 
-# Fixed tempo + key per biome so the stems can be trimmed to whole bars and layered consistently.
+# One soundtrack identity: liquid drum and bass at 172 bpm (picked from three style sketches, 2026-10-18). Each place keeps the
+# genre and tempo and changes the instruments and the mood, so a race in the snow and one on a volcano are clearly the same game.
+# Fixed tempo + key per place so the stems can be trimmed to whole bars and layered consistently.
+DNB = "instrumental, liquid drum and bass, rolling breakbeat, deep sub bass, racing game, energetic, 172 bpm"
 BIOMES = {
-    "moon": ("instrumental, ambient, space, spacey analog synth pads, slow arpeggio, deep sub bass, soft pulse drums, "
-             "cosmic, atmospheric, cinematic, 90 bpm, D minor", 90),
-    "city": ("instrumental, synthwave, night drive, retro synths, punchy drums, driving bassline, neon, "
-             "lo-fi warmth, 110 bpm, A minor", 110),
-    "desert": ("instrumental, desert rock, dusty twangy electric guitar, hand percussion, tambourine, driving bass, "
-               "warm, western, sunbaked, 100 bpm, E minor", 100),
-    "snow": ("instrumental, glassy bells, shimmering pads, icy synths, light pulsing bass, crisp electronic drums, "
-             "cold, crystalline, airy, 96 bpm, F# minor", 96),
-    "title": ("instrumental, soft chill electronic, warm lo-fi drum loop, mellow rhodes piano chords, round bass, "
-              "gentle plucked arpeggio, lush airy pads, uplifting, full and polished, racing game menu, 98 bpm, A minor", 98),
-    "grass": ("instrumental, upbeat folk pop, acoustic guitar strumming, bright piano, warm bass, claps, "
-              "feel-good, sunny, countryside, 105 bpm, G major", 105),
+    "title": (f"{DNB}, uplifting, warm Rhodes chords, airy pads, soulful, polished, main theme, F minor", 172),
+    "grass": (f"{DNB}, bright, sunny, acoustic guitar chops, warm piano, open countryside, A major", 172),
+    "desert": (f"{DNB}, dusty, twangy electric guitar, hand percussion, heat haze, E minor", 172),
+    "snow": (f"{DNB}, icy, glassy bells, shimmering pads, crystalline, cold air, F# minor", 172),
+    "city": (f"{DNB}, night city, neon synth stabs, gritty reese bass, urban, A minor", 172),
+    "moon": (f"{DNB}, space, weightless, deep analog pads, slow arpeggio, cosmic, D minor", 172),
+    "alpine": (f"{DNB}, mountain air, soaring strings, wide reverb, majestic, G minor", 172),
+    "coast": (f"{DNB}, seaside, breezy, steel drums, sunny chords, C major", 172),
+    "jungle": (f"{DNB}, humid jungle, tribal percussion, marimba, ragga stabs, B minor", 172),
+    "volcano": (f"{DNB}, dark, heavy, distorted reese bass, ominous choir pads, intense, C minor", 172),
 }
 
 
