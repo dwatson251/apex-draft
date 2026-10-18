@@ -78,6 +78,24 @@ export const LOOKS: Record<BiomeId, Look> = {
     asphalt: 0x44464e, worn: 0x3c3e46, speck: 0x80828c, runoff: 0xefe4b4, runoffDark: 0xc9bb88,
     clouds: 0.3, cloudTint: 0xdbe6f2, snow: false, birds: true, tramway: false,
   },
+  // jungle: deep wet greens, broad trees close to the road, a muddy river for the lakes and low cloud
+  jungle: {
+    ground: [0x1f5a2e, 0x236434], hill: [0x1b4f29, 0x226032, 0x2a723c, 0x358649], rockHill: [0x56614e, 0x67735d, 0x7b876f, 0x909c82], hillLine: 0x143d20,
+    tree: [0x145a26, 0x1c6e2e, 0x268238], treeKind: "round",
+    lake: { shore: 0x7a6a44, deep: 0x4f5a2c, mid: 0x6a7438, light: 0x8a9448, kind: "pond" },
+    mountain: { dark: 0x2c4a30, light: 0x5e8a5a, snowDark: 0x6e9a68, snowLight: 0x9cc48f, snow: false },
+    asphalt: 0x32363c, worn: 0x2c3036, speck: 0x5e6a5c, runoff: 0x7a5a36, runoffDark: 0x5a4024,
+    clouds: 0.8, cloudTint: 0x9fb0a4, snow: false, birds: true, tramway: false,
+  },
+  // volcano: black basalt and grey ash, rocks for trees, a smoking red peak, and lava where the lakes would be
+  volcano: {
+    ground: [0x2f2c2e, 0x343133], hill: [0x3a3536, 0x453f40, 0x524a4a, 0x605655], rockHill: [0x4a4042, 0x5a4e4f, 0x6c5e5e, 0x7e6e6c], hillLine: 0x1f1c1d,
+    tree: [0x4a4446, 0x575052, 0x655d5f], treeKind: "rock",
+    lake: { shore: 0x1c1a1b, deep: 0xb8360c, mid: 0xe0541a, light: 0xffa23a, kind: "water" },
+    mountain: { dark: 0x3a2522, light: 0x7a4a3a, snowDark: 0xc0401a, snowLight: 0xff8a2a, snow: true },
+    asphalt: 0x2a2a2e, worn: 0x252529, speck: 0x6a6268, runoff: 0x5a5458, runoffDark: 0x3e393c,
+    clouds: 0.55, cloudTint: 0x6a6062, snow: false, birds: false, tramway: false,
+  },
   // open water: the sea is the ground, the course is a lighter channel marked with buoys, and the hills are islands
   water: {
     ground: [0x1d5a96, 0x215f9e], hill: [0xd9c58a, 0x6aa05a, 0x4f8c4a, 0x3d7a3f], rockHill: [0x6c6f78, 0x80838d, 0x9a9da7, 0xb4b7c0], hillLine: 0xa89a68,

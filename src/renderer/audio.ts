@@ -36,7 +36,7 @@ interface Voice {
 }
 
 /** Which engines crackle on the overrun and on downshifts: anti-lag and sports exhausts, V8 burble, race-tuned fours. */
-const POPS: Partial<Record<VehicleId, number>> = { touring: 0.8, rally: 0.9, muscle: 0.55, superbike: 0.6, dragster: 0.9, gt3: 0.35, gt4: 0.45, prototype: 0.25, hypercar: 0.2, stock: 0.6, formula: 0.2, buggy: 0.3, speedboat: 0.3 };
+const POPS: Partial<Record<VehicleId, number>> = { rallycross: 1, classic: 0.5, touring: 0.8, rally: 0.9, muscle: 0.55, superbike: 0.6, dragster: 0.9, gt3: 0.35, gt4: 0.45, prototype: 0.25, hypercar: 0.2, stock: 0.6, formula: 0.2, buggy: 0.3, speedboat: 0.3 };
 
 /** Phones have fewer cores and a tighter audio thread: fewer engines are built and they are told about changes less often. */
 const COARSE = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
@@ -72,6 +72,12 @@ const ENGINES: Record<VehicleId, Engine> = {
   // V12: smooth (no lump), stacked upper harmonics, a long rev range and a bright resonant top
   formula: { parts: [[1, 1, "sawtooth", 0], [2, 0.75, "sawtooth", 6], [3, 0.55, "sawtooth", -5], [4, 0.4, "sawtooth", 4], [6, 0.22, "square", 0]], base: 95, slope: 2, lift: 20,
     cut: 2600, cutSlope: 12, cutLift: 1200, q: 2.2, drive: 0, lump: 0, lumpRate: 0, rasp: 0.07, raspHz: 5200, raspSlope: 6, whine: 0, level: 1.6, inertia: 0.55, shiftCut: 0.04 },
+  // 1960s Cosworth V8: a hard, open, crackling note with a little lump and no turbo
+  classic: { parts: [[1, 1, "sawtooth", 0], [2, 0.6, "sawtooth", 7], [0.5, 0.35, "square", 0], [3, 0.3, "sawtooth", -4]], base: 70, slope: 1.6, lift: 16,
+    cut: 1700, cutSlope: 9, cutLift: 900, q: 1.8, drive: 0.6, lump: 0.25, lumpRate: 0.25, rasp: 0.12, raspHz: 2600, raspSlope: 5, whine: 0, level: 1.75, inertia: 0.6, shiftCut: 0.08 },
+  // rallycross: a turbo four with anti-lag, angrier than the rally car
+  rallycross: { parts: [[1, 1, "sawtooth", 0], [1, 0.45, "square", 11], [2, 0.4, "sawtooth", 0]], base: 62, slope: 1.2, lift: 14,
+    cut: 1000, cutSlope: 5, cutLift: 800, q: 1.6, drive: 0.4, lump: 0.35, lumpRate: 0.5, rasp: 0.12, raspHz: 2000, raspSlope: 5, whine: 0.06, level: 1.9, inertia: 0.8, shiftCut: 0.08 },
   // turbo four: flat mid note, a burble when the throttle lifts, and a turbo whistle
   rally: { parts: [[1, 1, "sawtooth", 0], [1, 0.4, "square", 9], [2, 0.35, "sawtooth", 0]], base: 55, slope: 1, lift: 10,
     cut: 800, cutSlope: 4.5, cutLift: 600, q: 1.4, drive: 0, lump: 0.3, lumpRate: 0.5, rasp: 0.08, raspHz: 1800, raspSlope: 5, whine: 0.04, level: 1.86, inertia: 1, shiftCut: 0.1 },
@@ -177,7 +183,7 @@ type Layer = "drums" | "bass" | "music";
 const LAYERS: Layer[] = ["drums", "bass", "music"];
 type Loop = Record<Layer, AudioBuffer>;
 /** Places that borrow another place's music loop. */
-const MUSIC_OF: Record<string, string> = { alpine: "snow", coast: "desert" };
+const MUSIC_OF: Record<string, string> = { alpine: "snow", coast: "desert", jungle: "grass", volcano: "desert" };
 
 interface Scene { biome: string; src: AudioBufferSourceNode[]; gains: Record<Layer, GainNode>; lp: BiquadFilterNode; out: GainNode }
 /** Loudness of the loops on the music bus: quiet and dark in menus, full and bright when the race is on. */

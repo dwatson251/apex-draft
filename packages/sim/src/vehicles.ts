@@ -2,7 +2,7 @@ import { Rng } from "./rng.ts";
 
 export type VehicleId = "kart" | "formula" | "rally" | "muscle" | "truck" | "tank"
   | "superbike" | "buggy" | "electric" | "dragster"
-  | "touring" | "prototype" | "gt3" | "gt4" | "hypercar" | "stock"
+  | "touring" | "prototype" | "gt3" | "gt4" | "hypercar" | "stock" | "classic" | "rallycross"
   | "jetski" | "speedboat" | "hovercraft" | "airboat";
 
 /** Land machines grip the road; water machines slide on it. */
@@ -62,6 +62,10 @@ export interface Vehicle {
 
 export const VEHICLES: Record<VehicleId, Vehicle> = {
   kart: { id: "kart", mass: 0.45, name: "Go-kart", plural: "go-karts", blurb: "Tiny, sticky and slow in a straight line. Sips fuel, barely wears its tyres.", accel: 0.878, top: 0.356, grip: 1.003, brake: 0.549, wear: 0.6, fuel: 0.55, length: 5.2, width: 3.6, pitch: 1.5, buzz: 0.9, weight: 20, domain: "land", slip: 0.35, terrain: 0, pitSecs: 12, slipDeg: 9, launch: 0 },
+  // a 1960s Grand Prix car (Lotus 49: 180 mph, about 0.85 g off the line, 1.6 g in a bend, 1.2 g braking): no wings, skinny tyres, a lot of slide
+  classic: { id: "classic", mass: 0.55, name: "Classic F1", plural: "classic F1 cars", blurb: "A cigar on skinny tyres: no wings, a big engine and not much grip. It slides; let it.", accel: 0.796, top: 0.8, grip: 0.963, brake: 0.632, wear: 0.9, fuel: 1.1, length: 7.6, width: 3.2, pitch: 1.6, buzz: 0.5, weight: 0, domain: "land", slip: 0.4, terrain: 0, pitSecs: 30, slipDeg: 10, launch: 0 },
+  // a World RX supercar (about 600 hp in a hatchback: 1.4 g off the line, 130 mph, 1.4 g of grip on mixed ground)
+  rallycross: { id: "rallycross", mass: 0.85, name: "Rallycross car", plural: "rallycross cars", blurb: "Six hundred horsepower in a hatchback: brutal off the line, at home on dirt and tarmac alike.", accel: 1.365, top: 0.578, grip: 0.878, brake: 0.767, wear: 1.2, fuel: 1.1, length: 7.4, width: 3.2, pitch: 1.1, buzz: 0.5, weight: 0, domain: "land", slip: 0.6, terrain: 0.5, pitSecs: 20, slipDeg: 20, launch: 0.3 },
   formula: { id: "formula", mass: 0.6, name: "Formula car", plural: "formula cars", blurb: "Huge grip, huge brakes, huge top speed. Eats tyres and fuel.", accel: 0.983, top: 1.022, grip: 2.408, brake: 2.106, wear: 1.6, fuel: 1.2, length: 10, width: 3.6, pitch: 2, buzz: 0.6, weight: 15, domain: "land", slip: 0.1, terrain: 0, pitSecs: 8, slipDeg: 4, launch: 0 },
   rally: { id: "rally", mass: 0.9, name: "Rally car", plural: "rally cars", blurb: "A good all-rounder with nothing to apologise for.", accel: 0.78, top: 0.556, grip: 0.752, brake: 0.713, wear: 1, fuel: 1, length: 8, width: 3.2, pitch: 1, buzz: 0.4, weight: 20, domain: "land", slip: 0.6, terrain: 0, pitSecs: 25, slipDeg: 18, launch: 0 },
   muscle: { id: "muscle", mass: 1.15, name: "Muscle car", plural: "muscle cars", blurb: "Fast in a line, loose in the corners, and thirsty.", accel: 0.731, top: 0.8, grip: 0.627, brake: 0.576, wear: 1.2, fuel: 1.3, length: 8.4, width: 3.4, pitch: 0.7, buzz: 0.3, weight: 15, domain: "land", slip: 0.5, terrain: 0, pitSecs: 14, slipDeg: 10, launch: 0 },
@@ -127,7 +131,7 @@ export function vehicleForSeed(seed: number, domain: Domain = "land"): VehicleId
 }
 
 /** The tarmac race cars a real circuit may be raced with, besides the one it is known for. */
-export const RACING_CLASSES: readonly VehicleId[] = ["touring", "gt3", "gt4", "prototype", "formula", "hypercar", "stock"];
+export const RACING_CLASSES: readonly VehicleId[] = ["touring", "gt3", "gt4", "prototype", "formula", "hypercar", "stock", "classic"];
 
 /** The most machines a track offers. */
 export const MAX_CHOICES = 4;
@@ -157,5 +161,7 @@ export function vehicleChoices(seed: number, domain: Domain = "land", circuitId?
     for (; k < pool.length - 1; k++) { r -= VEHICLES[pool[k]!].weight; if (r < 0) break; }
     out.push(pool.splice(k, 1)[0]!);
   }
+  // a rally or buggy track offers a rallycross car too, in the last place (it has no odds of its own, so no track's own machine changes)
+  if (!kart && (first === "rally" || first === "buggy") && domain === "land") { if (out.length >= MAX_CHOICES) out[out.length - 1] = "rallycross"; else out.push("rallycross"); }
   return out;
 }

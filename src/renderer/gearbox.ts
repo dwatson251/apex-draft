@@ -55,6 +55,10 @@ export const GEARS: Record<string, GearSet> = {
   kart: { hi: [0.6, 1], idle: 0.28, gap: 0.2 },
   // 8 tall gears, held right up to the limiter before each quick shift
   formula: { hi: [0.4, 0.47, 0.55, 0.64, 0.74, 0.84, 0.93, 1], idle: 0.3, gap: 0.12, up: 0.99, down: 0.5 },
+  // a 1960s five-speed Hewland: tall, well-spaced gears, a slow shift
+  classic: { hi: [0.38, 0.52, 0.67, 0.83, 1], idle: 0.28, gap: 0.3 },
+  // rallycross: a short sequential six, flat-shifted
+  rallycross: { hi: [0.3, 0.42, 0.55, 0.69, 0.84, 1], idle: 0.3, gap: 0.15, up: 0.98 },
   // 6-speed manual
   rally: { hi: [0.36, 0.47, 0.59, 0.73, 0.88, 1], idle: 0.25, gap: 0.3 },
   // a classic 4-speed: big steps, big drops in revs

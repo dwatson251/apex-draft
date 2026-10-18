@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PIT_PENALTY, PIT_STOP_TIME, firstDryLap, Race, Rng, TANK, TYRE_WEAR_PER_UNIT, botLine, trackLength, checkTrack, defaultCar, fuelPerLap, generateTrack,
+  SPLITS, PIT_PENALTY, PIT_STOP_TIME, firstDryLap, Race, Rng, TANK, TYRE_WEAR_PER_UNIT, botLine, trackLength, checkTrack, defaultCar, fuelPerLap, generateTrack,
   randomPhrase, type Entrant,
 } from "@apex/sim";
 
@@ -197,7 +197,9 @@ describe("biomes", () => {
       seen.add(t.biome);
     }
     // open water is only for `fun-` phrases
-    expect([...seen].sort()).toEqual(BIOME_IDS.filter((id) => BIOMES[id].domain === "land" && BIOMES[id].weight > 0).sort()); // (alpine and coast are only for circuits)
+    // (the places with no odds of their own come through the splits of the countryside and the desert)
+    const reachable = new Set([...BIOME_IDS.filter((id) => BIOMES[id].domain === "land" && BIOMES[id].weight > 0), ...Object.values(SPLITS).flat().map(([id]) => id)]);
+    expect([...seen].sort()).toEqual([...reachable].sort());
   });
   it("change how the surface behaves, and not the layout", () => {
     const base = generateTrack("quiet-fox-hugs-kites", { biome: "grass" });

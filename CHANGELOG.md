@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Two new places, and two old ones on random tracks.** *Jungle* (hot, damp and muddy, rain more often than not) and *Volcano* (black basalt, rough on the tyres, lava where the lakes would be). They, *Mountains and forest* and *Coast* now turn up on random phrases: a share of the countryside and the desert becomes one of them, decided on a stream of its own, so every other phrase keeps its place and no layout moves.
+- **Two new classes.** *Classic F1* (a 1960s cigar on skinny tyres: no wings, it slides) races the real circuits beside the other race cars; the *Rallycross car* (600 hp in a hatchback, brutal off the line, happy on dirt) is offered on rally and buggy tracks. Each has its own drawing, engine note and gearbox.
+- **Superbikes lean into the bends.**
 - **Heavier rain looks it.** Rings where rain lands on standing water (on the undriven, wettest road), drops beading on the screen in a downpour, and brighter streaks.
 - **The atlas and trophies.** Time Attack > *Atlas* lists every hidden real circuit: a name once you have found it (type it as the track phrase), its length and your best time, and *???* until then. Nineteen trophies for what you do (your first win, a win on Hard, from the back of the grid, under the safety car, in the rain, three stars in Line Golf, rungs of the career, circuits found...), each with a toast when it comes.
 - **Livery rewards.** Four trophies open something for the paint: gold and chrome, a chequered nose and tail, and chevrons.

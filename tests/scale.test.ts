@@ -40,7 +40,7 @@ describe("real-world scale", () => {
     truck: [110, 0.7, 0.8, 0.9], tank: [45, 0.13, 0.4, 0.5], superbike: [186, 1.05, 1.5, 1.3], buggy: [110, 0.7, 0.9, 0.9],
     electric: [190, 1.4, 1.2, 1.3], dragster: [335, 4.0, 0.6, 1.0], jetski: [67, 0.75, 0.8, 0.4], speedboat: [120, 0.55, 0.5, 0.3],
     hovercraft: [70, 0.7, 0.25, 0.2], airboat: [70, 0.45, 0.3, 0.2],
-    touring: [160, 0.7, 1.5, 1.5], prototype: [205, 1.1, 3.0, 3.0], gt3: [190, 0.85, 1.9, 1.9], gt4: [155, 0.65, 1.4, 1.4], hypercar: [225, 1.15, 3.3, 3.3], stock: [190, 0.8, 1.6, 1.7],
+    touring: [160, 0.7, 1.5, 1.5], prototype: [205, 1.1, 3.0, 3.0], gt3: [190, 0.85, 1.9, 1.9], gt4: [155, 0.65, 1.4, 1.4], hypercar: [225, 1.15, 3.3, 3.3], stock: [190, 0.8, 1.6, 1.7], classic: [180, 0.85, 1.6, 1.2], rallycross: [130, 1.4, 1.4, 1.4],
   };
   it("a level-10 stat is the real machine's top speed, acceleration, lateral grip and braking", () => {
     for (const id of Object.keys(VEHICLES) as VehicleId[]) {

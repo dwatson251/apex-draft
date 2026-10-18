@@ -30,6 +30,8 @@ export const QUIRKS: Partial<Record<VehicleId, Quirks>> = {
   tank: { shift: 0.15, rough: 0.9 },
   dragster: { shift: 0.3 },
   rally: { rough: 0.5, shift: 0.1 },
+  rallycross: { rough: 0.6, shift: 0.1, downforce: 0.0002 },
+  classic: { shift: 0.12 },
   buggy: { rough: 0.8 },
   kart: { rough: 0.1 },
 };

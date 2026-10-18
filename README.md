@@ -168,10 +168,10 @@ What the phrase decides:
   back to the start. Pieces are straights, gentle bends, kinks, chicanes, esses, corners, sharp corners, sweepers and
   hairpin U-turns. Now and then (about one phrase in ten) the road runs over itself on a **bridge**: a figure of eight whose
   crossing is a raised deck, so cars on the bridge and on the road beneath it pass without touching. The start and finish always sit on plain straights, so there is room for the pit lane.
-- **The place.** Countryside, desert, snow and ice, a city, or the Moon. Each changes grip, braking, acceleration, tyre
+- **The place.** Countryside, desert, snow and ice, a city, the Moon, mountains and forest, the coast, jungle or a volcano. Each changes grip, braking, acceleration, tyre
   wear and fuel use for everyone, and each has its own scenery: trains, planes, wind turbines, boats, villages.
 - **What you drive.** One class of vehicle for the whole field: go-karts, formula cars, rally cars, muscle cars, trucks, tanks,
-  superbikes, dune buggies, electric GTs, dragsters and four racing classes (touring cars, prototypes, GT3 and GT4) on land, and jet skis, speedboats, hovercraft and airboats on water.
+  superbikes, dune buggies, electric GTs, dragsters, rallycross cars and the racing classes (touring cars, prototypes, GT3, GT4, hypercars, stock cars, formula cars and classic F1) on land, and jet skis, speedboats, hovercraft and airboats on water.
 - **The weather**, in a race with Realism on.
 - **Secrets.** Some real circuits are hidden behind their names. Try typing a famous one as the phrase. Each races its best-known class: Donington Park touring cars, Daytona prototypes, Spa GT3, Lago Maggiore GT4, Silverstone F1 cars (Le Mans prototypes, Monza, Barcelona and Monaco F1, Laguna Seca GT3, Willow Springs GT4). There are about forty: Interlagos, Imola, Zandvoort, COTA, the Red Bull Ring, Suzuka, Fuji, Brands Hatch, Mugello, Sebring, Road America, Montréal and more, three layouts of the Nürburgring (`nurburgring`, `nurburgring-sprint`, `nordschleife`, at full scale, nearly 21 km) and some from Gran Turismo (`trial-mountain`, `high-speed-ring`, `dragon-trail`). Their shapes come from
   [OpenStreetMap](https://www.openstreetmap.org/copyright) (see [docs/CIRCUIT_CREDITS.md](docs/CIRCUIT_CREDITS.md)).

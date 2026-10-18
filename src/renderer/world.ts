@@ -627,6 +627,12 @@ export class WorldView {
     c.shadow.scale.set(1 - 0.18 * lift);
     c.shadow.alpha = 1 - 0.45 * lift;
     c.shadow.rotation = h;
+    // a bike leans into the bend: seen from above it narrows and its top swings to the inside, while its shadow stays on the road
+    if (type === "superbike" && !flying) {
+      const lean = Math.max(-0.6, Math.min(0.6, steer * 4));
+      c.body.scale.y = (1 + 0.4 * lift) * (1 - 0.45 * Math.abs(lean));
+      c.body.position.set(c.body.position.x - Math.sin(h) * lean * 1.4, c.body.position.y + Math.cos(h) * lean * 1.4);
+    }
     // down again: a puff of dust where it lands
     if ((c.lift ?? 0) > 0.04 && !flying && !hidden) this.puff("dust", x, y, Math.cos(h) * 40, Math.sin(h) * 40);
     c.lift = lift;

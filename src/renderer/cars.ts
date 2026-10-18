@@ -310,6 +310,28 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
       R(-0.98, -0.8, -0.7, -0.5, shade(color, 0.7)); R(-0.98, -0.8, 0.5, 0.7, shade(color, 0.7)); R(-0.98, -0.8, -0.1, 0.1, shade(color, 0.7)); // rudders
       break;
     }
+    case "classic": { // 1967 Lotus 49 (4.0 x 1.5 m): a cigar body, exposed wheels on long arms, no wings, a roll hoop, the engine bare behind the driver
+      pair(0.6, 0.86, 0.12, 0.26, DARK, true); pair(-0.6, 0.88, 0.15, 0.34);
+      line([[0.6, 0.8], [0.3, 0.2]], 0.35, DARK); line([[0.6, -0.8], [0.3, -0.2]], 0.35, DARK); line([[-0.6, 0.8], [-0.35, 0.28]], 0.35, DARK); line([[-0.6, -0.8], [-0.35, -0.28]], 0.35, DARK);
+      hull([[1, 0.06], [0.82, 0.2], [0.4, 0.3], [0.0, 0.34], [-0.4, 0.32], [-0.72, 0.26], [-0.9, 0.12]]);
+      E(0.98, 0, 0.04, 0.12, DARK); // the nose intake
+      g.circle(-hl * 0.12, 0, hw * 0.16).fill(0xf1f1ee).stroke({ width: 0.3, color: DARK }); // open-face helmet
+      R(-0.3, -0.24, -0.22, 0.22, 0xc9ced8); // roll hoop
+      R(-0.78, -0.36, -0.18, 0.18, 0x6a6e78); for (const y of [-0.12, 0.12]) R(-0.96, -0.78, y - 0.04, y + 0.04, 0x9aa0aa); // the V8 and its exhausts
+      R(0.36, 0.56, -0.3, 0.3, shade(color, 1.15)); // a band round the nose
+      break;
+    }
+    case "rallycross": { // a World RX hatchback (4.1 x 1.9 m): short, wide arches, a big roof spoiler and a rear wing
+      tyres(0.6, -0.58, 0.95, 0.32, 0.32);
+      hull([[1, 0.55], [0.96, 0.8], [0.82, 0.92], [0.5, 0.94], [0.0, 0.95], [-0.55, 0.94], [-0.88, 0.9], [-0.98, 0.72], [-1, 0.55]]);
+      flare(0.6, 0.95, L * 0.22); flare(-0.58, 0.95, L * 0.22);
+      glass([[0.36, 0.7], [0.18, 0.8], [-0.4, 0.8], [-0.52, 0.66], [-0.52, -0.66], [-0.4, -0.8], [0.18, -0.8], [0.36, -0.7]]);
+      body2([[0.05, 0.6], [-0.36, 0.6], [-0.36, -0.6], [0.05, -0.6]], shade(color, 1.12));
+      mirrors(0.26, 0.98);
+      R(-0.62, -0.5, -0.9, 0.9, shade(color, 0.55)); // roof spoiler
+      R(-1, -0.86, -0.96, 0.96, shade(color, 0.6)); R(-1, -0.86, -0.98, -0.9, DARK); R(-1, -0.86, 0.9, 0.98, DARK); // wing
+      break;
+    }
     default: { // rally: Subaru Impreza WRC (4.4 x 1.77 m): stubby saloon, bonnet scoop, roof vent, rally lights, big wing, mudflaps
       tyres(0.62, -0.58, 0.93, 0.3, 0.3);
       hull([[1, 0.52], [0.97, 0.78], [0.84, 0.86], [0.55, 0.88], [0.1, 0.9], [-0.45, 0.9], [-0.85, 0.88], [-0.97, 0.76], [-1, 0.55]]);
