@@ -60,8 +60,9 @@ start, run it once from a terminal and open an issue with what it prints.
    the edge of the road. Right-click deletes a point, and Shift+click adds one between two others.
 4. **Race.** The camera eases in on your car and follows it. Cars leave skid marks, hum with their speed and squeal in
    the corners (`M` mutes). The mouse wheel zooms while you watch.
-5. **Amend.** After each lap you can pick up to **three segments** on the map and redraw them, then the next lap runs.
-   Moving the point where two segments meet changes both, and both count.
+5. **Amend in the pits.** Once the race is running, your line can only change during a pit stop: pick up to **three
+   segments** on the map and redraw them before the car goes back out. Moving the point where two segments meet changes
+   both, and both count. (A Time Trial or Practice lets you change it between runs.)
 
 <p align="center">
   <img src="docs/images/edit-point.png" alt="Editing one segment of a line on the map" width="49%">
@@ -71,7 +72,7 @@ start, run it once from a terminal and open an issue with what it prints.
 ### Racing other cars
 
 - **Rivals.** Up to 31 bots can race you. They start in two staggered columns, quickest lap first (yours counts too),
-  and each has its own line. Rivals on the same road slow down rather than crash into each other, so the same line can
+  and each has its own line. Rivals on the same road give each other room and try not to touch, so the same line can
   give a different result against a different field.
 - **Drafting.** Sit close behind a car, in its lane, and you get a slipstream: more top speed and acceleration, the
   closer you are and the faster you are going. It works in every mode.

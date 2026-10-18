@@ -229,7 +229,6 @@ the ones already placed (columns bunch up on a bend). The order is the fastest l
 ## Not yet
 - Online play is built (see `server/`); still to do: ranked weekends across qualifying, richer profiles.
 - Code signing and auto-update.
-- Sound, and proper art.
 
 ## Real-world scale
 
