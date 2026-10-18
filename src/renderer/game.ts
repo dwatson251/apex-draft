@@ -1788,6 +1788,10 @@ export class Game {
   private updateRain(r: number): void {
     this.view.sky.setRain(r);
     this.audio.rain(r);
+    // drops beading on the glass in heavy rain (a layer over the game, under the panels)
+    let el = document.getElementById("raindrops");
+    if (!el && r > 0) { el = document.createElement("div"); el.id = "raindrops"; this.ui.parentElement?.insertBefore(el, this.ui); }
+    if (el) el.style.opacity = String(Math.max(0, Math.min(0.9, (r - 0.3) * 1.4)));
   }
 
   private showWetState(): void {

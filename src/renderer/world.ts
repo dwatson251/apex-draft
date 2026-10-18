@@ -51,6 +51,9 @@ export class WorldView {
   private wetG = new Graphics();
   private wetCells: number[][] = [];
   private wetShown: Uint8Array | null | undefined;
+  /** rings where rain lands on standing water: the wettest bins of the road, while it rains (see `update`) */
+  private ripples: { x: number; y: number; life: number }[] = [];
+  private rainNow = 0;
   private skidSprite = new Sprite();
   private lines = new Graphics();
   private cursorG = new Graphics();
@@ -310,6 +313,25 @@ export class WorldView {
       const f = q.life / q.max;
       pg.circle(q.x, q.y, q.r + (1 - f) * 1.8).fill({ color: q.color, alpha: q.a * f });
     }
+    // rain landing on standing water: a few rings at a time, on the road where it is wettest (and not on the line the cars have dried)
+    if (this.rainNow > 0.25 && this.wetShown && this.wetCells.length) {
+      const snap = this.wetShown, cells = this.wetCells.length;
+      for (let n = Math.floor(this.rainNow * 6 * dt * 60 / 6); n >= 0 && this.ripples.length < 90; n--) {
+        const i = Math.floor(Math.random() * cells), w = snap[i]! / 255, u = snap[cells + i]! / 255;
+        if (w < 0.6 || u > 0.5 || Math.random() > w) continue;
+        const pts = this.wetCells[i]!; let cx = 0, cy = 0;
+        for (let k = 0; k < pts.length; k += 2) { cx += pts[k]!; cy += pts[k + 1]!; }
+        const m = pts.length / 2;
+        this.ripples.push({ x: cx / m + (Math.random() - 0.5) * 6, y: cy / m + (Math.random() - 0.5) * 6, life: 0.7 });
+      }
+    }
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const q = this.ripples[i]!;
+      q.life -= dt;
+      if (q.life <= 0) { this.ripples.splice(i, 1); continue; }
+      const f = q.life / 0.7;
+      pg.circle(q.x, q.y, 0.6 + (1 - f) * 2.6).stroke({ width: 0.35, color: 0xcfe3ff, alpha: 0.55 * f });
+    }
     this.sky.update(dt);
     this.lightsStep();
   }
@@ -543,6 +565,7 @@ export class WorldView {
    */
   setWet(snap: Uint8Array | null, rain: number): void {
     this.sky.setRain(rain);
+    this.rainNow = rain;
     if (snap === this.wetShown) return;
     this.wetShown = snap;
     const g = this.wetG.clear();

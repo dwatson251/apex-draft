@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Heavier rain looks it.** Rings where rain lands on standing water (on the undriven, wettest road), drops beading on the screen in a downpour, and brighter streaks.
 - **The atlas and trophies.** Time Attack > *Atlas* lists every hidden real circuit: a name once you have found it (type it as the track phrase), its length and your best time, and *???* until then. Nineteen trophies for what you do (your first win, a win on Hard, from the back of the grid, under the safety car, in the rain, three stars in Line Golf, rungs of the career, circuits found...), each with a toast when it comes.
 - **Livery rewards.** Four trophies open something for the paint: gold and chrome, a chequered nose and tail, and chevrons.
 - **Career.** A ladder of seasons in the Race menu, one machine a rung: karting, touring cars, GT4, GT3, prototypes, formula cars and hypercars, the top three on the real circuits. Each season is four rounds (a qualifier and a race) against the same rivals; finish in the top three and the next rung opens, otherwise you run it again on new tracks. Your best season on each rung is kept.

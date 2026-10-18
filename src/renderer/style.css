@@ -565,3 +565,16 @@ button.big { background-color: #3a4b82; }
 .trophies { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
 .trophy { display: flex; flex-direction: column; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); opacity: 0.6; font-size: 13px; } .trophy.got { opacity: 1; background: rgba(255, 207, 63, 0.12); border: 1px solid rgba(255, 207, 63, 0.4); }
 .toast.trophy { border-color: #ffcf3f; }
+
+/* drops on the glass in heavy rain: soft round blobs that slide slowly down (pointer events pass through) */
+#raindrops { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(220, 235, 255, 0.35) 0 3px, transparent 4px),
+    radial-gradient(circle at 34% 62%, rgba(220, 235, 255, 0.3) 0 2px, transparent 3px),
+    radial-gradient(circle at 57% 27%, rgba(220, 235, 255, 0.32) 0 4px, transparent 5px),
+    radial-gradient(circle at 78% 71%, rgba(220, 235, 255, 0.28) 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 91% 38%, rgba(220, 235, 255, 0.3) 0 3px, transparent 4px),
+    radial-gradient(circle at 23% 84%, rgba(220, 235, 255, 0.26) 0 2px, transparent 3px);
+  background-size: 420px 380px; animation: drops 14s linear infinite; }
+@keyframes drops { to { background-position: 0 380px; } }
+@media (prefers-reduced-motion: reduce) { #raindrops { animation: none; } }

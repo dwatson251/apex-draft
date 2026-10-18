@@ -136,7 +136,7 @@ export class Sky {
         if (d.y > this.h + 250) { d.y = -250; d.x = Math.random() * (this.w + 500) - 250; }
         g.moveTo(d.x, d.y).lineTo(d.x + d.l * 0.18, d.y - d.l);
       }
-      g.stroke({ width: 0.7, color: 0xcfe3ff, alpha: 0.5 });
+      g.stroke({ width: 0.9, color: 0xdcebff, alpha: 0.45 + 0.3 * Math.min(1, this.rain) });
     } else if (this.rainG.parent) { this.rainG.clear(); this.dim.clear(); }
     if (this.on && this.weather.birds && (this.nextFlock -= dt) <= 0) { this.spawnFlock(); this.nextFlock = 9 + Math.random() * 14; }
     if (this.weather.snow) {
