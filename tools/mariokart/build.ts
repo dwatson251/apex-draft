@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { Pt } from "../circuits/osm.ts";
 import type { Vec2 } from "../../packages/sim/src/vec.ts";
-import { freeSegments, kindOf } from "../../packages/sim/src/freetrack.ts";
+import { freeSegments, kindOf, markCrossings } from "../../packages/sim/src/freetrack.ts";
 import { GLIDE_LANDING_UNITS, LANDING_UNITS, landingRoom } from "../../packages/sim/src/features.ts";
 import { v2 } from "../../packages/sim/src/vec.ts";
 import { fit, length, measure, resample, smoothLoop, straighten, type Limits } from "../circuits/process.ts";
@@ -14,11 +14,11 @@ import { fit, length, measure, resample, smoothLoop, straighten, type Limits } f
  *   npx vite-node tools/mariokart/build.ts [id ...]      (vite-node, not node: it reads the sim's own sources)
  */
 /** A piece is placed either by two points in the picture (`p` to `q`: the nearest points on the road) or by a leg of the waypoint list (`leg`, `a`..`b` of it, to leg `to`). */
-interface FxSpec { p?: [number, number]; q?: [number, number]; leg?: number; to?: number; a?: number; b?: number; type: string; power?: number }
+interface FxSpec { /** the piece as fractions of the lap, from the start line */ at?: number; end?: number; p?: [number, number]; q?: [number, number]; leg?: number; to?: number; a?: number; b?: number; type: string; power?: number }
 interface Shape { pts: [number, number][]; len: number; fx?: FxSpec[]; notes?: string }
 const here = (f: string) => new URL(f, import.meta.url);
 /** Looser than the real circuits (36 and 60): a kart takes a tighter turn, and the lap stays short enough to be a kart lap. */
-const LIMITS: Limits = { rMin: 26, gap: 56, near: 150 };
+const LIMITS: Limits = { rMin: 26, gap: 56, near: 100 };
 const SPACING = 10, MARGIN = 180;
 /** the tightest corner (radius, units) a scaled loop may start with before `fit` and the longest lap it is grown to */
 const PRE_R = 24, MAX_LEN = 3000;
@@ -65,6 +65,7 @@ function placeFx(id: string, flat: number[], want: { at: number; end: number; ty
   const { segments } = freeSegments(pts);
   const n = segments.length;
   segments.forEach((sg) => { sg.kind = kindOf(sg); if (sg.index === 0 || sg.index === n - 1) sg.kind = "straight"; });
+  markCrossings(segments);
   const taken = new Set<number>();
   const out: Built["fx"] = [];
   for (const w of want) {
@@ -87,7 +88,7 @@ function placeFx(id: string, flat: number[], want: { at: number; end: number; ty
   return out;
 }
 
-export function buildShape(id: string, sh: Shape): Built {
+function buildOnce(id: string, sh: Shape, passes: number): Built {
   const raw: Pt[] = sh.pts.map(([x, y]) => ({ x, y }));
   // where each waypoint is along the authored loop, as a fraction of it (the pieces are placed against these)
   const cum = [0];
@@ -106,11 +107,12 @@ export function buildShape(id: string, sh: Shape): Built {
   };
   const want = (sh.fx ?? []).map((f) => {
     let at: number, end: number;
-    if (f.p && f.q) { at = near(f.p[0], f.p[1]); end = near(f.q[0], f.q[1]); if (end < at) end += 1; if (end > 1) end = 1; }
+    if (f.at !== undefined && f.end !== undefined) { at = f.at; end = f.end; }
+    else if (f.p && f.q) { at = near(f.p[0], f.p[1]); end = near(f.q[0], f.q[1]); if (end < at) end += 1; if (end > 1) end = 1; }
     else { at = frac(f.leg!, f.a!); end = frac(f.to ?? f.leg!, f.b!); }
     return { at, end, type: f.type, power: f.power };
   });
-  let smooth = smoothLoop(resample(raw, 240), 5, 0.5);
+  let smooth = smoothLoop(resample(raw, 240), passes, 0.5);
   // The start line needs a straight run (the pit lane beside it) clear of any crossing: keep the author's start if it will do, else begin at the straightest such place.
   const N = smooth.length, W = 13;
   const bends = (i: number): number => {
@@ -157,6 +159,18 @@ export function buildShape(id: string, sh: Shape): Built {
   return best!;
 }
 
+/** A hand-drawn loop that cannot be driven as drawn (two parts of the road too close, a corner too sharp) is smoothed more and more until it can; the first that passes wins. */
+export function buildShape(id: string, sh: Shape): Built & { smoothed: number } {
+  let best: (Built & { smoothed: number }) | undefined;
+  for (const passes of [5, 20, 60, 150, 400, 1000]) {
+    const b = buildOnce(id, sh, passes);
+    const c = { ...b, smoothed: passes };
+    if (b.ok && b.points.length) return c;
+    if (!best || (b.ok ? 1 : 0) > (best.ok ? 1 : 0)) best = c;
+  }
+  return best!;
+}
+
 {
   const dataFile = here("../../packages/sim/src/kartdata.ts");
   const text = readFileSync(dataFile, "utf8");
@@ -171,7 +185,7 @@ export function buildShape(id: string, sh: Shape): Built {
       continue;
     }
     const b = buildShape(id, sh);
-    console.log(`${b.ok ? "ok " : "BAD"} ${id.padEnd(28)} ${b.report}${b.grew ? ` (grown ${b.grew}x)` : ""}`);
+    console.log(`${b.ok ? "ok " : "BAD"} ${id.padEnd(28)} ${b.report}${b.grew ? ` (grown ${b.grew}x)` : ""}${b.smoothed > 5 ? ` (smoothed ${b.smoothed}x)` : ""}`);
     if (!b.ok) bad++;
     out[id] = { points: b.points, ...(b.fx.length ? { fx: b.fx } : {}) };
   }

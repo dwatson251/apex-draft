@@ -107,7 +107,19 @@
    ]
   ],
   "len": 1350,
-  "notes": "a figure of eight: the crossing is a bridge"
+  "notes": "a figure of eight: the crossing is a bridge",
+  "fx": [
+   {
+    "at": 0.4,
+    "end": 0.46,
+    "type": "glide"
+   },
+   {
+    "at": 0.6399999999999999,
+    "end": 0.69,
+    "type": "boost"
+   }
+  ]
  },
  "daisy-hills": {
   "pts": [
@@ -225,7 +237,19 @@
    ]
   ],
   "len": 1400,
-  "notes": "read off the Tour map of the same layout"
+  "notes": "read off the Tour map of the same layout",
+  "fx": [
+   {
+    "at": 0.37,
+    "end": 0.43000000000000005,
+    "type": "glide"
+   },
+   {
+    "at": 0.61,
+    "end": 0.66,
+    "type": "boost"
+   }
+  ]
  },
  "cheep-cheep-lagoon": {
   "pts": [
@@ -331,7 +355,19 @@
    ]
   ],
   "len": 1450,
-  "notes": "read off the Tour map of the same layout; the underwater part is the inner lane"
+  "notes": "read off the Tour map of the same layout; the underwater part is the inner lane",
+  "fx": [
+   {
+    "at": 0.34,
+    "end": 0.4,
+    "type": "glide"
+   },
+   {
+    "at": 0.84,
+    "end": 0.9,
+    "type": "water"
+   }
+  ]
  },
  "shy-guy-bazaar": {
   "pts": [
@@ -489,7 +525,19 @@
    ]
   ],
   "len": 1350,
-  "notes": "read off the Tour map; the gaps are the market stalls"
+  "notes": "read off the Tour map; the gaps are the market stalls",
+  "fx": [
+   {
+    "at": 0.37,
+    "end": 0.43000000000000005,
+    "type": "glide"
+   },
+   {
+    "at": 0.61,
+    "end": 0.66,
+    "type": "boost"
+   }
+  ]
  },
  "music-park": {
   "pts": [
@@ -679,7 +727,14 @@
    ]
   ],
   "len": 1750,
-  "notes": "read off the 3DS map"
+  "notes": "read off the 3DS map",
+  "fx": [
+   {
+    "at": 0.39,
+    "end": 0.45,
+    "type": "glide"
+   }
+  ]
  },
  "rock-rock-mountain": {
   "pts": [
@@ -785,7 +840,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the 3DS map"
+  "notes": "read off the 3DS map",
+  "fx": [
+   {
+    "at": 0.34,
+    "end": 0.4,
+    "type": "glide"
+   },
+   {
+    "at": 0.58,
+    "end": 0.63,
+    "type": "boost"
+   }
+  ]
  },
  "piranha-plant-slide": {
   "pts": [
@@ -919,7 +986,19 @@
    ]
   ],
   "len": 1350,
-  "notes": "read off the 3DS map"
+  "notes": "read off the 3DS map",
+  "fx": [
+   {
+    "at": 0.38,
+    "end": 0.44,
+    "type": "glide"
+   },
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "wario-shipyard": {
   "pts": [
@@ -1057,7 +1136,24 @@
    ]
   ],
   "len": 1800,
-  "notes": "read off the Tour map"
+  "notes": "read off the Tour map",
+  "fx": [
+   {
+    "at": 0.37,
+    "end": 0.43000000000000005,
+    "type": "glide"
+   },
+   {
+    "at": 0.61,
+    "end": 0.66,
+    "type": "boost"
+   },
+   {
+    "at": 0.87,
+    "end": 0.93,
+    "type": "water"
+   }
+  ]
  },
  "dk-jungle": {
   "pts": [
@@ -1211,7 +1307,24 @@
    ]
   ],
   "len": 1550,
-  "notes": "read off the 3DS map"
+  "notes": "read off the 3DS map",
+  "fx": [
+   {
+    "at": 0.35000000000000003,
+    "end": 0.41000000000000003,
+    "type": "glide"
+   },
+   {
+    "at": 0.59,
+    "end": 0.64,
+    "type": "boost"
+   },
+   {
+    "at": 0.47000000000000003,
+    "end": 0.54,
+    "type": "mud"
+   }
+  ]
  },
  "rosalinas-ice-world": {
   "pts": [
@@ -1329,7 +1442,24 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the 3DS map"
+  "notes": "read off the 3DS map",
+  "fx": [
+   {
+    "at": 0.31,
+    "end": 0.35000000000000003,
+    "type": "jump"
+   },
+   {
+    "at": 0.59,
+    "end": 0.64,
+    "type": "boost"
+   },
+   {
+    "at": 0.15000000000000002,
+    "end": 0.25,
+    "type": "ice"
+   }
+  ]
  },
  "mk7-bowsers-castle": {
   "pts": [
@@ -1503,7 +1633,14 @@
    ]
   ],
   "len": 1350,
-  "notes": "read off the Tour map"
+  "notes": "read off the Tour map",
+  "fx": [
+   {
+    "at": 0.4,
+    "end": 0.46,
+    "type": "glide"
+   }
+  ]
  },
  "neo-bowser-city": {
   "pts": [
@@ -1705,7 +1842,14 @@
    ]
   ],
   "len": 1450,
-  "notes": "read off the glider-guide map's racing line"
+  "notes": "read off the glider-guide map's racing line",
+  "fx": [
+   {
+    "at": 0.4,
+    "end": 0.46,
+    "type": "glide"
+   }
+  ]
  },
  "mk7-rainbow-road": {
   "pts": [
@@ -1859,7 +2003,19 @@
    ]
   ],
   "len": 1500,
-  "notes": "read off the 3DS map"
+  "notes": "read off the 3DS map",
+  "fx": [
+   {
+    "at": 0.38,
+    "end": 0.44,
+    "type": "glide"
+   },
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "mk7-mario-circuit": {
   "pts": [
@@ -1933,7 +2089,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: no map picture exists on the wiki, drawn from the course description (castle, hairpin, glide ramp)"
+  "notes": "low confidence: no map picture exists on the wiki, drawn from the course description (castle, hairpin, glide ramp)",
+  "fx": [
+   {
+    "at": 0.34,
+    "end": 0.4,
+    "type": "glide"
+   }
+  ]
  },
  "wuhu-loop": {
   "pts": [
@@ -2003,7 +2166,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: no map picture exists on the wiki, drawn from the course description (the coast road, the tunnel and the cliff)"
+  "notes": "low confidence: no map picture exists on the wiki, drawn from the course description (the coast road, the tunnel and the cliff)",
+  "fx": [
+   {
+    "at": 0.4,
+    "end": 0.46,
+    "type": "glide"
+   },
+   {
+    "at": 0.6399999999999999,
+    "end": 0.69,
+    "type": "boost"
+   }
+  ]
  },
  "maka-wuhu": {
   "pts": [
@@ -2073,6 +2248,23 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: no map picture exists on the wiki, drawn from the course description (three sections round the island)"
+  "notes": "low confidence: no map picture exists on the wiki, drawn from the course description (three sections round the island)",
+  "fx": [
+   {
+    "at": 0.36000000000000004,
+    "end": 0.42000000000000004,
+    "type": "glide"
+   },
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   },
+   {
+    "at": 0.48000000000000004,
+    "end": 0.55,
+    "type": "mud"
+   }
+  ]
  }
 }

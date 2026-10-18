@@ -495,7 +495,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.32999999999999996,
+    "end": 0.37,
+    "type": "jump"
+   },
+   {
+    "at": 0.87,
+    "end": 0.93,
+    "type": "water"
+   }
+  ]
  },
  "mario-raceway": {
   "pts": [
@@ -1011,7 +1023,19 @@
    ]
   ],
   "len": 1600,
-  "notes": "hand-placed over the map: the road crosses the river twice, once on the bridge"
+  "notes": "hand-placed over the map: the road crosses the river twice, once on the bridge",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   },
+   {
+    "at": 0.2,
+    "end": 0.3,
+    "type": "ice"
+   }
+  ]
  },
  "mk64-sherbet-land": {
   "pts": [
@@ -1277,7 +1301,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.15000000000000002,
+    "end": 0.25,
+    "type": "ice"
+   }
+  ]
  },
  "royal-raceway": {
   "pts": [
@@ -1626,7 +1657,14 @@
    ]
   ],
   "len": 1800,
-  "notes": "hand-placed: left road, the thwomp carpets, the bridge and the rooms over the lava"
+  "notes": "hand-placed: left road, the thwomp carpets, the bridge and the rooms over the lava",
+  "fx": [
+   {
+    "at": 0.31,
+    "end": 0.35000000000000003,
+    "type": "jump"
+   }
+  ]
  },
  "banshee-boardwalk": {
   "pts": [
@@ -1992,7 +2030,14 @@
    ]
   ],
   "len": 1750,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.3,
+    "end": 0.34,
+    "type": "jump"
+   }
+  ]
  },
  "yoshi-valley": {
   "pts": [
@@ -2074,7 +2119,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "hand-placed: the long outer road, and one way through the maze"
+  "notes": "hand-placed: the long outer road, and one way through the maze",
+  "fx": [
+   {
+    "at": 0.31,
+    "end": 0.35000000000000003,
+    "type": "jump"
+   }
+  ]
  },
  "dks-jungle-parkway": {
   "pts": [
@@ -2420,7 +2472,14 @@
    ]
   ],
   "len": 1500,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   }
+  ]
  },
  "toads-turnpike": {
   "pts": [
@@ -2530,7 +2589,14 @@
    ]
   ],
   "len": 1450,
-  "notes": "figure of eight: the middle road runs over the one that goes up the side (a bridge)"
+  "notes": "figure of eight: the middle road runs over the one that goes up the side (a bridge)",
+  "fx": [
+   {
+    "at": 0.61,
+    "end": 0.66,
+    "type": "boost"
+   }
+  ]
  },
  "mk64-rainbow-road": {
   "pts": [
@@ -2744,7 +2810,19 @@
    ]
   ],
   "len": 1650,
-  "notes": "the figure-eights of the real road are kept: the crossings are bridges"
+  "notes": "the figure-eights of the real road are kept: the crossings are bridges",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   },
+   {
+    "at": 0.6399999999999999,
+    "end": 0.69,
+    "type": "boost"
+   }
+  ]
  },
  "choco-mountain": {
   "pts": [
@@ -2862,7 +2940,14 @@
    ]
   ],
   "len": 1500,
-  "notes": "the road meets itself at the foot of the long straight: a bridge"
+  "notes": "the road meets itself at the foot of the long straight: a bridge",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   }
+  ]
  },
  "kalimari-desert": {
   "pts": [
@@ -2968,7 +3053,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "from the 3DS minimap: a long peanut, the railway crossing is a level crossing and is not drawn"
+  "notes": "from the 3DS minimap: a long peanut, the railway crossing is a level crossing and is not drawn",
+  "fx": [
+   {
+    "at": 0.73,
+    "end": 0.81,
+    "type": "sand"
+   }
+  ]
  },
  "mk64-wario-stadium": {
   "pts": [
@@ -3074,6 +3166,18 @@
    ]
   ],
   "len": 1300,
-  "notes": "approximation: the outer lap of the stadium; the infield chicanes are not drawn"
+  "notes": "approximation: the outer lap of the stadium; the infield chicanes are not drawn",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   },
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   }
+  ]
  }
 }

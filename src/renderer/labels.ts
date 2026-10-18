@@ -41,8 +41,10 @@ export function declutterLabels(items: LabelItem[], screen: { width: number; hei
     for (let step = 0; step < 3 && !placed; step++) {
       const bottom = arrow.y0 - 2 - step * m.lift;
       const r: Rect = { x0: it.x - it.w / 2 - 3, x1: it.x + it.w / 2 + 3, y1: bottom, y0: bottom - m.textH };
-      if (it.always || !taken.some((t) => hit(t, r))) { taken.push(r); placed = true; lift = step * m.lift; }
+      if (!taken.some((t) => hit(t, r))) { taken.push(r); placed = true; lift = step * m.lift; }
     }
+    // (one that is never dropped has its name shown where it is, over whatever is there, when it cannot be lifted clear)
+    if (!placed && it.always) { taken.push({ x0: it.x - it.w / 2 - 3, x1: it.x + it.w / 2 + 3, y1: arrow.y0 - 2, y0: arrow.y0 - 2 - m.textH }); placed = true; }
     out.push({ id: it.id, text: placed, arrow: true, lift });
   }
   return out;

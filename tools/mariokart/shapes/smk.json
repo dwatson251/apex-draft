@@ -987,7 +987,14 @@
    ]
   ],
   "len": 1650,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   }
+  ]
  },
  "smk-bowser-castle-1": {
   "pts": [
@@ -1369,7 +1376,14 @@
    ]
   ],
   "len": 2150,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.32999999999999996,
+    "end": 0.37,
+    "type": "jump"
+   }
+  ]
  },
  "choco-island-1": {
   "pts": [
@@ -2093,7 +2107,14 @@
    ]
   ],
   "len": 1650,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   }
+  ]
  },
  "mario-circuit-2": {
   "pts": [
@@ -2387,7 +2408,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.32999999999999996,
+    "end": 0.37,
+    "type": "jump"
+   }
+  ]
  },
  "donut-plains-2": {
   "pts": [
@@ -2845,7 +2873,14 @@
    ]
   ],
   "len": 2150,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   }
+  ]
  },
  "mario-circuit-3": {
   "pts": [
@@ -3307,7 +3342,14 @@
    ]
   ],
   "len": 2200,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "smk-bowser-castle-2": {
   "pts": [
@@ -3829,7 +3871,14 @@
    ]
   ],
   "len": 2400,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   }
+  ]
  },
  "choco-island-2": {
   "pts": [
@@ -4179,7 +4228,14 @@
    ]
   ],
   "len": 1600,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   }
+  ]
  },
  "vanilla-lake-1": {
   "pts": [
@@ -4465,7 +4521,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.14,
+    "end": 0.24,
+    "type": "ice"
+   }
+  ]
  },
  "smk-bowser-castle-3": {
   "pts": [
@@ -4891,7 +4954,14 @@
    ]
   ],
   "len": 2150,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   }
+  ]
  },
  "mario-circuit-4": {
   "pts": [
@@ -5429,7 +5499,14 @@
    ]
   ],
   "len": 2500,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   }
+  ]
  },
  "koopa-beach-2": {
   "pts": [
@@ -5523,7 +5600,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "hand-placed: the sand ring round the forest, the cars start up the east side"
+  "notes": "hand-placed: the sand ring round the forest, the cars start up the east side",
+  "fx": [
+   {
+    "at": 0.73,
+    "end": 0.81,
+    "type": "sand"
+   },
+   {
+    "at": 0.85,
+    "end": 0.91,
+    "type": "water"
+   }
+  ]
  },
  "ghost-valley-3": {
   "pts": [
@@ -5973,7 +6062,14 @@
    ]
   ],
   "len": 2100,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   }
+  ]
  },
  "donut-plains-3": {
   "pts": [
@@ -6501,7 +6597,19 @@
    ]
   ],
   "len": 1350,
-  "notes": "hand-placed: round the islands (the water between them is shallow)"
+  "notes": "hand-placed: round the islands (the water between them is shallow)",
+  "fx": [
+   {
+    "at": 0.3,
+    "end": 0.34,
+    "type": "jump"
+   },
+   {
+    "at": 0.84,
+    "end": 0.9,
+    "type": "water"
+   }
+  ]
  },
  "vanilla-lake-2": {
   "pts": [
@@ -6879,7 +6987,14 @@
    ]
   ],
   "len": 1400,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.15000000000000002,
+    "end": 0.25,
+    "type": "ice"
+   }
+  ]
  },
  "smk-rainbow-road": {
   "pts": [
@@ -7265,6 +7380,18 @@
    ]
   ],
   "len": 2050,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.31,
+    "end": 0.35000000000000003,
+    "type": "jump"
+   },
+   {
+    "at": 0.59,
+    "end": 0.64,
+    "type": "boost"
+   }
+  ]
  }
 }

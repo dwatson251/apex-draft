@@ -265,7 +265,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "cheep-cheep-beach": {
   "pts": [
@@ -375,7 +382,29 @@
    ]
   ],
   "len": 1400,
-  "notes": "low confidence: the dock, the brown path, then the sand road round the island"
+  "notes": "low confidence: the dock, the brown path, then the sand road round the island",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   },
+   {
+    "at": 0.6399999999999999,
+    "end": 0.69,
+    "type": "boost"
+   },
+   {
+    "at": 0.78,
+    "end": 0.8600000000000001,
+    "type": "sand"
+   },
+   {
+    "at": 0.8999999999999999,
+    "end": 0.96,
+    "type": "water"
+   }
+  ]
  },
  "luigis-mansion": {
   "pts": [
@@ -591,7 +620,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the DS map"
+  "notes": "read off the DS map",
+  "fx": [
+   {
+    "at": 0.3,
+    "end": 0.34,
+    "type": "jump"
+   },
+   {
+    "at": 0.72,
+    "end": 0.8,
+    "type": "sand"
+   }
+  ]
  },
  "shroom-ridge": {
   "pts": [
@@ -855,7 +896,19 @@
    ]
   ],
   "len": 1400,
-  "notes": "read off the DS map"
+  "notes": "read off the DS map",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   },
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "waluigi-pinball": {
   "pts": [
@@ -1021,7 +1074,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the DS map; the pinball table in the middle is part of the road"
+  "notes": "read off the DS map; the pinball table in the middle is part of the road",
+  "fx": [
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "dk-pass": {
   "pts": [
@@ -1139,7 +1199,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: a simplified lap, the lower snow loop and the winding top road"
+  "notes": "low confidence: a simplified lap, the lower snow loop and the winding top road",
+  "fx": [
+   {
+    "at": 0.39,
+    "end": 0.45,
+    "type": "glide"
+   },
+   {
+    "at": 0.63,
+    "end": 0.68,
+    "type": "boost"
+   }
+  ]
  },
  "tick-tock-clock": {
   "pts": [
@@ -1273,7 +1345,19 @@
    ]
   ],
   "len": 1550,
-  "notes": "the centre hub is crossed twice (a bridge)"
+  "notes": "the centre hub is crossed twice (a bridge)",
+  "fx": [
+   {
+    "at": 0.38,
+    "end": 0.44,
+    "type": "glide"
+   },
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "mkds-mario-circuit": {
   "pts": [
@@ -1449,7 +1533,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: the long road and the hexagon platform, the way back folded alongside"
+  "notes": "low confidence: the long road and the hexagon platform, the way back folded alongside",
+  "fx": [
+   {
+    "at": 0.63,
+    "end": 0.68,
+    "type": "boost"
+   }
+  ]
  },
  "mkds-wario-stadium": {
   "pts": [
@@ -1795,7 +1886,19 @@
    ]
   ],
   "len": 1550,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   },
+   {
+    "at": 0.6399999999999999,
+    "end": 0.69,
+    "type": "boost"
+   }
+  ]
  },
  "mkds-rainbow-road": {
   "pts": [
@@ -1933,7 +2036,14 @@
    ]
   ],
   "len": 1500,
-  "notes": "low confidence: the road crosses itself twice near the middle (bridges)"
+  "notes": "low confidence: the road crosses itself twice near the middle (bridges)",
+  "fx": [
+   {
+    "at": 0.61,
+    "end": 0.66,
+    "type": "boost"
+   }
+  ]
  },
  "peach-gardens": {
   "pts": [
@@ -2201,6 +2311,18 @@
    ]
   ],
   "len": 1900,
-  "notes": "low confidence: the lava road"
+  "notes": "low confidence: the lava road",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   },
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   }
+  ]
  }
 }

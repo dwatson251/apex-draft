@@ -405,7 +405,7 @@ export class Game {
   }
 
   private leaveGame(): void {
-    this.draw = null; this.pick = null; this.play = null; this.race = undefined;
+    this.draw = null; this.pick = null; this.play = null; this.race = undefined; this.neighbours.clear();
     this.inGame = false; this.shareLine = undefined; this.previewKey = "";
     this.audio.stopAll();
     this.audio.setBiome(null); // back to the title's own track
@@ -1873,6 +1873,9 @@ export class Game {
   }
 
   /** Names over the player and the other online racers. The player's wins whenever labels crowd; bots have none. */
+  /** the cars directly ahead of and behind the player in the standings: their names are tagged on the map, AI or not */
+  private neighbours = new Set<string>();
+
   private updateNameLabels(tick: number, dt: number): void {
     const race = this.race!;
     const me = race.cars.find((c) => c.entrant.id === ME);
@@ -1880,12 +1883,14 @@ export class Game {
     const cars: { id: string; name: string; x: number; y: number; color: number; priority: number; always?: boolean }[] = [];
     for (const c of race.cars) {
       const id = c.entrant.id;
-      if (id !== ME && !id.startsWith("ghost:")) continue;
+      const next = this.neighbours.has(id);
+      if (id !== ME && !id.startsWith("ghost:") && !next) continue;
       const k = Math.min(Math.floor(tick), c.trace.length / 3 - 1);
       if (c.ptrace[k] === 3) continue; // out of the race and gone from the track
       const q = this.pose(c, tick);
       cars.push(id === ME
         ? { id, name: c.entrant.name, x: q.x, y: q.y, color: PLAYER_COLOR, priority: 0, always: true }
+        : next ? { id, name: c.entrant.name, x: q.x, y: q.y, color: this.colorOf(id), priority: 0.5, always: true }
         : { id, name: c.entrant.name, x: q.x, y: q.y, color: ONLINE_COLOR, priority: 1 + (here ? Math.hypot(q.x - here.x, q.y - here.y) : 0) });
     }
     this.view.updateLabels(cars, dt);
@@ -2013,13 +2018,13 @@ export class Game {
     for (const { c, i, x, y, edge } of heard) {
       const m = this.motion(c, i), isMe = c.entrant.id === ME;
       const vol = near * edge * crowd * (isMe ? 1 : 0.8);
+      const up = (c.atrace[i] ?? 0) > 0.04, was = this.airborne.get(c.entrant.id) ?? false;
+      if (up !== was) { this.airborne.set(c.entrant.id, up); this.audio.air(up ? "up" : "down", vol); }
       this.audio.update(c.entrant.id, c.entrant.car.type, { speed: m.v, accel: m.acc, slip: m.slip, vol, pan: (x - cx) / half, top: carStats(c.entrant.car).vTop, surface: this.roughTrack ? surfaceAt(this.track, x, y) : undefined }, isMe);
     }
   }
 
   // ---------- gamepad ----------
-      const up = (c.atrace[i] ?? 0) > 0.04, was = this.airborne.get(c.entrant.id) ?? false;
-      if (up !== was) { this.airborne.set(c.entrant.id, up); this.audio.air(up ? "up" : "down", vol); }
   private clickBar(id: string): void { const b = document.getElementById(`bar-${id}`) as HTMLButtonElement | null; if (b && !b.disabled) b.click(); }
 
   private uiScopes(): HTMLElement[] {
@@ -2178,6 +2183,9 @@ export class Game {
       const done = c.finishTime !== null && c.finishTime <= now;
       return { c, key: done ? 1e12 - (c.finishTime as number) : (c.prog[Math.min(k, c.prog.length - 1)] ?? 0) };
     }).sort((a, b) => b.key - a.key);
+    this.neighbours.clear();
+    const here = standing.findIndex(({ c }) => c === me);
+    for (const i of [here - 1, here + 1]) if (here >= 0 && i >= 0 && i < standing.length) this.neighbours.add(standing[i]!.c.entrant.id);
     const lap = Math.min(this.run.laps, Math.max(1, Math.floor(((me.prog[mi] ?? 0) + 1e5) / 1e5)));
     const rain = race.rainTrace[Math.min(Math.floor(k / 60), race.rainTrace.length - 1)] ?? 0;
     this.view.setWet(race.wetSnaps[Math.min(Math.floor(k / 60), race.wetSnaps.length - 1)] ?? null, rain);

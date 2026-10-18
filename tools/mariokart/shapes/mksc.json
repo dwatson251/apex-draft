@@ -633,7 +633,14 @@
    ]
   ],
   "len": 1500,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.63,
+    "end": 0.68,
+    "type": "boost"
+   }
+  ]
  },
  "mksc-bowser-castle-1": {
   "pts": [
@@ -939,7 +946,14 @@
    ]
   ],
   "len": 1550,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   }
+  ]
  },
  "boo-lake": {
   "pts": [
@@ -1377,7 +1391,14 @@
    ]
   ],
   "len": 2100,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.31,
+    "end": 0.35000000000000003,
+    "type": "jump"
+   }
+  ]
  },
  "sky-garden": {
   "pts": [
@@ -1799,7 +1820,14 @@
    ]
   ],
   "len": 1800,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   }
+  ]
  },
  "cheese-land": {
   "pts": [
@@ -1941,7 +1969,19 @@
    ]
   ],
   "len": 1350,
-  "notes": "the main lap; the three hook roads with the jump pads are left out"
+  "notes": "the main lap; the three hook roads with the jump pads are left out",
+  "fx": [
+   {
+    "at": 0.32999999999999996,
+    "end": 0.37,
+    "type": "jump"
+   },
+   {
+    "at": 0.61,
+    "end": 0.66,
+    "type": "boost"
+   }
+  ]
  },
  "mksc-luigi-circuit": {
   "pts": [
@@ -2609,7 +2649,19 @@
    ]
   ],
   "len": 2000,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   },
+   {
+    "at": 0.19,
+    "end": 0.29,
+    "type": "ice"
+   }
+  ]
  },
  "ribbon-road": {
   "pts": [
@@ -3087,7 +3139,19 @@
    ]
   ],
   "len": 2250,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   },
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "mksc-bowser-castle-2": {
   "pts": [
@@ -3533,7 +3597,14 @@
    ]
   ],
   "len": 2100,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   }
+  ]
  },
  "sunset-wilds": {
   "pts": [
@@ -3987,7 +4058,14 @@
    ]
   ],
   "len": 1950,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   }
+  ]
  },
  "yoshi-desert": {
   "pts": [
@@ -4505,7 +4583,24 @@
    ]
   ],
   "len": 2150,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   },
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   },
+   {
+    "at": 0.74,
+    "end": 0.8200000000000001,
+    "type": "sand"
+   }
+  ]
  },
  "mksc-bowser-castle-3": {
   "pts": [
@@ -4911,7 +5006,14 @@
    ]
   ],
   "len": 1800,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   }
+  ]
  },
  "broken-pier": {
   "pts": [
@@ -5337,7 +5439,19 @@
    ]
   ],
   "len": 1750,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   },
+   {
+    "at": 0.63,
+    "end": 0.68,
+    "type": "boost"
+   }
+  ]
  },
  "lakeside-park": {
   "pts": [
@@ -5683,7 +5797,24 @@
    ]
   ],
   "len": 1350,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.3,
+    "end": 0.34,
+    "type": "jump"
+   },
+   {
+    "at": 0.58,
+    "end": 0.63,
+    "type": "boost"
+   },
+   {
+    "at": 0.84,
+    "end": 0.9,
+    "type": "water"
+   }
+  ]
  },
  "mksc-rainbow-road": {
   "pts": [
@@ -6197,7 +6328,14 @@
    ]
   ],
   "len": 2250,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   }
+  ]
  },
  "bowser-castle-4": {
   "pts": [
@@ -6451,7 +6589,19 @@
    ]
   ],
   "len": 2650,
-  "notes": "the maze: the road crosses itself twice (bridges)"
+  "notes": "the maze: the road crosses itself twice (bridges)",
+  "fx": [
+   {
+    "at": 0.31,
+    "end": 0.35000000000000003,
+    "type": "jump"
+   },
+   {
+    "at": 0.59,
+    "end": 0.64,
+    "type": "boost"
+   }
+  ]
  },
  "riverside-park": {
   "pts": [
@@ -6641,7 +6791,19 @@
    ]
   ],
   "len": 2000,
-  "notes": "read off the 3D map: the road goes over itself at the loop, so one stretch is a bridge"
+  "notes": "read off the 3D map: the road goes over itself at the loop, so one stretch is a bridge",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   },
+   {
+    "at": 0.8999999999999999,
+    "end": 0.96,
+    "type": "water"
+   }
+  ]
  },
  "shy-guy-beach": {
   "pts": [
@@ -6811,7 +6973,24 @@
    ]
   ],
   "len": 1650,
-  "notes": "low confidence: only a 55 px minimap exists, read by eye"
+  "notes": "low confidence: only a 55 px minimap exists, read by eye",
+  "fx": [
+   {
+    "at": 0.32999999999999996,
+    "end": 0.37,
+    "type": "jump"
+   },
+   {
+    "at": 0.75,
+    "end": 0.8300000000000001,
+    "type": "sand"
+   },
+   {
+    "at": 0.87,
+    "end": 0.93,
+    "type": "water"
+   }
+  ]
  },
  "cheep-cheep-island": {
   "pts": [
@@ -6961,6 +7140,13 @@
    ]
   ],
   "len": 1750,
-  "notes": "low confidence: only a 60 px minimap exists, read by eye"
+  "notes": "low confidence: only a 60 px minimap exists, read by eye",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   }
+  ]
  }
 }

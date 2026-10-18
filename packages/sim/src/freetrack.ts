@@ -133,6 +133,8 @@ export function markCrossings(segments: Segment[]): number {
     // the runs of consecutive segments in the group
     const runs: number[][] = [];
     for (const i of g) { const last = runs.at(-1); if (last && i - last.at(-1)! <= 1) last.push(i); else runs.push([i]); }
+    // a road that loops over itself (a pretzel: one run of segments that meets its own tail) is split in the middle, the first half under the second
+    if (runs.length === 1 && runs[0]!.length >= 3) { const run = runs[0]!, h = Math.ceil(run.length / 2); runs.splice(0, 1, run.slice(0, h), run.slice(h)); }
     if (runs.length < 2) continue;
     k++;
     runs.forEach((run, r) => { for (const i of run) { const s = segments[i]!; s.level = r === 0 ? -k : k; s.kind = r === 0 ? "under" : "bridge"; } });

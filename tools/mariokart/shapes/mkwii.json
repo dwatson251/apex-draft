@@ -107,7 +107,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the Wii map"
+  "notes": "read off the Wii map",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   },
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "toads-factory": {
   "pts": [
@@ -233,7 +245,19 @@
    ]
   ],
   "len": 1650,
-  "notes": "read off the Wii map"
+  "notes": "read off the Wii map",
+  "fx": [
+   {
+    "at": 0.3,
+    "end": 0.34,
+    "type": "jump"
+   },
+   {
+    "at": 0.58,
+    "end": 0.63,
+    "type": "boost"
+   }
+  ]
  },
  "mkwii-luigi-circuit": {
   "pts": [
@@ -315,7 +339,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the Wii overhead picture"
+  "notes": "read off the Wii overhead picture",
+  "fx": [
+   {
+    "at": 0.32999999999999996,
+    "end": 0.37,
+    "type": "jump"
+   },
+   {
+    "at": 0.61,
+    "end": 0.66,
+    "type": "boost"
+   }
+  ]
  },
  "mkwii-mario-circuit": {
   "pts": [
@@ -429,7 +465,19 @@
    ]
   ],
   "len": 1350,
-  "notes": "a figure of eight: the crossing is a bridge"
+  "notes": "a figure of eight: the crossing is a bridge",
+  "fx": [
+   {
+    "at": 0.31,
+    "end": 0.35000000000000003,
+    "type": "jump"
+   },
+   {
+    "at": 0.59,
+    "end": 0.64,
+    "type": "boost"
+   }
+  ]
  },
  "coconut-mall": {
   "pts": [
@@ -567,7 +615,19 @@
    ]
   ],
   "len": 1650,
-  "notes": "read off the Wii map"
+  "notes": "read off the Wii map",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   },
+   {
+    "at": 0.63,
+    "end": 0.68,
+    "type": "boost"
+   }
+  ]
  },
  "dk-summit": {
   "pts": [
@@ -753,7 +813,19 @@
    ]
   ],
   "len": 1650,
-  "notes": "low confidence: the one-way mountain road folded into a lap, the way back alongside"
+  "notes": "low confidence: the one-way mountain road folded into a lap, the way back alongside",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   },
+   {
+    "at": 0.6399999999999999,
+    "end": 0.69,
+    "type": "boost"
+   }
+  ]
  },
  "moo-moo-meadows": {
   "pts": [
@@ -875,7 +947,19 @@
    ]
   ],
   "len": 1400,
-  "notes": "read off the Wii map"
+  "notes": "read off the Wii map",
+  "fx": [
+   {
+    "at": 0.36,
+    "end": 0.4,
+    "type": "jump"
+   },
+   {
+    "at": 0.6399999999999999,
+    "end": 0.69,
+    "type": "boost"
+   }
+  ]
  },
  "warios-gold-mine": {
   "pts": [
@@ -1013,7 +1097,19 @@
    ]
   ],
   "len": 1550,
-  "notes": "read off the Wii map"
+  "notes": "read off the Wii map",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   },
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   }
+  ]
  },
  "daisy-circuit": {
   "pts": [
@@ -1143,7 +1239,19 @@
    ]
   ],
   "len": 1400,
-  "notes": "read off the Wii map"
+  "notes": "read off the Wii map",
+  "fx": [
+   {
+    "at": 0.31,
+    "end": 0.35000000000000003,
+    "type": "jump"
+   },
+   {
+    "at": 0.59,
+    "end": 0.64,
+    "type": "boost"
+   }
+  ]
  },
  "grumble-volcano": {
   "pts": [
@@ -1285,7 +1393,19 @@
    ]
   ],
   "len": 1500,
-  "notes": "read off the Wii map"
+  "notes": "read off the Wii map",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   },
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   }
+  ]
  },
  "koopa-cape": {
   "pts": [
@@ -1419,7 +1539,24 @@
    ]
   ],
   "len": 1350,
-  "notes": "low confidence: the winding road out and the way back folded alongside"
+  "notes": "low confidence: the winding road out and the way back folded alongside",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   },
+   {
+    "at": 0.63,
+    "end": 0.68,
+    "type": "boost"
+   },
+   {
+    "at": 0.89,
+    "end": 0.9500000000000001,
+    "type": "water"
+   }
+  ]
  },
  "dry-dry-ruins": {
   "pts": [
@@ -1573,7 +1710,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the Wii layout drawing"
+  "notes": "read off the Wii layout drawing",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   },
+   {
+    "at": 0.63,
+    "end": 0.68,
+    "type": "boost"
+   }
+  ]
  },
  "moonview-highway": {
   "pts": [
@@ -1675,7 +1824,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the night picture: the two highways joined by the bottom bend"
+  "notes": "read off the night picture: the two highways joined by the bottom bend",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   },
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   }
+  ]
  },
  "mkwii-bowsers-castle": {
   "pts": [
@@ -1817,7 +1978,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the Wii layout drawing; the gaps are jumps"
+  "notes": "read off the Wii layout drawing; the gaps are jumps",
+  "fx": [
+   {
+    "at": 0.3,
+    "end": 0.34,
+    "type": "jump"
+   },
+   {
+    "at": 0.58,
+    "end": 0.63,
+    "type": "boost"
+   }
+  ]
  },
  "maple-treeway": {
   "pts": [
@@ -1875,7 +2048,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: the tree-top road and the spiral are tiny in the picture"
+  "notes": "low confidence: the tree-top road and the spiral are tiny in the picture",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   },
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "mkwii-rainbow-road": {
   "pts": [
@@ -2017,6 +2202,18 @@
    ]
   ],
   "len": 1500,
-  "notes": "low confidence: the pieces of the drawing joined into one lap"
+  "notes": "low confidence: the pieces of the drawing joined into one lap",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   },
+   {
+    "at": 0.63,
+    "end": 0.68,
+    "type": "boost"
+   }
+  ]
  }
 }

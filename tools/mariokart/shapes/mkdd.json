@@ -167,7 +167,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.58,
+    "end": 0.63,
+    "type": "boost"
+   }
+  ]
  },
  "dry-dry-desert": {
   "pts": [
@@ -449,7 +456,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.72,
+    "end": 0.8,
+    "type": "sand"
+   }
+  ]
  },
  "mushroom-bridge": {
   "pts": [
@@ -551,7 +565,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "read off the DS map; the long straight is the bridge"
+  "notes": "read off the DS map; the long straight is the bridge",
+  "fx": [
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   }
+  ]
  },
  "mkdd-luigi-circuit": {
   "pts": [
@@ -641,7 +662,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: the two lanes of the middle S are one road here, the infield sand islands are left out"
+  "notes": "low confidence: the two lanes of the middle S are one road here, the infield sand islands are left out",
+  "fx": [
+   {
+    "at": 0.58,
+    "end": 0.63,
+    "type": "boost"
+   }
+  ]
  },
  "mkdd-sherbet-land": {
   "pts": [
@@ -971,7 +999,14 @@
    ]
   ],
   "len": 1350,
-  "notes": "traced"
+  "notes": "traced",
+  "fx": [
+   {
+    "at": 0.18000000000000002,
+    "end": 0.27999999999999997,
+    "type": "ice"
+   }
+  ]
  },
  "daisy-cruiser": {
   "pts": [
@@ -1101,7 +1136,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: the upper deck loops are folded into one road"
+  "notes": "low confidence: the upper deck loops are folded into one road",
+  "fx": [
+   {
+    "at": 0.88,
+    "end": 0.9400000000000001,
+    "type": "water"
+   }
+  ]
  },
  "yoshi-circuit": {
   "pts": [
@@ -1361,7 +1403,19 @@
    ]
   ],
   "len": 1500,
-  "notes": "low confidence: the three nested loops are one lap"
+  "notes": "low confidence: the three nested loops are one lap",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   },
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "mushroom-city": {
   "pts": [
@@ -1459,7 +1513,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: read from a 128 px map; the side streets are left out"
+  "notes": "low confidence: read from a 128 px map; the side streets are left out",
+  "fx": [
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "wario-colosseum": {
   "pts": [
@@ -1545,7 +1606,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: the outer lap of the arena; the inner loops are left out"
+  "notes": "low confidence: the outer lap of the arena; the inner loops are left out",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   },
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   }
+  ]
  },
  "dino-dino-jungle": {
   "pts": [
@@ -1717,7 +1790,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: a lap made of the mountain road down and the way back"
+  "notes": "low confidence: a lap made of the mountain road down and the way back",
+  "fx": [
+   {
+    "at": 0.3,
+    "end": 0.34,
+    "type": "jump"
+   }
+  ]
  },
  "mkdd-bowsers-castle": {
   "pts": [
@@ -1843,7 +1923,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: from a 128 px map"
+  "notes": "low confidence: from a 128 px map",
+  "fx": [
+   {
+    "at": 0.33999999999999997,
+    "end": 0.38,
+    "type": "jump"
+   },
+   {
+    "at": 0.62,
+    "end": 0.67,
+    "type": "boost"
+   }
+  ]
  },
  "mkdd-rainbow-road": {
   "pts": [
@@ -1949,7 +2041,19 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: the road crosses itself once (a bridge)"
+  "notes": "low confidence: the road crosses itself once (a bridge)",
+  "fx": [
+   {
+    "at": 0.32,
+    "end": 0.36000000000000004,
+    "type": "jump"
+   },
+   {
+    "at": 0.6,
+    "end": 0.65,
+    "type": "boost"
+   }
+  ]
  },
  "mkdd-mario-circuit": {
   "pts": [
@@ -2091,7 +2195,14 @@
    ]
   ],
   "len": 1300,
-  "notes": "low confidence: from a 128 px map"
+  "notes": "low confidence: from a 128 px map",
+  "fx": [
+   {
+    "at": 0.35,
+    "end": 0.39,
+    "type": "jump"
+   }
+  ]
  },
  "peach-beach": {
   "pts": [
@@ -2233,6 +2344,23 @@
    ]
   ],
   "len": 1400,
-  "notes": "low confidence: from a 158 px map"
+  "notes": "low confidence: from a 158 px map",
+  "fx": [
+   {
+    "at": 0.3,
+    "end": 0.34,
+    "type": "jump"
+   },
+   {
+    "at": 0.58,
+    "end": 0.63,
+    "type": "boost"
+   },
+   {
+    "at": 0.84,
+    "end": 0.9,
+    "type": "water"
+   }
+  ]
  }
 }
