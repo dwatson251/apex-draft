@@ -183,11 +183,12 @@ type Layer = "drums" | "bass" | "music";
 const LAYERS: Layer[] = ["drums", "bass", "music"];
 type Loop = Record<Layer, AudioBuffer>;
 /** Places that borrow another place's music loop. */
-const MUSIC_OF: Record<string, string> = { alpine: "snow", coast: "desert", jungle: "grass", volcano: "desert" };
+const MUSIC_OF: Record<string, string> = { alpine: "snow", water: "coast" };
 
 interface Scene { biome: string; src: AudioBufferSourceNode[]; gains: Record<Layer, GainNode>; lp: BiquadFilterNode; out: GainNode }
 /** Loudness of the loops on the music bus: quiet and dark in menus, full and bright when the race is on. */
-const LOOP_LEVEL = { menu: 0.04, race: 0.07, title: 0.07 };
+// (the drum and bass loops are about 4 dB quieter than the old ones were: these were 0.04, 0.07, 0.07)
+const LOOP_LEVEL = { menu: 0.056, race: 0.1, title: 0.1 };
 
 /** Fetch a bundled file. XMLHttpRequest because fetch cannot read file:// in the packaged desktop app. */
 const getBytes = (url: string) => new Promise<ArrayBuffer>((resolve, reject) => {
