@@ -318,7 +318,8 @@ export class Game {
       s.livery = ok(l.primary) && ok(l.secondary) && [0, 1, 2, 3].includes(l.stripe as number) && Number.isInteger(l.number) && l.number! >= 0 && l.number! <= 99 ? { primary: l.primary!, secondary: l.secondary!, stripe: l.stripe!, number: l.number! } : undefined;
       if (!s.livery) delete s.livery;
     }
-    if (s.room !== undefined && s.room !== 0 && s.room !== 1 && s.room !== 2) delete s.room;
+    // the experimental racing room and overtaking switches are gone (they only made races slower and rougher): forget a saved choice
+    delete s.room; delete s.overtake;
     if (!isCompound(s.startTyre)) s.startTyre = "medium";
     if (s.startTactic !== undefined && !isTactic(s.startTactic)) delete s.startTactic;
     s.pitPlan = (Array.isArray(s.pitPlan) ? s.pitPlan : [])
@@ -619,7 +620,7 @@ export class Game {
       record: flow === "trial" ? null : { stars: starsFor(this.records, recordKey(phrase, chosen)), place: bestPlace(this.records, recordKey(phrase, chosen)) },
       gridLine: (flow === "quick" ? (tt !== undefined ? `Your grid place comes from your time trial: <b>${fmt(tt)}</b>` : "Your grid place comes from the lap time of the line you draw. A Time Trial time, once you have one, counts instead.") : flow === "weekend" ? "Your grid place comes from the qualifier." : "")
         // (reportRun only sends a race the server can replay: say so, rather than leave a race off the boards without a word)
-        + (flow !== "trial" && (s.difficulty !== "hard" || s.overtake || s.room) ? ` <span class="unranked">This race won't go on the online boards: only races on Hard${s.overtake || s.room ? ", with the experimental settings off," : ""} do. Your lap times still count.</span>` : ""),
+        + (flow !== "trial" && s.difficulty !== "hard" ? ` <span class="unranked">This race won't go on the online boards: only races on Hard do. Your lap times still count.</span>` : ""),
       note: this.note,
     }));
     this.note = "";
@@ -671,7 +672,7 @@ export class Game {
 
   private renderSettings(): void {
     const s = this.settings;
-    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, overtake: !!s.overtake, room: s.room ?? 0, version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX }));
+    const el = this.menuPanel(settingsHtml({ muted: !!s.muted, music: !s.musicOff, version: this.version, fromGame: this.inGame, name: this.online.name, nameMax: NAME_MAX }));
     this.on(el, "#back", () => { if (this.inGame) { this.screen = "home"; this.renderMenu(); } else this.go("home"); });
     // committed when the box loses focus or Enter is pressed, not on every key: a re-render would take the focus away
     const nameBox = el.querySelector<HTMLInputElement>("#player-name")!;
@@ -681,8 +682,6 @@ export class Game {
     wireControls(el, {
       change: (id, v) => {
         if (id === "sound") { this.audio.unlock(); this.settings.muted = v !== "1"; this.audio.setMuted(!!this.settings.muted); this.persist(); }
-        else if (id === "room") { s.room = (Number(v) === 2 ? 2 : Number(v) === 1 ? 1 : 0); this.persist(); }
-        else if (id === "overtake") { s.overtake = v === "1"; this.persist(); }
         else if (id === "music") { this.audio.unlock(); s.musicOff = v !== "1"; this.audio.setMusic(!s.musicOff); this.persist(); }
         this.renderMenu();
       },
@@ -1748,7 +1747,7 @@ export class Game {
     const baseRules = r.kind !== "race" ? sessionRules(r.kind) : r.realism ? { ...sessionRules("race", { wearMult: { fuel: r.wearFuel, tyre: r.wearTyre }, mandatory: r.mandatory }), weather: true } : { realism: false, weather: false };
     // the rubber the weekend's earlier sessions laid down stays on the road (not on hard, whose races the server replays from scratch)
     const rubber = r.flow === "weekend" && r.difficulty !== "hard" ? this.weekend?.rubber : undefined;
-    const rules = { ...baseRules, ...(rubber ? { rubber } : {}), ...(st.overtake ? { overtake: true } : {}), ...(st.room ? { room: st.room } : {}) };
+    const rules = { ...baseRules, ...(rubber ? { rubber } : {}) };
     this.race = new Race(this.track, entrants, r.laps, rules);
     this.lapNo = 0;
     this.view.clearSkids();
@@ -2333,7 +2332,7 @@ export class Game {
     this.reported = race;
     const car = this.playerCar();
     this.online.uploadLine(this.track.phrase, this.vehicle, car, this.me.lines[0]!);
-    if (r.kind !== "race" || this.special || this.settings.overtake || this.settings.room || r.difficulty !== "hard" || r.rivals > MAX_RACE_RIVALS) return; // only the hard field is one the server can replay // the server will not replay a field bigger than it allows
+    if (r.kind !== "race" || this.special || r.difficulty !== "hard" || r.rivals > MAX_RACE_RIVALS) return; // only the hard field is one the server can replay // the server will not replay a field bigger than it allows
     this.online.uploadRace({
       kind: r.flow === "weekend" ? "weekend" : "quick", phrase: this.track.phrase, vehicle: this.vehicle, car, laps: r.laps, rivals: r.rivals, realism: r.realism, lines: this.me.lines,
       wearFuel: r.wearFuel, wearTyre: r.wearTyre, mandatory: r.mandatory, startTyre: this.me.startTyre, startTactic: this.me.startTactic, pitPlan: this.me.pitPlan, autoPit: this.me.autoPit,

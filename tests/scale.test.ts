@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ROAD_HALF, isDrivable, VEHICLES, PACE, Race, botLine, carStats, defaultCar, generateTrack, trackLength, type VehicleId } from "@apex/sim";
+import { ROAD_HALF, isDrivable, VEHICLES, PACE, Race, accelAt, botLine, carStats, defaultCar, generateTrack, trackLength, type VehicleId } from "@apex/sim";
 import { SEGMENT_LENGTH } from "../packages/sim/src/freetrack.ts";
 import { METRES_PER_UNIT, SEGMENT_MILES, WORLD_TIME } from "../src/renderer/scale.ts";
 
@@ -64,8 +64,19 @@ describe("real-world scale", () => {
   it("every vehicle takes at least three real seconds to reach top speed, so the gears are distinct", () => {
     for (const id of Object.keys(VEHICLES) as VehicleId[]) {
       const s = carStats({ ...defaultCar(), type: id });
-      expect((s.vTop / s.accel) * WORLD_TIME, id).toBeGreaterThan(3);
+      // (driven on the fading pull of accelAt, to 97% of top speed)
+      let v = 0, t = 0;
+      while (v < 0.97 * s.vTop && t < 600) { v += accelAt(s.accel, s.vTop, v) / 60; t += 1 / 60; }
+      expect(t * WORLD_TIME, id).toBeGreaterThan(3);
     }
+  });
+
+  it("pulls hardest off the line and fades toward top speed, as a real car does", () => {
+    const s = carStats({ ...defaultCar(), type: "gt3" });
+    expect(accelAt(s.accel, s.vTop, 0)).toBe(s.accel);
+    expect(accelAt(s.accel, s.vTop, 0.7 * s.vTop)).toBeLessThan(0.6 * s.accel);
+    expect(accelAt(s.accel, s.vTop, s.vTop)).toBeGreaterThan(0); // the cap is reached, not crept up on for ever
+    expect(accelAt(s.accel, s.vTop, 1.05 * s.vTop)).toBe(0);
   });
 
   it("a line may run over the kerb: the centre can reach the road edge (two wheels on the track), and no further", () => {

@@ -130,7 +130,7 @@ export function setupHtml(d: SetupData): string {
     </div>`;
 }
 
-export function settingsHtml(o: { muted: boolean; music: boolean; overtake: boolean; room: number; version: string; fromGame: boolean; name: string; nameMax: number }): string {
+export function settingsHtml(o: { muted: boolean; music: boolean; version: string; fromGame: boolean; name: string; nameMax: number }): string {
   const key = (k: string, what: string) => `<div class="keyrow"><kbd>${k}</kbd><span>${what}</span></div>`;
   return `
     <div class="head"><button class="back" id="back">← Back</button><div><h2>Settings</h2></div></div>
@@ -139,8 +139,6 @@ export function settingsHtml(o: { muted: boolean; music: boolean; overtake: bool
     <div class="opts one">
       <div class="opt"><span>Sound effects</span>${toggle("sound", !o.muted)}</div>
       <div class="opt"><span>Music</span>${toggle("music", o.music)}</div>
-      <div class="opt"><span>Racing room <em>experimental: how close cars run side by side and follow; tighter means more contact; races are not uploaded</em></span>${dropdown("room", String(o.room), [{ value: "0", label: "Normal" }, { value: "1", label: "Tight" }, { value: "2", label: "Tightest" }], { label: "Racing room" })}</div>
-      <div class="opt"><span>Aggressive overtaking <em>experimental: cars take gaps to go past, with more contact; races are not uploaded</em></span>${toggle("overtake", o.overtake)}</div>
     </div>
     <label>Controls</label>
     <div class="keys">

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Cars pull hardest off the line and fade toward top speed.** Acceleration used to be the same all the way up to top speed. Now a car puts down all its grip at low speed, then its power and the air take over and the pull fades, as a real car's does: getting out of a slow corner well matters more, a long straight a little less. A slipstream or a pad stretches the curve so a car can still go past its top speed.
+- **One grip for turning and braking.** A tyre turning at the limit has less left to brake or accelerate with (the friction circle), so a line that brakes in a straight line before a bend and straightens the exit is quicker than one that brakes and turns at once.
+- **Tyres have a cliff.** Grip fades gently for most of a set's life and falls away in the last quarter (it used to fall in a straight line), and it fades as the lap goes rather than all at once at the start of the next lap. Wets wear a touch faster on a wet road to keep about 15 laps.
+- Lap times are re-fitted to the real ones (`PACE` 1.46): the calibrated laps are within 6%.
+- **The experimental Racing room and Aggressive overtaking switches are gone from Settings.** Measured over eight 16-car races, both made races slower and rougher (overtaking: 76 contacts and 26 spins against none), and either one kept a race off the online boards.
 - **See how fast your line is before you race it.** Your line is drawn in speed colours, red where the car is slow, through amber, to green where it is quick, from the slowest point of the lap to the fastest: the segments you have drawn while you draw (the rest is worked out the way *Finish for me* would), and the whole lap on the map before the start and in the pits. The map also shows the **flying lap** the line is worth in your car.
 - **Where your line loses time.** The results now compare your line with the best computer line, both in your car on a flying lap with nobody in the way: how much a lap it gains or loses, and the three segments where it loses most, lit on the map.
 - **Play now.** A tile on the home screen goes straight to drawing a random track: three laps, seven rivals, no tyres or fuel, at Medium once you have opened it. Your own Quick Race setup is left as it was.

@@ -1,4 +1,4 @@
-import { carStats, type CarConfig } from "./car.ts";
+import { accelAt, carStats, combined, tractionShare, type CarConfig } from "./car.ts";
 import { biomeOf, terrainMul, type Biome } from "./biomes.ts";
 import { vehicleOf, type Vehicle } from "./vehicles.ts";
 import { impact, lastImpact } from "./impact.ts";
@@ -6,7 +6,7 @@ import { botLine } from "./bots.ts";
 import { Rng } from "./rng.ts";
 import { COMPOUNDS, TEMP_START, spinRate, tempGrip, tyreGrip, wearRate, type Compound } from "./tyres.ts";
 import { TACTIC_INFO, type Tactic } from "./tactics.ts";
-import { cornerCap } from "./quirks.ts";
+import { cornerCap, quirksOf } from "./quirks.ts";
 import { rainAt, raceDuration, weatherFor, type Weather } from "./weather.ts";
 import { WetField } from "./trackwet.ts";
 import type { Line } from "./line.ts";
@@ -224,6 +224,18 @@ export const FUEL_RANGE = 11 * LAP_UNITS;
 export const TYRE_WEAR_PER_UNIT = 0.076 / LAP_UNITS;
 /** Cornering grip lost when the tyres are completely worn. */
 export const TYRE_GRIP_LOSS = 0.25;
+/** Where the cliff starts: past this much wear the grip falls away fast. */
+export const TYRE_CLIFF = 0.75;
+/**
+ * Grip a tyre has left for its wear (`tyre` is its health, 1 new, 0 gone), as a share of a new one's: a gentle fade for most of its life, then the cliff
+ * past `TYRE_CLIFF` of its wear, down to `1 - TYRE_GRIP_LOSS` with nothing left. Half worn it has lost about a quarter of what it will (it used to
+ * fall in a straight line, so a tyre was as bad at half as at the end, relatively, and there was no moment to come in).
+ */
+export function wornGrip(tyre: number): number {
+  const w = Math.min(1, Math.max(0, 1 - tyre));
+  const u = Math.min(1, Math.max(0, (w - TYRE_CLIFF) / (1 - TYRE_CLIFF)));
+  return 1 - TYRE_GRIP_LOSS * (0.5 * w + 0.5 * u * u * (3 - 2 * u));
+}
 /** Acceleration lost with a full tank. */
 export const FUEL_MASS_ACCEL = 0.1;
 /** Speed of a car that has run dry, as it heads for the pits, units/s. */
@@ -478,6 +490,8 @@ export interface RaceCar {
   temp: number;
   /** how much of a slipstream the car was in on the last tick (also the dirty air it is driving through in a bend) */
   wake: number;
+  /** the tyre grip (wear and temperature) the lap's path was built with: grip lost since then is taken off as the lap goes, not all at the next one */
+  gripBuilt: number;
   /** tyre temperature once a second of ticks, for the interface */
   readonly tmtrace: Float32Array;
   /** 0 soft, 1 medium, 2 wet, at every tick */
@@ -590,7 +604,7 @@ export class Race {
         ghost: false, stuck: 0, air: 0, airT: 0, peak: 0, pad: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
-        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, wake: 0, used: [],
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, gripBuilt: 1, wake: 0, used: [],
         hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
       });
       c.used.push(c.compound);
@@ -740,7 +754,8 @@ export class Race {
     if (!refresh) { c.pitOut = c.pitIn; c.pitDone = false; c.dwell = 0; c.bay = undefined; c.boxed = false; c.ready = false; }
     c.pitIn = this.decidePit(c, lap);
     const real = this.rules.realism;
-    c.prof = this.build(c.entrant, lap, c.pitIn, c.pitOut, real ? (1 - TYRE_GRIP_LOSS * (1 - c.tyre)) * tempGrip(c.compound, c.temp) : 1, real ? 1 - FUEL_MASS_ACCEL * (c.fuel / TANK) : 1, real ? c.compound : undefined, real ? c.tactic : undefined);
+    c.gripBuilt = real ? wornGrip(c.tyre) * tempGrip(c.compound, c.temp) : 1;
+    c.prof = this.build(c.entrant, lap, c.pitIn, c.pitOut, c.gripBuilt, real ? 1 - FUEL_MASS_ACCEL * (c.fuel / TANK) : 1, real ? c.compound : undefined, real ? c.tactic : undefined);
   }
 
   /** Sideways shift from a car's own line that puts it in its grid column, `lateral` units to one side of the middle of the road. */
@@ -1212,7 +1227,7 @@ export class Race {
   /** The grip the tyres have right now against fresh mediums on a dry road, 0 to 1: they wear, and slicks on a wet road or wets on a dry one grip less. 1 when tyres are not in play. */
   gripLevel(c: RaceCar): number {
     if (!this.rules.realism) return 1;
-    const wear = 1 - TYRE_GRIP_LOSS * (1 - c.tyre);
+    const wear = wornGrip(c.tyre);
     const cell = this.cellOf(c);
     const road = cell < 0 ? tyreGrip(c.compound, 0, 0) : tyreGrip(c.compound, this.field.wet[cell]!, this.field.use[cell]!, this.field.rubber[cell]!);
     return Math.min(1, wear * road * tempGrip(c.compound, c.temp));
@@ -1332,7 +1347,7 @@ export class Race {
     const veh = vehicleOf(c.entrant.car.type);
     let g = terrainMul(this.biome.grip, veh.terrain);
     g *= c.prof.gripMul[indexAt(c.prof, c.s)]!;
-    if (this.rules.realism) g *= tyreGrip(c.compound, this.wetOf(c), this.useOf(c), this.rubberOf(c)) * (1 - TYRE_GRIP_LOSS * (1 - c.tyre)) * tempGrip(c.compound, c.temp);
+    if (this.rules.realism) g *= tyreGrip(c.compound, this.wetOf(c), this.useOf(c), this.rubberOf(c)) * wornGrip(c.tyre) * tempGrip(c.compound, c.temp);
     return g;
   }
 
@@ -1451,6 +1466,11 @@ export class Race {
       const st = this.stats(c);
       const i = indexAt(p, c.s);
       let target = sampleAt(p, p.vLim, c.s);
+      // the tyres have worn (or cooled) since the lap's path was built: where grip sets the speed, it is a little lower now (speed goes with the root of grip)
+      if (this.rules.realism && target < st.vTop * 0.97) {
+        const now = wornGrip(c.tyre) * tempGrip(c.compound, c.temp);
+        if (now < c.gripBuilt) target *= Math.sqrt(now / c.gripBuilt);
+      }
       // in a slipstream: a little more top speed (only where the car is at its top speed, not in a bend) and quicker acceleration
       const dr = this.draft(c, racing);
       if (dr > 0 && target >= st.vTop * 0.97) target *= 1 + DRAFT_TOP * dr;
@@ -1489,7 +1509,11 @@ export class Race {
         // at the side of the road, waiting for the pack to go by
         if (c.park !== 0 && Math.abs(c.off - c.park) < 2 && Math.abs(c.psi) < 0.3) target = 0;
       }
-      let v = c.v > target ? Math.max(target, c.v - st.brake * p.brakeMul[i]! * TICK) : Math.min(target, c.v + st.accel * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * launchMul(c, st.vTop) * TICK);
+      // the pull fades with speed (power and drag: a target above the top speed, in a slipstream or off a pad, stretches the curve to reach it), and a
+      // tyre working hard in a bend has less of it to give (the friction circle, as in the profile)
+      const lat = Math.min(1, (p.kap[i]! * c.v * c.v) / Math.max(cornerCap(c.entrant.car.type, st.aLat * p.gripMul[i]!, c.v), 1e-6));
+      const pull = accelAt(st.accel, Math.max(st.vTop, target), c.v, tractionShare(quirksOf(c.entrant.car.type).downforce)) * combined(lat);
+      let v = c.v > target ? Math.max(target, c.v - st.brake * p.brakeMul[i]! * TICK) : Math.min(target, c.v + pull * p.accelMul[i]! * (1 + DRAFT_ACCEL * dr) * launchMul(c, st.vTop) * TICK);
       // in the air there is no throttle and no brake: only the air itself slows the car
       if (c.air > 0) v = c.v * (1 - AIR_DRAG);
       // a car pointing the wrong way slows down, and one that is sliding travels along the line only as far as its direction takes it
@@ -1551,7 +1575,7 @@ export class Race {
       this.emit(c.entrant.id, "dry");
       if (!c.pitIn) {
         c.emergency = true;
-        const real = 1 - TYRE_GRIP_LOSS * (1 - c.tyre);
+        const real = wornGrip(c.tyre);
         const np = this.build(c.entrant, Math.max(c.lap, 0), true, c.pitOut, real, 1, c.compound);
         // too late to turn in this lap? it goes round once more at limp speed and turns in next time
         if (np.pitFromS !== undefined && c.s < np.pitFromS - 3) { c.prof = np; c.pitIn = true; c.pitDone = false; }

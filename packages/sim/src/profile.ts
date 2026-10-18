@@ -1,4 +1,4 @@
-import { carStats, type CarConfig } from "./car.ts";
+import { accelAt, carStats, combined, tractionShare, type CarConfig } from "./car.ts";
 import { quirksOf } from "./quirks.ts";
 import { terrainMul } from "./biomes.ts";
 import { BOOST_FX_ACCEL, BOOST_FX_TOP, FX_GROUND, isRamp } from "./fx.ts";
@@ -247,6 +247,8 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   // speed limits: top speed and cornering grip, then braking ahead of slow parts (twice round, it is a loop)
   const vLim = new Float64Array(n);
   const kap = new Float64Array(n);
+  /** the cornering grip at each sample (tyres, ground, wet), for sharing it with braking and acceleration below */
+  const latCap = new Float64Array(n);
   // a lap that pits ends where the next one starts, not where it started: no corner at the join
   const wrapBreak = pitIn !== pitOut;
   for (let i = 0; i < n; i++) {
@@ -260,6 +262,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     const kk = wrapBreak && (i < 4 || i >= n - 4) ? 0 : kappa;
     kap[i] = kk;
     const here = opts.gripAt ? opts.gripAt(x[i]!, y[i]!) : 1;
+    latCap[i] = st.aLat * (1 + (q.lean ?? 0)) * gripMul[i]! * here;
     // (with downforce the cornering force grows with the square of the speed, so v² · kap = grip + df · v², which solves directly)
     const bend = Math.max(kk - (q.downforce ?? 0), 1e-4);
     vLim[i] = Math.min(st.vTop * topMul[i]!, Math.sqrt((st.aLat * (1 + (q.lean ?? 0)) * gripMul[i]! * here) / bend));
@@ -271,8 +274,11 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
     for (let k = n - 1; k >= 0; k--) {
       const nxt = vLim[(k + 1) % n]!;
       // (braking into a bend that is already at the limit costs a heavy machine some of its braking: its weight is on the wrong wheels)
-      const brake0 = st.brake * brakeMul[k]!;
-      const brake = q.shift ? brake0 * (1 - q.shift * Math.min(1, (kap[(k + 1) % n]! * nxt * nxt) / (st.aLat * (1 + (q.lean ?? 0)) * (gripMul[(k + 1) % n]!) + (q.downforce ?? 0) * nxt * nxt))) : brake0;
+      // how much of its grip the tyre is using to turn there: what is left is all it has to brake with (the friction circle), and a heavy machine
+      // loses a little more as its weight goes onto the wrong wheels
+      const j = (k + 1) % n;
+      const lat = Math.min(1, (kap[j]! * nxt * nxt) / Math.max(latCap[j]! + (q.downforce ?? 0) * nxt * nxt, 1e-6));
+      const brake = st.brake * brakeMul[k]! * combined(lat) * (1 - (q.shift ?? 0) * lat);
       vLim[k] = Math.min(vLim[k]!, Math.sqrt(nxt * nxt + 2 * brake * ds));
     }
   }
@@ -281,7 +287,10 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   for (let pass = 0; pass < 2; pass++) {
     for (let k = 0; k < n; k++) {
       const prev = v[(k + n - 1) % n]!;
-      v[k] = Math.min(v[k]!, Math.sqrt(prev * prev + 2 * st.accel * accelMul[k]! * ds));
+      // the pull fades with speed (power and drag), and is shared with the turning the tyre is doing
+      const lat = Math.min(1, (kap[k]! * prev * prev) / Math.max(latCap[k]! + (q.downforce ?? 0) * prev * prev, 1e-6));
+      const a = accelAt(st.accel, st.vTop * topMul[k]!, prev, tractionShare(q.downforce)) * accelMul[k]! * combined(lat);
+      v[k] = Math.min(v[k]!, Math.sqrt(prev * prev + 2 * a * ds));
     }
   }
   let ideal = 0;

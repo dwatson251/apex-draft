@@ -17,6 +17,15 @@
   obstacles.
 - **Car** (`profile.ts`, `car.ts`): speed at each point is capped by top speed and `sqrt(grip / curvature)`, then braking
   is propagated backwards so the car slows in time.
+  - **Power and drag** (`accelAt`): a car puts down all its acceleration up to `TRACTION_SHARE` of top speed, then the pull fades
+    (`P / v - D v²`, fitted to stop gaining just above top speed, `DRAG_HEADROOM`), in the flying-lap pass and in `Race.step`.
+    A target above top speed (a slipstream, a pad, downhill) stretches the curve to reach it.
+  - **The friction circle** (`combined`): braking into a bend and accelerating out of one get only the share of grip the
+    tyre is not using to turn, `sqrt(1 - lat²)`, never less than `COMBINED_FLOOR`.
+  - **Tyres** (`wornGrip`, race.ts): wear fades the grip gently, then the cliff past `TYRE_CLIFF`. A lap's path is built
+    with the grip at its start (`gripBuilt`), and grip lost since then comes off the speed as the lap goes.
+  - `profile.vFly` is the flying-lap speed at every sample; `segmentTimes` sums it per segment (the line comparison on
+    the results screen).
 - **Race** (`race.ts`): 60 Hz, deterministic. Each car checks the next stretch of its own path for another car that is
   on it now or will be when it arrives (that is how merging and crossing lines are caught).
   - A car clearly ahead and going the same way is followed at `SAFE_GAP`.
@@ -242,7 +251,7 @@ the ones already placed (columns bunch up on a bend). The order is the fastest l
 - **Time.** Every sim second is shown as `WORLD_TIME` (about 1.64) seconds, which keeps speeds real (150 units/s is 225 mph).
   Accelerations follow from the real g: `G` is one g in units/s² (about 24). Races play back at 1x on that clock.
 - **Vehicles.** Multipliers (`vehicles.ts`) make **level 10 the real machine**: `top` is mph / 225 and `accel`, `grip` and `brake`
-  are launch, lateral and braking g, with the real figures in the comment above `VEHICLES`. `PACE` (1.35, in `car.ts`) lifts
+  are launch, lateral and braking g, with the real figures in the comment above `VEHICLES`. `PACE` (1.46, in `car.ts`; it was 1.35 before acceleration faded with speed) lifts
   accel, grip and braking together, and six classes carry a small extra calibration (formula 0.96, GT3 0.98, prototype 0.93,
   GT4 1.08, touring 1.06, superbike 1.12), all fitted to real lap times (below). Top speed is left exact.
 
