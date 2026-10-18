@@ -7,7 +7,7 @@ import { makePit } from "./pit.ts";
 import { phraseToSeed } from "./seed.ts";
 import { dist, norm, perp, sub, v2, type Vec2 } from "./vec.ts";
 import type { Circuit } from "./circuits.ts";
-import { KART_INFO } from "./karts.ts";
+import { KART_INFO, type KartClimb } from "./karts.ts";
 
 /**
  * A real circuit as a line of points rather than a loop of cells: the line is smoothed, and cut into segments of about
@@ -107,6 +107,25 @@ function layFx(segments: Segment[], pieces: { at: number; len: number; type: FxT
   }
 }
 
+/**
+ * Height along a Mario Kart lap (a tower the road climbs round, say): each climb is a smooth rise by `h` over its part of the lap, and the road stays at
+ * the new height until the next one. The height of every centre point goes on its segment as `elev`, which the profile turns into a grade (slower uphill,
+ * quicker down). Position along the lap is by the length of the road itself.
+ */
+export function layClimb(segments: Segment[], climbs: KartClimb[]): void {
+  if (!climbs.length) return;
+  const at: number[][] = [];
+  let total = 0;
+  for (const s of segments) {
+    const row: number[] = [];
+    s.center.forEach((p, i) => { if (i > 0) total += Math.hypot(p.x - s.center[i - 1]!.x, p.y - s.center[i - 1]!.y); row.push(total); });
+    at.push(row);
+  }
+  const ease = (t: number): number => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
+  const height = (f: number): number => climbs.reduce((h, c) => h + c.h * ease((f - c.at) / Math.max(c.len, 1e-6)), 0);
+  segments.forEach((s, k) => { s.elev = at[k]!.map((d) => Math.round(height(d / Math.max(total, 1e-6)) * 100) / 100); });
+}
+
 /** Two roads closer than this (centre to centre) are crossing: a mapped circuit's roads are kept at least 53 apart everywhere else. */
 const CROSSING = 50;
 
@@ -159,6 +178,7 @@ export function buildFreeCircuit(c: Circuit, typed: string, opts: { obstacles?: 
   if (c.kart || c.crosses) markCrossings(segments);
   const kart = c.kart ? KART_INFO.get(c.id) : undefined;
   if (kart) layFx(segments, kart.fx);
+  if (kart) layClimb(segments, kart.climb);
   if (opts.obstacles === false) for (const s of segments) s.obstacles = [];
   const g = segments[0]!.entry;
   // the pit lane goes on the side of the start straight with no other road close beside it

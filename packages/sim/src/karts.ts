@@ -16,14 +16,18 @@ export type KartTheme = typeof KART_THEMES[number];
 /** A piece laid on part of a lap: where it starts and how long it is, as fractions of the lap, from the start line. */
 export interface KartFx { at: number; len: number; type: FxType; power?: number }
 
+/** A climb along a lap: from `at` for `len` (fractions of the lap) the road rises by `h` world units, eased (a negative `h` comes back down). The climbs of a lap add up to nothing. */
+export interface KartClimb { at: number; len: number; h: number }
+
 export interface KartShape {
   /** x, y, x, y, ... in game units round the loop, the first point on the start line (like circuitData.ts) */
   points: number[];
   fx?: KartFx[];
+  climb?: KartClimb[];
 }
 
 /** What a course says about its look and rules beyond its shape. */
-export interface KartInfo { theme: string; game: string; gameTitle: string; cup: string; laps: number; fx: KartFx[] }
+export interface KartInfo { theme: string; game: string; gameTitle: string; cup: string; laps: number; fx: KartFx[]; climb: KartClimb[] }
 
 /** The theme and rules of a kart circuit by id, for the track and the renderer. */
 export const KART_INFO = new Map<string, KartInfo>();
@@ -35,7 +39,7 @@ for (const r of KART_ROSTER) {
   if (!d) continue;
   let len = 0;
   for (let i = 0; i < d.points.length; i += 2) len += Math.hypot(d.points[(i + 2) % d.points.length]! - d.points[i]!, d.points[(i + 3) % d.points.length]! - d.points[i + 1]!);
-  KART_INFO.set(r.id, { theme: r.theme, game: r.game, gameTitle: r.gameTitle, cup: r.cup, laps: r.laps, fx: d.fx ?? [] });
+  KART_INFO.set(r.id, { theme: r.theme, game: r.game, gameTitle: r.gameTitle, cup: r.cup, laps: r.laps, fx: d.fx ?? [], climb: d.climb ?? [] });
   KART_CIRCUIT_LIST.push({
     id: r.id, name: r.name, lengthKm: Math.round((len * METRES_PER_UNIT) / 10) / 100, blurb: r.blurb, cols: 0, rows: 0, biome: r.biome, cells: [], start: 0,
     free: d.points, kart: true,

@@ -34,7 +34,8 @@ describe("airborne", () => {
     let flew = 0, top = 0;
     while (!r.over) { r.step(); const c = r.cars[0]!; if (c.air > 0) flew++; top = Math.max(top, c.atrace.at(-1)!); }
     expect(flew).toBeGreaterThan(10);
-    expect(top).toBeGreaterThan(0.9);
+    expect(top).toBeGreaterThan(0.25); // a kart at speed gets well off the ground...
+    expect(top).toBeLessThanOrEqual(0.7); // ...but not out of the picture
     expect(r.cars[0]!.air).toBe(0);
     const plain = solo(generateTrack("monza", { obstacles: false }));
     plain.runToEnd();

@@ -384,10 +384,6 @@ body.pad canvas { cursor: none; }
 .tilegrid.home6 { grid-template-columns: repeat(4, 1fr); grid-auto-rows: 138px; }
 .tilegrid.home6 .tile.xl { grid-column: span 2; grid-row: span 2; } .tilegrid.home6 .tile.w2 { grid-column: span 2; }
 .tilegrid.group { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 250px; } .tilegrid.group.two { grid-template-columns: repeat(2, 1fr); }
-.tilegrid.kart { grid-template-columns: repeat(4, 1fr); grid-auto-rows: 150px; } .tilegrid.kart.cups { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 130px; } .tilegrid.kart.courses { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 170px; }
-.tilegrid.kart .tile .art { width: 46%; opacity: 0.4; } .tilegrid.kart .tile .tstars { position: relative; font-style: normal; letter-spacing: 2px; color: #ffcf3f; font-size: 13px; } .tilegrid.kart .tile .sub { font-size: 11px; } .kartnote { font-size: 11px; margin: 10px 2px 0; }
-@media (max-width: 900px) { .tilegrid.kart, .tilegrid.kart.courses { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 112px; } .tilegrid.kart.cups { grid-template-columns: 1fr; grid-auto-rows: 96px; } }
-@media (max-height: 520px) and (min-width: 620px) { .tilegrid.kart, .tilegrid.kart.courses { grid-template-columns: repeat(4, 1fr); grid-auto-rows: 104px; } .tilegrid.kart.cups { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 84px; } .tilegrid.kart .tile .sub { display: none; } }
 .tile { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 2px; margin: 0; padding: 14px 18px; text-align: left; color: #fff; cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 0; -webkit-tap-highlight-color: transparent;
   background: linear-gradient(135deg, color-mix(in srgb, var(--c) 40%, transparent), rgba(10, 14, 26, 0.6) 80%), rgba(10, 14, 26, 0.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);

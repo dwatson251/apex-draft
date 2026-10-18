@@ -15,7 +15,7 @@ import { fit, length, measure, resample, smoothLoop, straighten, type Limits } f
  */
 /** A piece is placed either by two points in the picture (`p` to `q`: the nearest points on the road) or by a leg of the waypoint list (`leg`, `a`..`b` of it, to leg `to`). */
 interface FxSpec { /** the piece as fractions of the lap, from the start line */ at?: number; end?: number; p?: [number, number]; q?: [number, number]; leg?: number; to?: number; a?: number; b?: number; type: string; power?: number }
-interface Shape { pts: [number, number][]; len: number; fx?: FxSpec[]; notes?: string }
+interface Shape { pts: [number, number][]; len: number; fx?: FxSpec[]; /** where the road climbs (and comes down), placed like a piece, with the height `h` it gains */ climb?: (FxSpec & { h: number })[]; notes?: string }
 const here = (f: string) => new URL(f, import.meta.url);
 /** Looser than the real circuits (36 and 60): a kart takes a tighter turn, and the lap stays short enough to be a kart lap. */
 const LIMITS: Limits = { rMin: 26, gap: 56, near: 100 };
@@ -29,7 +29,7 @@ const only = process.argv.slice(2);
 const roster: { id: string }[] = JSON.parse(readFileSync(here("./roster.json"), "utf8"));
 const known = new Set(roster.map((r) => r.id));
 
-export interface Built { points: number[]; fx: { at: number; len: number; type: string; power?: number }[]; len: number; grew: number; report: string; ok: boolean }
+export interface Built { points: number[]; fx: { at: number; len: number; type: string; power?: number }[]; climb: { at: number; len: number; h: number }[]; len: number; grew: number; report: string; ok: boolean }
 
 /** Where the loop crosses itself: pairs of edge indices (k, m) whose segments intersect. */
 function crossingsOf(loop: Pt[]): [number, number][] {
@@ -105,13 +105,15 @@ function buildOnce(id: string, sh: Shape, passes: number): Built {
     }
     return at;
   };
-  const want = (sh.fx ?? []).map((f) => {
+  const span = (f: FxSpec): { at: number; end: number } => {
     let at: number, end: number;
     if (f.at !== undefined && f.end !== undefined) { at = f.at; end = f.end; }
     else if (f.p && f.q) { at = near(f.p[0], f.p[1]); end = near(f.q[0], f.q[1]); if (end < at) end += 1; if (end > 1) end = 1; }
     else { at = frac(f.leg!, f.a!); end = frac(f.to ?? f.leg!, f.b!); }
-    return { at, end, type: f.type, power: f.power };
-  });
+    return { at, end };
+  };
+  const want = (sh.fx ?? []).map((f) => ({ ...span(f), type: f.type, power: f.power }));
+  const climbs = (sh.climb ?? []).map((c) => ({ ...span(c), h: c.h }));
   let smooth = smoothLoop(resample(raw, 240), passes, 0.5);
   // The start line needs a straight run (the pit lane beside it) clear of any crossing: keep the author's start if it will do, else begin at the straightest such place.
   const N = smooth.length, W = 13;
@@ -132,7 +134,7 @@ function buildOnce(id: string, sh: Shape, passes: number): Built {
     const pick = dev.indexOf(bestDev);
     if (Number.isFinite(bestDev)) {
       smooth = [...smooth.slice(pick), ...smooth.slice(0, pick)];
-      for (const w of want) { w.at = (((w.at - pick / N) % 1) + 1) % 1; w.end = w.at + Math.min(0.2, Math.max(0.002, w.end - w.at)); }
+      for (const w of [...want, ...climbs]) { w.at = (((w.at - pick / N) % 1) + 1) % 1; w.end = w.at + Math.min(0.3, Math.max(0.002, w.end - w.at)); }
     }
   }
   // Scale it up until its own corners are wide enough (a tight corner at a small scale would be bent wide by `fit`, and the course with it) and the roads are
@@ -152,7 +154,7 @@ function buildOnce(id: string, sh: Shape, passes: number): Built {
     const r = measure(game, loop.map((p) => ({ x: p.x - minX + MARGIN, y: p.y - minY + MARGIN })), limits);
     const ok = r.minRadius >= limits.rMin * 0.9 && r.minGap >= limits.gap * 0.92;
     const flatPts = game.flatMap((p) => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]);
-    best = { points: flatPts, fx: placeFx(id, flatPts, want), len: Math.round(length(game)), grew, ok, report: `${Math.round(length(game))} units, R>=${report.minRadius.toFixed(0)} gap>=${report.minGap.toFixed(0)} drift mean ${r.meanDrift.toFixed(0)} max ${r.worstDrift.toFixed(0)}` };
+    best = { points: flatPts, fx: placeFx(id, flatPts, want), climb: climbs.map((c) => ({ at: Math.round(c.at * 10000) / 10000, len: Math.round((c.end - c.at) * 10000) / 10000, h: c.h })), len: Math.round(length(game)), grew, ok, report: `${Math.round(length(game))} units, R>=${report.minRadius.toFixed(0)} gap>=${report.minGap.toFixed(0)} drift mean ${r.meanDrift.toFixed(0)} max ${r.worstDrift.toFixed(0)}` };
     if (ok) break;
     len *= 1.05;
   }
@@ -174,7 +176,7 @@ export function buildShape(id: string, sh: Shape): Built & { smoothed: number } 
 {
   const dataFile = here("../../packages/sim/src/kartdata.ts");
   const text = readFileSync(dataFile, "utf8");
-  const out: Record<string, { points: number[]; fx?: Built["fx"] }> = {};
+  const out: Record<string, { points: number[]; fx?: Built["fx"]; climb?: Built["climb"] }> = {};
   let bad = 0;
   for (const [id, sh] of Object.entries(shapes)) {
     if (!known.has(id)) { console.log(`${id}: not in the roster`); bad++; continue; }
@@ -187,7 +189,7 @@ export function buildShape(id: string, sh: Shape): Built & { smoothed: number } 
     const b = buildShape(id, sh);
     console.log(`${b.ok ? "ok " : "BAD"} ${id.padEnd(28)} ${b.report}${b.grew ? ` (grown ${b.grew}x)` : ""}${b.smoothed > 5 ? ` (smoothed ${b.smoothed}x)` : ""}`);
     if (!b.ok) bad++;
-    out[id] = { points: b.points, ...(b.fx.length ? { fx: b.fx } : {}) };
+    out[id] = { points: b.points, ...(b.fx.length ? { fx: b.fx } : {}), ...(b.climb.length ? { climb: b.climb } : {}) };
   }
   // roster order, so the file does not depend on the order the shapes were written in
   const sorted: typeof out = {};

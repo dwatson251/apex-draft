@@ -6,7 +6,7 @@ import { Race, SIM_VERSION, botLine, defaultCar, generateTrack, placeFor, sessio
  * (physics, track generation, bots, cars, circuits) now gives different times, so bump SIM_VERSION in packages/sim/src/version.ts
  * and update GOLDEN. Times set under the old version stop being ranked, which is the point.
  */
-const GOLDEN = { version: 5, hash: "62ae7b54", time: 47.683 };
+const GOLDEN = { version: 6, hash: "62ae7b54", time: 47.683 };
 
 function fingerprint(phrase: string) {
   const t = generateTrack(phrase, { obstacles: false }), p = placeFor(phrase);

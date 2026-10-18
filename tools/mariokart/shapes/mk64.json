@@ -1600,36 +1600,92 @@
     760
    ],
    [
-    659,
-    812
+    653,
+    800
    ],
    [
-    698,
-    864
+    668,
+    830
    ],
    [
-    734,
-    903
+    720,
+    840
    ],
    [
-    725,
-    949
+    800,
+    842
    ],
    [
-    679,
-    971
+    900,
+    840
    ],
    [
-    627,
-    949
+    962,
+    823
    ],
    [
-    587,
-    890
+    1008,
+    777
    ],
    [
-    522,
-    884
+    1025,
+    715
+   ],
+   [
+    1008,
+    652
+   ],
+   [
+    962,
+    607
+   ],
+   [
+    900,
+    590
+   ],
+   [
+    837,
+    607
+   ],
+   [
+    792,
+    652
+   ],
+   [
+    775,
+    715
+   ],
+   [
+    775,
+    780
+   ],
+   [
+    775,
+    860
+   ],
+   [
+    773,
+    930
+   ],
+   [
+    745,
+    975
+   ],
+   [
+    690,
+    992
+   ],
+   [
+    620,
+    985
+   ],
+   [
+    560,
+    950
+   ],
+   [
+    510,
+    905
    ],
    [
     431,
@@ -1656,13 +1712,22 @@
     760
    ]
   ],
-  "len": 1800,
-  "notes": "hand-placed: left road, the thwomp carpets, the bridge and the rooms over the lava",
-  "fx": [
+  "len": 2100,
+  "notes": "hand-placed: left road, the thwomp carpets, the bridge and the rooms over the lava; then the real tower: a 270 degree counter-clockwise loop that climbs round it (it passes over the road it came in on, which is how the real course crosses itself), a gap jump, and the way back down (no gap jumps yet: the castle's bends leave no straight long enough for a ramp's landing)",
+  "climb": [
    {
-    "at": 0.31,
-    "end": 0.35000000000000003,
-    "type": "jump"
+    "leg": 33,
+    "a": 0.0,
+    "to": 44,
+    "b": 1.0,
+    "h": 10
+   },
+   {
+    "leg": 47,
+    "a": 0.0,
+    "to": 58,
+    "b": 0.0,
+    "h": -10
    }
   ]
  },

@@ -34,6 +34,14 @@ export const FX_GROUND: Partial<Record<FxType, FxInfo>> = {
 /** A speed pad: top speed and acceleration, a little like a boost power-up but short. */
 export const BOOST_FX_TOP = 1.2;
 export const BOOST_FX_ACCEL = 1.5;
+/**
+ * Driving onto a speed pad also kicks the car: it gains this fraction of its top speed at once (so a car already flat out goes past it),
+ * to at most PAD_CAP times top speed, and for PAD_TICKS afterwards (60 a second, fading out) it may run PAD_TOP above its top speed on a clear straight.
+ */
+export const PAD_KICK = 0.28;
+export const PAD_CAP = 1.32;
+export const PAD_TICKS = 54;
+export const PAD_TOP = 0.28;
 
 /** A car must be going at least this fraction of its top speed to leave the ground at a ramp; slower, it rides over as a bump. */
 export const JUMP_MIN_V = 0.45;
@@ -49,6 +57,18 @@ export const AIR_DRAG = 0.002;
 export const LAND_LOSS = 0.06;
 /** The straight road a jump needs after it, in seconds at top speed: the author-time check on a course (see checkFx in track.ts). */
 export const LANDING_SECS = AIR_MAX / 60;
+
+/**
+ * How high a jump looks, as a share of the full height the drawing allows. A flight rises as the square of its time in the air, so a hop at
+ * walking pace is low and one at full speed is higher; a glide spends its time going far rather than up. (Only the picture: the flight time is airTicks.)
+ */
+export const PEAK_MIN = 0.1;
+export const PEAK_MAX = 0.52;
+export function jumpPeak(type: FxType, v: number, vTop: number): number {
+  const t = Math.min(AIR_MAX, Math.max(AIR_MIN, AIR_BASE + (AIR_K * v) / Math.max(vTop, 1)));
+  const rise = PEAK_MIN + (PEAK_MAX - PEAK_MIN) * Math.min(1.25, (t / (AIR_BASE + AIR_K)) ** 2);
+  return type === "glide" ? rise * 0.7 : rise;
+}
 
 export const isRamp = (t: FxType): boolean => t === "jump" || t === "glide";
 

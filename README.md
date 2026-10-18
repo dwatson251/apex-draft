@@ -105,7 +105,7 @@ practise somewhere quiet and take the line into a race.
 | **Race Weekend** | **Practice** has no wear, with the others spread round the track. It ends when you say or after 10 minutes, and you can edit your line between runs. **Qualifier** is an out lap, three timed laps and a cool-down, and your best lap counts. Then the **Race** starts from the grid you qualified for. |
 | **Daily** | One track a day, the same for everyone, as a Time Trial in your own car. Your best, your streak and the online board for the day. |
 | **Championship** | Five races on linked tracks against the same rivals, with points for the places. Each round is a qualifier and a race. |
-| **Kart Tracks** | 165 Mario Kart courses from every game, in the Race group: pick a game, a cup and a course, then race it as any other track. Always starts on a kart, with ramps, speed pads and ice, sand, mud and water patches where the real course has them. Fan approximations: see below. |
+| **Secret tracks: Mario Kart courses** | 165 Mario Kart courses from every game. They are not in any menu: type a course's name (`luigi-raceway`, `mario-kart-stadium`, `mk64-rainbow-road` for a shared name) into the phrase box in race setup and race it as any other track. Always starts on a kart, with ramps, speed pads and ice, sand, mud and water patches where the real course has them. Fan approximations: see below. |
 | **Challenges** | Ten races with a goal, worth one to three stars each. |
 | **Tutorial** | A guided run on the oval: drawing, locking in segments, queuing a pit stop and editing in the pits. |
 

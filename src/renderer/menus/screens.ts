@@ -32,8 +32,7 @@ export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: st
     ? `${head("Race", "Rivals on the track")}<div class="tilegrid group">
         ${t({ id: "h-quick", art: "quick", colour: "#ff6a2b", title: "Quick Race", sub: "One race: rivals, tyres and fuel" })}
         ${t({ id: "h-weekend", art: "weekend", colour: "#e0409a", title: "Race Weekend", sub: "Practice, qualifier, race" })}
-        ${t({ id: "h-champ", art: "champ", colour: "#d6283f", title: "Championship", sub: o.champ })}
-        ${t({ id: "h-karts", art: "karts", colour: "#2f9bff", title: "Kart Tracks", sub: "Mario Kart courses, from every game" })}</div>`
+        ${t({ id: "h-champ", art: "champ", colour: "#d6283f", title: "Championship", sub: o.champ })}</div>`
     : `${head("Time Attack", "You, the track and the clock")}<div class="tilegrid group two">
         ${t({ id: "h-trial", art: "trial", colour: "#f2b705", title: "Solo Time Trial", sub: "Any track, as many tries as you like" })}
         ${t({ id: "h-daily", art: "daily", colour: "#14b8a6", title: "Daily", sub: o.daily })}</div>`;

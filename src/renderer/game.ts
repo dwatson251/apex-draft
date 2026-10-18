@@ -22,7 +22,6 @@ import {
   TACTIC_INFO, crossedPlace, firstDryLap, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
   type Challenge, type ChallengeStore, type Championship, type DailyRecord,
 } from "@apex/sim";
-import { kartCoursesHtml, kartCupsHtml, kartGamesHtml, kartCups, kartGames } from "./menus/karts.ts";
 import { DIFFICULTIES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
 import { copyText, dropdown, wireControls } from "./menus/controls.ts";
 import { challengesHtml, championshipHtml, difficultyHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
@@ -123,7 +122,7 @@ export class Game {
   private toastLayer: HTMLDivElement;
   /** the track has a rough surface somewhere, so the sound looks for one under the cars */
   private roughTrack = false;
-  private screen: "home" | "difficulty" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack" | "karts" | "kartgame" | "kartcup" = "home";
+  private screen: "home" | "difficulty" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack" = "home";
   private flow: Flow = "quick";
   private run: RunConfig = { flow: "quick", kind: "race", laps: 3, realism: false, rivals: 7, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty: "easy" };
   /** the weekend in progress, if any */
@@ -441,9 +440,7 @@ export class Game {
       if (this.inGame) { if (this.screen === "settings") { this.screen = "home"; this.renderMenu(); } else this.closeMenu(); }
       else if (this.screen === "garage") this.go(this.garageFrom);
       else if (this.screen === "setup") this.go(this.flow === "trial" ? "attack" : "difficulty");
-      else if (this.screen === "difficulty" || this.screen === "championship" || this.screen === "karts") this.go("race");
-      else if (this.screen === "kartgame") this.go("karts");
-      else if (this.screen === "kartcup") this.go("kartgame");
+      else if (this.screen === "difficulty" || this.screen === "championship") this.go("race");
       else if (this.screen !== "home") this.go("home");
     } else if (this.inGame) { this.screen = "home"; this.openMenu(); }
   }
@@ -540,11 +537,10 @@ export class Game {
     else if (this.screen === "challenges") this.renderChallenges();
     else if (this.screen === "championship") this.renderChampionship();
     else if (this.screen === "race" || this.screen === "attack") this.renderGroup(this.screen);
-    else if (this.screen === "karts" || this.screen === "kartgame" || this.screen === "kartcup") this.renderKarts();
     else this.renderHome();
   }
 
-  private go(screen: "home" | "difficulty" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack" | "karts" | "kartgame" | "kartcup"): void {
+  private go(screen: "home" | "difficulty" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack"): void {
     this.screen = screen;
     this.note = "";
     this.renderMenu();
@@ -582,22 +578,8 @@ export class Game {
     this.on(el, "#h-quick", () => this.openDifficulty("quick"));
     this.on(el, "#h-weekend", () => this.openDifficulty("weekend"));
     this.on(el, "#h-champ", () => this.go("championship"));
-    this.on(el, "#h-karts", () => this.go("karts"));
     this.on(el, "#h-trial", () => this.openSetup("trial"));
     this.on(el, "#h-daily", () => this.startDaily());
-  }
-
-  /** The Kart Tracks browser: games, then the cups of a game, then its courses. A course sets the phrase and goes on to the usual difficulty step. */
-  private kartGame = "";
-  private kartCup = 0;
-  private renderKarts(): void {
-    const s = this.screen;
-    const html = s === "karts" ? kartGamesHtml() : s === "kartgame" ? kartCupsHtml(this.kartGame) : kartCoursesHtml(this.kartGame, this.kartCup, (id) => starsFor(this.records, recordKey(id, "kart")));
-    const el = this.menuPanel(html, "tiles");
-    this.on(el, "#back", () => this.toggleMenu());
-    if (s === "karts") for (const g of kartGames()) this.on(el, `#kg-${g.game}`, () => { this.kartGame = g.game; this.go("kartgame"); });
-    else if (s === "kartgame") kartCups(this.kartGame).forEach((_, i) => this.on(el, `#kc-${i}`, () => { this.kartCup = i; this.go("kartcup"); }));
-    else for (const r of kartCups(this.kartGame)[this.kartCup]?.rows ?? []) this.on(el, `#kr-${r.id}`, () => { this.settings.phrase = r.id; this.persist(); this.openDifficulty("quick"); });
   }
 
   private openDifficulty(flow: Flow): void {
@@ -609,7 +591,7 @@ export class Game {
   private renderDifficulty(): void {
     const s = this.settings;
     const el = this.menuPanel(difficultyHtml({ flow: this.flow, current: s.difficulty, locks: Object.fromEntries(DIFFICULTIES.map((d) => [d, isUnlocked(d, this.records) ? "" : lockReason(d)])) as Record<Difficulty, string> }), "tiles");
-    this.on(el, "#back", () => this.go(this.kartGame && circuitFor(normalizePhrase(this.settings.phrase))?.kart ? "kartcup" : "race"));
+    this.on(el, "#back", () => this.go("race"));
     for (const d of DIFFICULTIES) {
       const b = el.querySelector<HTMLButtonElement>(`#d-${d}`)!;
       if (isUnlocked(d, this.records)) this.on(el, `#d-${d}`, () => { s.difficulty = d; this.openSetup(this.flow); });

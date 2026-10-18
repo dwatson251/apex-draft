@@ -1,3 +1,4 @@
+import { BEAM_CAR_HALF, BEAM_CAR_LEN, beamBlock } from "./beams.ts";
 import { Application, Container, Graphics, Rectangle, RenderTexture, Sprite } from "pixi.js";
 import { themeNight } from "./look.ts";
 import { CELL, VEHICLES, halfIdx, isNight, WET_LAT, WET_LONG, trackBounds, type Track, type Vec2, type VehicleId } from "@apex/sim";
@@ -323,12 +324,32 @@ export class WorldView {
       if (!c.root.visible) continue;
       const h = c.body.rotation, fx = Math.cos(h), fy = Math.sin(h), px = -fy, py = fx;
       const x = c.root.x + fx * 4, y = c.root.y + fy * 4;
+      // A car ahead in the beam is in the way: the light stops at its tail (a glow on the tail, not the whole body lit up) and only a faint
+      // spill reaches the road beyond it, past its sides.
+      const hit = beamBlock(c, this.cars.values(), x, y, fx, fy, px, py);
+      const limit = hit ? hit.d : Infinity;
       for (const [len, spread, a] of [[40, 11, 0.07], [30, 7, 0.09], [20, 4, 0.12]] as const) {
-        g.poly([x + px * 1.4, y + py * 1.4, x + fx * len + px * spread, y + fy * len + py * spread, x + fx * len - px * spread, y + fy * len - py * spread, x - px * 1.4, y - py * 1.4]).fill({ color: 0xfff1c0, alpha: a });
+        const e = Math.min(len, limit), s = spread * (e / len);
+        g.poly([x + px * 1.4, y + py * 1.4, x + fx * e + px * s, y + fy * e + py * s, x + fx * e - px * s, y + fy * e - py * s, x - px * 1.4, y - py * 1.4]).fill({ color: 0xfff1c0, alpha: a });
+        // beyond the car: the light that gets past its sides, well dimmed (nothing lands on the car itself)
+        const from = limit + BEAM_CAR_LEN;
+        if (hit && from < len) {
+          const reach = (d: number) => spread * (d / len);
+          const P = (d: number, l: number): [number, number] => [x + fx * d + px * l, y + fy * d + py * l];
+          const side = (sgn: 1 | -1) => {
+            const ext = (d: number): [number, number] => sgn > 0 ? [Math.max(hit.lat + BEAM_CAR_HALF, -reach(d)), reach(d)] : [-reach(d), Math.min(hit.lat - BEAM_CAR_HALF, reach(d))];
+            const [a0, b0] = ext(from), [a1, b1] = ext(len);
+            if (a0 >= b0 || a1 >= b1) return;
+            g.poly([...P(from, a0), ...P(from, b0), ...P(len, b1), ...P(len, a1)]).fill({ color: 0xfff1c0, alpha: a * 0.3 });
+          };
+          side(1); side(-1);
+        }
       }
       g.circle(x, y, 7).fill({ color: 0xfff1c0, alpha: 0.12 });
+      if (hit) g.circle(x + fx * hit.d, y + fy * hit.d, 3.2).fill({ color: 0xfff1c0, alpha: 0.1 });
     }
   }
+
 
   // ---------- the course ----------
   private clearTrack(): void {

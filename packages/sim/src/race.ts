@@ -12,7 +12,7 @@ import { WetField } from "./trackwet.ts";
 import type { Line } from "./line.ts";
 import { PIT_BAYS, PIT_BAY_GAP, pitPenalty, pitStopTime } from "./pit.ts";
 import { buildProfile, indexAt, sampleAt, type Profile } from "./profile.ts";
-import { AIR_DRAG, JUMP_MIN_V, LAND_LOSS, AIR_MAX, airTicks } from "./fx.ts";
+import { AIR_DRAG, JUMP_MIN_V, LAND_LOSS, AIR_MAX, PAD_CAP, PAD_KICK, PAD_TICKS, PAD_TOP, airTicks, jumpPeak } from "./fx.ts";
 import { levelsOf, nearbySegments, trackLength, CELL, CAR_R, ROAD_HALF, type Track } from "./track.ts";
 
 export const TICK = 1 / 60;
@@ -260,7 +260,7 @@ export interface PitStop { lap: number; tyre?: Compound; /** how to drive the st
 /** The most stops that can be queued at once (stops already made do not count). */
 export const MAX_PIT_STOPS = 5;
 
-export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump" | "spin" | "rain";
+export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump" | "spin" | "rain" | "pad";
 export interface RaceEvent {
   tick: number;
   id: string;
@@ -371,6 +371,9 @@ export interface RaceCar {
   /** ticks left in the air after a ramp (0 on the ground), and how long the flight is in all */
   air: number;
   airT: number;
+  /** how high the current jump looks, 0 to 1 (a slow hop is low), and ticks left of a speed pad's extra push */
+  peak: number;
+  pad: number;
   /** fuel left, tank units, at every tick */
   ftrace: number[];
   /** tyre health 0 to 1 at every tick */
@@ -560,7 +563,7 @@ export class Race {
       const c: RaceCar = {
         entrant: e, slot, lap: slot === 0 ? 0 : -1,
         s: sNew, gridOff: at.off, v: spread ? 40 : 0, x: 0, y: 0, h: 0,
-        ghost: false, stuck: 0, air: 0, airT: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
+        ghost: false, stuck: 0, air: 0, airT: 0, peak: 0, pad: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
         trace: [], prog: [], vtrace: [], gtrace: [], ltrace: [], atrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
@@ -761,7 +764,7 @@ export class Race {
       c.vtrace.push(Math.round(c.v * 10) / 10);
       c.gtrace.push(c.ghost ? 1 : 0);
       c.ltrace.push(this.levelOf(c));
-      c.atrace.push(c.air > 0 ? Math.round(Math.sin(Math.PI * (1 - c.air / c.airT)) * 100) / 100 : 0);
+      c.atrace.push(c.air > 0 ? Math.round(Math.sin(Math.PI * (1 - c.air / c.airT)) * c.peak * 100) / 100 : 0);
       // (in the box the gauges show the stop as it happens, not the jump at the end of it)
       const shown = this.stopShown(c);
       c.ftrace.push(Math.round(shown.fuel * 10) / 10);
@@ -1273,7 +1276,27 @@ export class Race {
       if (!p.jump[k] || p.lane[k]) continue;
       const vTop = this.stats(c).vTop;
       if (c.v < JUMP_MIN_V * vTop) return;
-      c.air = c.airT = airTicks(p.jump[k] === 2 ? "glide" : "jump", c.v, vTop, p.jumpPower[k]);
+      const type = p.jump[k] === 2 ? "glide" : "jump";
+      c.air = c.airT = airTicks(type, c.v, vTop, p.jumpPower[k]);
+      c.peak = jumpPeak(type, c.v, vTop);
+      return;
+    }
+  }
+
+  /** Speed pads. Driving onto one kicks the car forward at once and gives it a short extra push (see PAD_KICK). A car in the air or in recovery rides over it. */
+  private pads(c: RaceCar, sBefore: number): void {
+    if (c.pad > 0) c.pad--;
+    const p = c.prof;
+    if (c.air > 0 || c.rec || c.ghost || c.finishTime !== null || c.dwell > 0 || c.s <= sBefore) return;
+    const i0 = Math.floor(sBefore / p.ds) + 1, i1 = Math.floor(c.s / p.ds);
+    for (let i = i0; i <= i1 && i0 <= i1; i++) {
+      const k = i % p.n;
+      const power = p.kick[k]!;
+      if (!power) continue;
+      const vTop = this.stats(c).vTop;
+      c.v = Math.max(c.v, Math.min(c.v + PAD_KICK * vTop * power, PAD_CAP * vTop));
+      c.pad = PAD_TICKS;
+      this.events.push({ tick: this.tick, id: c.entrant.id, type: "pad", x: c.x, y: c.y });
       return;
     }
   }
@@ -1405,6 +1428,8 @@ export class Race {
       // in a slipstream: a little more top speed (only where the car is at its top speed, not in a bend) and quicker acceleration
       const dr = this.draft(c, racing);
       if (dr > 0 && target >= st.vTop * 0.97) target *= 1 + DRAFT_TOP * dr;
+      // just off a speed pad: some extra top speed that fades out, where the car is flat out and not in a bend
+      if (c.pad > 0 && target >= st.vTop * 0.97) target *= 1 + PAD_TOP * (c.pad / PAD_TICKS);
       // ... and in a bend the same air is churned: the less the road is straight, the more the car behind loses
       else if (dr > 0) {
         const demand = (sampleAt(p, p.kap, c.s) * c.v * c.v) / cornerCap(c.entrant.car.type, st.aLat, c.v);
@@ -1464,6 +1489,7 @@ export class Race {
       const sBefore = c.s;
       c.s = n.s;
       this.flight(c, sBefore);
+      this.pads(c, sBefore);
       if (c.gridOff !== 0 && moved > 0) c.gridOff = Math.abs(c.gridOff) < 0.01 ? 0 : c.gridOff * Math.exp(-moved / 30);
       if (this.rules.realism && moved > 0) {
         const p = c.prof;

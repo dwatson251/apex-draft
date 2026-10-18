@@ -42,6 +42,8 @@ export interface Profile {
   /** 1 at the sample where a ramp launches a car, with the ramp's power in `jumpPower`; 0 elsewhere (a lap with no ramp has none of this) */
   jump: Uint8Array;
   jumpPower: Float64Array;
+  /** the pad's power at the first sample of each speed pad (a car driving onto it is kicked forward); 0 elsewhere */
+  kick: Float64Array;
   /** time for a flying lap on this line, seconds */
   ideal: number;
   /** powerup segments whose pickup the line drives through */
@@ -185,7 +187,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   }
 
   // ramps, speed pads and patches of ice, sand, mud and water on part of a segment
-  const jump = new Uint8Array(n), jumpPower = new Float64Array(n);
+  const jump = new Uint8Array(n), jumpPower = new Float64Array(n), kick = new Float64Array(n);
   if (track.allSegments.some((g) => g.fx)) {
     const veh = vehicleOf(car.type);
     const ability = Math.max(veh.terrain, q.rough ?? 0);
@@ -199,6 +201,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
       const t = (i - f0) / (f1 - f0);
       for (const fx of g.fx) {
         if (t < fx.t0 || t > fx.t1) continue;
+        if (fx.type === "boost" && (i === f0 || (i - 1 - f0) / (f1 - f0) < fx.t0)) kick[i] = Math.max(kick[i]!, fx.power ?? 1);
         if (fx.type === "boost") { topMul[i] = topMul[i]! * (1 + (BOOST_FX_TOP - 1) * (fx.power ?? 1)); accelMul[i] = accelMul[i]! * (1 + (BOOST_FX_ACCEL - 1) * (fx.power ?? 1)); }
         else if (isRamp(fx.type)) {
           // the car leaves the ground at the end of the ramp: the last sample inside the span
@@ -283,7 +286,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   for (let k = 0; k < n; k++) ideal += ds / Math.max((v[k]! + v[(k + 1) % n]!) / 2, 1);
   let pitFromS: number | undefined;
   if (pitIn) for (let i = 0; i < n; i++) if (lane[i] && i > n / 2) { pitFromS = i * ds; break; }
-  return { n, ds, length: total, x, y, h, seg, half, canon, vLim, accelMul, brakeMul, gripMul, ghost, jump, jumpPower, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
+  return { n, ds, length: total, x, y, h, seg, half, canon, vLim, accelMul, brakeMul, gripMul, ghost, jump, jumpPower, kick, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
 }
 
 /** Linear lookup into a per-sample array at arclength s (wrapping, unless the lap is open: then it stops at the ends). */
