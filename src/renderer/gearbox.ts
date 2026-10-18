@@ -75,6 +75,10 @@ export const GEARS: Record<string, GearSet> = {
   touring: { hi: [0.38, 0.5, 0.62, 0.75, 0.88, 1], idle: 0.26, gap: 0.1, up: 0.97, down: 0.5 },
   // 6-speed sequential, revved out
   prototype: { hi: [0.37, 0.49, 0.62, 0.75, 0.88, 1], idle: 0.28, gap: 0.08, up: 0.98, down: 0.5 },
+  // 7-speed sequential, quick and revved out
+  hypercar: { hi: [0.35, 0.45, 0.56, 0.67, 0.78, 0.89, 1], idle: 0.27, gap: 0.07, up: 0.98, down: 0.5 },
+  // a 4-speed H-pattern or sequential box, long gears and a slow shift
+  stock: { hi: [0.38, 0.58, 0.78, 1], idle: 0.24, gap: 0.22, up: 0.96 },
   // 6-speed sequential paddle shift
   gt3: { hi: [0.36, 0.48, 0.61, 0.74, 0.87, 1], idle: 0.25, gap: 0.12, up: 0.97, down: 0.5 },
   // 6-speed sequential, slower shifts

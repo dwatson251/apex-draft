@@ -78,7 +78,7 @@ const svgCache = new Map<string, string>();
 const BIOME_SKIN: Record<string, { ground: string; road: string; edge: string }> = {
   grass: { ground: "#4c7f45", road: "#3c404c", edge: "#d8d8d0" }, desert: { ground: "#c9a35e", road: "#4a4038", edge: "#efe2c0" },
   snow: { ground: "#dbe6f2", road: "#4b5160", edge: "#ffffff" }, city: { ground: "#6d7380", road: "#33363f", edge: "#d6d6d0" },
-  moon: { ground: "#8a8a92", road: "#50505a", edge: "#c8c8d0" }, water: { ground: "#2f78b7", road: "#4a5060", edge: "#e8f1fa" },
+  moon: { ground: "#8a8a92", road: "#50505a", edge: "#c8c8d0" }, alpine: { ground: "#3a6a4a", road: "#3a3e48", edge: "#dcdcd4" }, coast: { ground: "#d3c58e", road: "#42454f", edge: "#f0ead2" }, water: { ground: "#2f78b7", road: "#4a5060", edge: "#e8f1fa" },
 };
 
 export function trackSvg(track: Track): string {

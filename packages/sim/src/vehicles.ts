@@ -3,7 +3,7 @@ import { KART_ROSTER } from "./kartroster.ts";
 
 export type VehicleId = "kart" | "formula" | "rally" | "muscle" | "truck" | "tank"
   | "superbike" | "buggy" | "electric" | "dragster"
-  | "touring" | "prototype" | "gt3" | "gt4"
+  | "touring" | "prototype" | "gt3" | "gt4" | "hypercar" | "stock"
   | "jetski" | "speedboat" | "hovercraft" | "airboat";
 
 /** Land machines grip the road; water machines slide on it. */
@@ -21,7 +21,8 @@ export type Domain = "land" | "water";
  * electric 190/1.4/1.2/1.3/6°, dragster 335/4.0/0.6/1.0/7°, sit-down PWC (Sea-Doo RXP-X) 67/0.75/0.8/0.4/25°, offshore powerboat 120/0.55/0.5/0.3/12°,
  * racing hovercraft 70/0.7/0.25/0.2/40°, racing airboat 70/0.45/0.3/0.2/30°.
  * Racing classes: touring (BTCC/TCR) 160/0.7/1.5/1.5/8°, prototype (LMP2/DPi) 205/1.1/3.0/3.0/5°,
- * GT3 190/0.85/1.9/1.9/7°, GT4 155/0.65/1.4/1.4/9°. The formula car is the F1 car.
+ * GT3 190/0.85/1.9/1.9/7°, GT4 155/0.65/1.4/1.4/9°, hypercar (Group C, LMH/LMDh, GT7 Gr.1) 225/1.15/3.3/3.3/5°,
+ * stock car (NASCAR, V8 Supercar) 190/0.8/1.6/1.7/10°. The formula car is the F1 car.
  */
 export interface Vehicle {
   id: VehicleId;
@@ -75,6 +76,8 @@ export const VEHICLES: Record<VehicleId, Vehicle> = {
   prototype: { id: "prototype", mass: 0.75, name: "Prototype", plural: "prototypes", blurb: "An endurance prototype: low, wide and glued down by its downforce. Quick everywhere, hard on fuel.", accel: 0.998, top: 0.911, grip: 1.749, brake: 1.531, wear: 1.2, fuel: 1.4, length: 9.6, width: 3.8, pitch: 1.4, buzz: 0.5, weight: 10, domain: "land", slip: 0.15, terrain: 0, pitSecs: 45, slipDeg: 5, launch: 0 },
   gt3: { id: "gt3", mass: 1.1, name: "GT3 car", plural: "GT3 cars", blurb: "A road-car shape in race trim: strong brakes, lots of grip and a big wing. The sports-car class everyone races.", accel: 0.812, top: 0.844, grip: 1.167, brake: 1.021, wear: 1.2, fuel: 1.1, length: 8.6, width: 3.6, pitch: 0.9, buzz: 0.4, weight: 10, domain: "land", slip: 0.3, terrain: 0, pitSecs: 40, slipDeg: 7, launch: 0 },
   gt4: { id: "gt4", mass: 1.05, name: "GT4 car", plural: "GT4 cars", blurb: "The entry-level sports car: a mildly tuned road car with a small wing. Forgiving, cheap to run, and easy to slide.", accel: 0.685, top: 0.689, grip: 0.948, brake: 0.829, wear: 0.9, fuel: 0.9, length: 9, width: 3.4, pitch: 0.85, buzz: 0.35, weight: 10, domain: "land", slip: 0.4, terrain: 0, pitSecs: 40, slipDeg: 9, launch: 0 },
+  hypercar: { id: "hypercar", mass: 0.8, name: "Hypercar", plural: "hypercars", blurb: "A Le Mans hypercar: a hybrid prototype with more power and more downforce than the class below it. The fastest thing on a long straight that still turns.", accel: 1.043, top: 1, grip: 1.924, brake: 1.683, wear: 1.3, fuel: 1.5, length: 9.8, width: 3.8, pitch: 1.5, buzz: 0.5, weight: 8, domain: "land", slip: 0.15, terrain: 0, pitSecs: 45, slipDeg: 5, launch: 0 },
+  stock: { id: "stock", mass: 1.35, name: "Stock car", plural: "stock cars", blurb: "A heavy V8 saloon built to be raced door to door: strong, loose at the limit, hard on its tyres and thirsty.", accel: 0.741, top: 0.844, grip: 0.953, brake: 0.886, wear: 1.3, fuel: 1.4, length: 9, width: 3.7, pitch: 0.75, buzz: 0.3, weight: 8, domain: "land", slip: 0.5, terrain: 0, pitSecs: 14, slipDeg: 10, launch: 0 },
   jetski: { id: "jetski", mass: 0.3, name: "Jet ski", plural: "jet skis", blurb: "Tiny and twitchy. It slides wide in every corner and snaps back.", accel: 0.731, top: 0.298, grip: 0.502, brake: 0.219, wear: 0, fuel: 0.7, length: 6, width: 2.4, pitch: 1.5, buzz: 0.8, weight: 20, domain: "water", slip: 0.8, terrain: 1, pitSecs: 25, slipDeg: 25, launch: 0 },
   speedboat: { id: "speedboat", mass: 0.8, name: "Speedboat", plural: "speedboats", blurb: "A balanced hull. Fast in a straight, and it drifts when you carry speed into a turn.", accel: 0.536, top: 0.533, grip: 0.313, brake: 0.165, wear: 0, fuel: 1.1, length: 12, width: 4.4, pitch: 0.8, buzz: 0.3, weight: 25, domain: "water", slip: 0.55, terrain: 1, pitSecs: 60, slipDeg: 12, launch: 0 },
   hovercraft: { id: "hovercraft", mass: 1, name: "Hovercraft", plural: "hovercraft", blurb: "Rides a cushion of air, so nothing grips and everything slides. Huge drifts, slow recovery.", accel: 0.683, top: 0.311, grip: 0.157, brake: 0.11, wear: 0, fuel: 1, length: 9, width: 5, pitch: 0.6, buzz: 0.2, weight: 15, domain: "water", slip: 1, terrain: 1, pitSecs: 30, slipDeg: 40, launch: 0 },
@@ -104,10 +107,10 @@ export const CIRCUIT_VEHICLES: Record<string, VehicleId> = {
   "lago-maggiore": "gt4", "willow-springs": "gt4",
   "silverstone": "formula", "monza": "formula", "circuit-de-barcelona-catalunya": "formula", "monaco": "formula",
   "suzuka": "formula", "interlagos": "formula", "gilles-villeneuve": "formula", "fuji": "gt3", "imola": "formula", "zandvoort": "formula", "cota": "formula", "red-bull-ring": "formula", "hungaroring": "formula",
-  "brands-hatch": "gt3", "mugello": "gt3", "paul-ricard": "gt3", "road-america": "gt3",
-  "nurburgring-gp": "gt3", "nurburgring-sprint": "gt3", "nurburgring-nordschleife": "gt3",
+  "brands-hatch": "gt3", "mugello": "gt3", "paul-ricard": "gt3", "road-america": "stock",
+  "nurburgring-gp": "gt3", "nurburgring-sprint": "gt3", "nurburgring-nordschleife": "hypercar",
   "sebring": "prototype",
-  "trial-mountain": "gt3", "high-speed-ring": "gt3", "dragon-trail": "gt3",
+  "trial-mountain": "gt3", "high-speed-ring": "hypercar", "dragon-trail": "gt3",
 };
 
 /** The Mario Kart courses (kartroster.ts): they race karts, whatever else is offered beside them. */
@@ -125,7 +128,7 @@ export function vehicleForSeed(seed: number, domain: Domain = "land"): VehicleId
 }
 
 /** The tarmac race cars a real circuit may be raced with, besides the one it is known for. */
-export const RACING_CLASSES: readonly VehicleId[] = ["touring", "gt3", "gt4", "prototype", "formula"];
+export const RACING_CLASSES: readonly VehicleId[] = ["touring", "gt3", "gt4", "prototype", "formula", "hypercar", "stock"];
 
 /** The most machines a track offers. */
 export const MAX_CHOICES = 4;

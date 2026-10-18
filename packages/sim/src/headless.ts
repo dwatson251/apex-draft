@@ -8,7 +8,7 @@ import { Rng } from "./rng.ts";
 import { normalizePhrase } from "./seed.ts";
 import { sessionBest, sessionLaps, sessionRules, type SessionOptions } from "./session.ts";
 import { isCompound, type Compound } from "./tyres.ts";
-import { generateTrack, placeFor, type Track } from "./track.ts";
+import { generateTrack, placeFor, trackLength, type Track } from "./track.ts";
 import { isVehicleId, type VehicleId } from "./vehicles.ts";
 
 /**
@@ -20,7 +20,8 @@ const RIVAL_NAMES = ["Nova", "Kestrel", "Dash", "Pebble", "Orbit", "Rook", "Embe
 
 // ---------- tracks ----------
 const cache = new Map<string, Track>();
-const CACHE_MAX = 64;
+/** Every circuit, kart course and a few hundred random tracks a day pass through here: sixty-four was one cache's worth when there were a dozen circuits. */
+const CACHE_MAX = 256;
 
 /** A track as the game plays it (no obstacles), built once and kept: building one costs 10 to 110 ms, running a lap about 50. Never mutate it. */
 export function cachedTrack(phrase: string): Track {
@@ -141,6 +142,10 @@ export interface Standing { id: string; name: string; isPlayer: boolean; ghost: 
 export type RaceOutcome = { ok: true; phrase: string; vehicle: VehicleId; standings: Standing[]; player: Standing } | { ok: false; error: string };
 
 export const MAX_RACE_LAPS = 50;
+/** The most race distance (units) a race run for the server may cover: a lap of the Nordschleife is 18 thousand, so it allows 16 laps of it, and 50 of anything up to six thousand. */
+export const MAX_RACE_UNITS = 300_000;
+/** The most laps the server will run on this track. */
+export const maxLapsFor = (t: Track): number => Math.max(1, Math.min(MAX_RACE_LAPS, Math.floor(MAX_RACE_UNITS / trackLength(t))));
 export const MAX_RACE_RIVALS = 31;
 
 /** Run a race to the end with the player's lines against recorded ghosts and bots. */
@@ -155,6 +160,7 @@ export function runRace(i: RaceInput): RaceOutcome {
   if (!Number.isInteger(i.rivals) || i.rivals < 1 || i.rivals > MAX_RACE_RIVALS) return { ok: false, error: "bad rival count" };
   if (!i.lines.length || i.lapLine.length !== i.laps || !i.lapLine.every((k) => Number.isInteger(k) && k >= 0 && k < i.lines.length)) return { ok: false, error: "bad lap lines" };
   const track = cachedTrack(phrase);
+  if (i.laps > maxLapsFor(track)) return { ok: false, error: `at most ${maxLapsFor(track)} laps on this track` };
   for (const l of i.lines) {
     if (!isComplete(track, l)) return { ok: false, error: "a line does not go all the way round" };
     if (!validateLine(track, l).ok) return { ok: false, error: "a line leaves the road" };

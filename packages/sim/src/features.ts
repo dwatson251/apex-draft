@@ -61,7 +61,7 @@ export function checkFx(t: Track): string[] {
 export const FUN_PIECES = { jumps: [0, 1, 1, 2, 3], boosts: [0, 1, 1, 2], glide: 0.2, patch: 0.65 } as const;
 
 /** The patch of ground a biome gets on a fun track, if any. */
-const PATCH: Partial<Record<BiomeId, FxType[]>> = { snow: ["ice"], desert: ["sand"], grass: ["mud", "water"], city: ["water"], moon: ["sand"] };
+const PATCH: Partial<Record<BiomeId, FxType[]>> = { snow: ["ice"], desert: ["sand"], grass: ["mud", "water"], city: ["water"], moon: ["sand"], alpine: ["mud", "water"], coast: ["sand", "water"] };
 
 const FUN_SALT = 0x6b61727d;
 

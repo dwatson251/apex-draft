@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { gzipSync } from "node:zlib";
-import { dailyDate, dailyPhrase, isDateKey, withinDays, MAX_RACE_LAPS, MAX_RACE_RIVALS, SIM_VERSION, circuitFor, defaultName, isComplete, isVehicleId, normalizePhrase, placeFor, sanitiseName, validateLine, cachedTrack, type Line, type TrialResult } from "@apex/sim";
+import { dailyDate, dailyPhrase, isDateKey, withinDays, MAX_RACE_LAPS, MAX_RACE_RIVALS, SIM_VERSION, circuitFor, defaultName, isComplete, isVehicleId, maxLapsFor, normalizePhrase, placeFor, sanitiseName, validateLine, cachedTrack, type Line, type TrialResult } from "@apex/sim";
 import { Db, type EntryRow, type TrackInfo } from "./db.ts";
 import { pickAround } from "./ghosts.ts";
 import type { Runner } from "./pool.ts";
@@ -165,6 +165,7 @@ export function createApp(cfg: AppConfig): Server {
       const t = trackInfo(b["phrase"]);
       if (!placeFor(t.key).choices.includes(b["vehicle"])) throw new HttpError(422, "that machine is not available on this track");
       const track = cachedTrack(t.key);
+      if ((laps as number) > maxLapsFor(track)) throw new HttpError(400, `at most ${maxLapsFor(track)} laps on this track`);
       for (const l of parsed.lines) if (!isComplete(track, l) || !validateLine(track, l).ok) throw new HttpError(422, "a line does not go all the way round or leaves the road");
       const id = db.addResult(me.id, t.key, kind, b["vehicle"], {
         car: b["car"], lines: b["lines"], lapLine, laps, rivals, realism: !!b["realism"], wearFuel: b["wearFuel"], wearTyre: b["wearTyre"], mandatory: b["mandatory"],

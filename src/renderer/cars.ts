@@ -243,6 +243,30 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
       g.rect(-hl * 0.2, -hw * 0.06, hl * 0.9, hw * 0.12).fill({ color: 0xffffff, alpha: 0.5 }); // stripe
       break;
     }
+    case "hypercar": { // Le Mans hypercar (Toyota GR010 / Ferrari 499P class: 5.0 x 2.07 m): covered wheels, long tail, a roof canopy and a tall shark fin, no big rear wing
+      g.roundRect(hl * 0.46, -hw * 1.0, hl * 0.42, hw * 0.44, 1).fill(shade(color, 0.8)).stroke(ring); // front wheel pods
+      g.roundRect(hl * 0.46, hw * 0.56, hl * 0.42, hw * 0.44, 1).fill(shade(color, 0.8)).stroke(ring);
+      g.roundRect(-hl * 0.9, -hw * 1.0, hl * 0.66, hw * 0.5, 1.4).fill(shade(color, 0.8)).stroke(ring); // rear wheel pods
+      g.roundRect(-hl * 0.9, hw * 0.5, hl * 0.66, hw * 0.5, 1.4).fill(shade(color, 0.8)).stroke(ring);
+      hull([[1, 0.16], [0.88, 0.38], [0.58, 0.52], [0.2, 0.56], [-0.2, 0.6], [-0.65, 0.48], [-0.95, 0.3], [-1, 0.18]]); // tub
+      glass([[0.3, 0.32], [0.16, 0.42], [-0.12, 0.42], [-0.3, 0.28], [-0.3, -0.28], [-0.12, -0.42], [0.16, -0.42], [0.3, -0.32]]); // canopy
+      g.rect(-hl * 0.92, -0.3, hl * 0.82, 0.6).fill(shade(color, 0.55)); // spine and fin
+      g.rect(hl * 0.96, -hw * 0.92, hl * 0.06, hw * 1.84).fill(DARK); // splitter
+      g.rect(-hl * 1.0, -hw * 0.9, hl * 0.09, hw * 1.8).fill(shade(color, 0.5)).stroke({ width: 0.3, color: DARK }); // slim rear wing
+      break;
+    }
+    case "stock": { // V8 stock car / Supercar (Camaro or Mustang body: 4.9 x 1.95 m): slab sides, a low roof and a small deck wing
+      tyres(0.6, -0.56, 0.93, 0.3, 0.32);
+      hull([[1, 0.52], [0.97, 0.78], [0.86, 0.9], [0.5, 0.92], [0.1, 0.92], [-0.45, 0.93], [-0.88, 0.9], [-0.98, 0.76], [-1, 0.5]]);
+      glass([[0.3, 0.6], [0.12, 0.72], [-0.34, 0.72], [-0.58, 0.58], [-0.58, -0.58], [-0.34, -0.72], [0.12, -0.72], [0.3, -0.6]]);
+      body2([[0.0, 0.52], [-0.34, 0.52], [-0.34, -0.52], [0.0, -0.52]], shade(color, 1.1)); // roof
+      mirrors(0.2, 0.9);
+      line([[0.95, 0.3], [0.32, 0.36]], 0.5, shade(color, 0.7)); line([[0.95, -0.3], [0.32, -0.36]], 0.5, shade(color, 0.7)); // bonnet creases
+      g.rect(hl * 0.98, -hw * 0.82, hl * 0.04, hw * 1.64).fill(DARK); // front splitter
+      g.rect(-hl * 0.98, -hw * 0.7, hl * 0.12, hw * 1.4).fill(shade(color, 0.55)).stroke({ width: 0.3, color: DARK }); // deck wing
+      g.rect(-hl * 0.1, -hw * 0.06, hl * 0.8, hw * 0.12).fill({ color: 0xffffff, alpha: 0.6 }); // stripe
+      break;
+    }
     case "jetski": { // sit-down personal watercraft (Sea-Doo RXP-X, 3.3 x 1.2 m): pointed bow, hood, bars, long seat, side footwells, jet nozzle
       g.poly([[1, 0], [0.82, -0.5], [0.4, -0.8], [-0.3, -0.84], [-0.9, -0.7], [-1, -0.45], [-1, 0.45], [-0.9, 0.7], [-0.3, 0.84], [0.4, 0.8], [0.82, 0.5]].flatMap(([x, y]) => [x! * hl, y! * hw])).fill(color).stroke(ring); // hull
       R(0.52, 0.62, -0.1, 0.1, shade(color, 0.7)); // bow eye

@@ -10,7 +10,7 @@ export interface Shower { start: number; end: number; intensity: number }
 export interface Weather { showers: Shower[] }
 
 /** Chance that a race has any rain at all. The moon has no weather. */
-const RAINY: Record<BiomeId, number> = { grass: 0.55, city: 0.55, snow: 0.5, desert: 0.15, moon: 0, water: 0 };
+const RAINY: Record<BiomeId, number> = { grass: 0.55, city: 0.55, snow: 0.5, desert: 0.15, moon: 0, water: 0, alpine: 0.7, coast: 0.35 };
 
 /** Seconds a shower takes to build and to fade. */
 const EASE = 30;

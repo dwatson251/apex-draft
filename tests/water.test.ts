@@ -16,7 +16,7 @@ function run(phrase: string, type: VehicleId, laps = 3) {
 describe("open water", () => {
   it("only comes up on fun phrases, and as often as the other places", () => {
     const water = funPhrases(300).filter((p) => generateTrack(p).biome === "water").length;
-    const avg = 300 / Object.keys(BIOMES).length;
+    const avg = 300 / Object.values(BIOMES).filter((b) => b.weight > 0).length; // (alpine and coast are only for circuits)
     expect(water).toBeGreaterThan(avg * 0.5);
     expect(water).toBeLessThan(avg * 1.6);
     for (let i = 0; i < 300; i++) expect(generateTrack(randomPhrase(new Rng(i + 50))).biome).not.toBe("water");

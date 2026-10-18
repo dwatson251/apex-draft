@@ -1,8 +1,8 @@
 import { Rng } from "./rng.ts";
 
-export type BiomeId = "grass" | "desert" | "snow" | "city" | "moon" | "water";
+export type BiomeId = "grass" | "desert" | "snow" | "city" | "moon" | "water" | "alpine" | "coast";
 
-/** Where the track is. It sets the scenery and how the surface behaves: every number multiplies the car's own. */
+/** Where the track is. `alpine` and `coast` have weight 0: only circuits that name them get them, so no random phrase changes its place. It sets the scenery and how the surface behaves: every number multiplies the car's own. */
 export interface Biome {
   id: BiomeId;
   name: string;
@@ -27,6 +27,8 @@ export const BIOMES: Record<BiomeId, Biome> = {
   snow: { id: "snow", name: "Snow and ice", blurb: "Slippery. Cars slide in the corners and take forever to stop, but the tyres last.", grip: 0.72, brake: 0.62, accel: 0.9, wear: 0.65, fuel: 1.05, weight: 18, domain: "land" },
   city: { id: "city", name: "City streets", blurb: "Grippy, grimy tarmac between the tower blocks. Rubber wears quickly.", grip: 1.06, brake: 1.05, accel: 1, wear: 1.15, fuel: 1, weight: 22, domain: "land" },
   moon: { id: "moon", name: "The Moon", blurb: "Low gravity: the car floats on its tyres. Little grip, little braking, great acceleration, barely any wear.", grip: 0.66, brake: 0.55, accel: 1.18, wear: 0.4, fuel: 0.9, weight: 14, domain: "land" },
+  alpine: { id: "alpine", name: "Mountains and forest", blurb: "Pine forest and cool air on damp tarmac: a touch less grip, kind to the tyres, and rain is never far away.", grip: 0.97, brake: 0.98, accel: 0.99, wear: 0.95, fuel: 1.03, weight: 0, domain: "land" },
+  coast: { id: "coast", name: "Coast", blurb: "Sea wind and sand on warm tarmac: hard on the tyres, and a little loose where it blows across.", grip: 0.98, brake: 0.99, accel: 1, wear: 1.1, fuel: 1, weight: 0, domain: "land" },
   water: { id: "water", name: "Open water", blurb: "A course of buoys on the water. Nothing grips: boats carry their speed into the corners and slide wide.", grip: 1, brake: 1, accel: 1, wear: 0, fuel: 1, weight: 20, domain: "water" },
 };
 

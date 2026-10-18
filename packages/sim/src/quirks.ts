@@ -18,6 +18,8 @@ export interface Quirks {
 export const QUIRKS: Partial<Record<VehicleId, Quirks>> = {
   formula: { downforce: 0.0022, shift: 0.05 },
   prototype: { downforce: 0.0022 },
+  hypercar: { downforce: 0.002, shift: 0.05 },
+  stock: { downforce: 0.0004, shift: 0.2, rough: 0.1 },
   gt3: { downforce: 0.0014, shift: 0.08 },
   gt4: { downforce: 0.0006, shift: 0.1 },
   touring: { downforce: 0.0003, shift: 0.12 },

@@ -36,7 +36,7 @@ interface Voice {
 }
 
 /** Which engines crackle on the overrun and on downshifts: anti-lag and sports exhausts, V8 burble, race-tuned fours. */
-const POPS: Partial<Record<VehicleId, number>> = { touring: 0.8, rally: 0.9, muscle: 0.55, superbike: 0.6, dragster: 0.9, gt3: 0.35, gt4: 0.45, prototype: 0.25, formula: 0.2, buggy: 0.3, speedboat: 0.3 };
+const POPS: Partial<Record<VehicleId, number>> = { touring: 0.8, rally: 0.9, muscle: 0.55, superbike: 0.6, dragster: 0.9, gt3: 0.35, gt4: 0.45, prototype: 0.25, hypercar: 0.2, stock: 0.6, formula: 0.2, buggy: 0.3, speedboat: 0.3 };
 
 /** Phones have fewer cores and a tighter audio thread: fewer engines are built and they are told about changes less often. */
 const COARSE = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
@@ -105,6 +105,12 @@ const ENGINES: Record<VehicleId, Engine> = {
   // GT3: a big naturally aspirated flat-six or V8, deep with a hard edge
   gt3: { parts: [[1, 1, "sawtooth", 0], [0.5, 0.7, "sine", 0], [2, 0.5, "sawtooth", 6], [3, 0.25, "square", 0]], base: 60, slope: 1.3, lift: 14,
     cut: 1000, cutSlope: 6, cutLift: 700, q: 1.4, drive: 0.4, lump: 0.25, lumpRate: 0.4, rasp: 0.14, raspHz: 1800, raspSlope: 5, whine: 0, level: 2.1, inertia: 0.9, shiftCut: 0.07 },
+  // hybrid V6 turbo prototype: smooth and shrill like the prototype, with a thin electric whine under it
+  hypercar: { parts: [[1, 1, "sawtooth", 0], [2, 0.6, "sawtooth", 4], [3, 0.4, "sawtooth", -3], [0.5, 0.45, "sine", 0]], base: 80, slope: 1.7, lift: 17,
+    cut: 1900, cutSlope: 8.5, cutLift: 950, q: 1.8, drive: 0.15, lump: 0.08, lumpRate: 0.5, rasp: 0.09, raspHz: 3200, raspSlope: 5, whine: 0.12, level: 1.9, inertia: 0.6, shiftCut: 0.03 },
+  // pushrod V8 stock car: low, loud and lumpy, with a hard edge at the top
+  stock: { parts: [[1, 1, "sawtooth", 0], [0.5, 0.85, "sine", 0], [2, 0.45, "sawtooth", 6], [1, 0.4, "square", 9]], base: 44, slope: 0.8, lift: 10,
+    cut: 900, cutSlope: 5, cutLift: 600, q: 1.3, drive: 0.5, lump: 0.35, lumpRate: 0.45, rasp: 0.15, raspHz: 1600, raspSlope: 4.5, whine: 0, level: 2.1, inertia: 1.1, shiftCut: 0.09 },
   // GT4: a lightly tuned road engine: lower and softer than GT3
   gt4: { parts: [[1, 1, "sawtooth", 0], [0.5, 0.6, "sine", 0], [2, 0.4, "sawtooth", 5]], base: 52, slope: 1.1, lift: 11,
     cut: 800, cutSlope: 4.5, cutLift: 600, q: 1.2, drive: 0.3, lump: 0.3, lumpRate: 0.4, rasp: 0.12, raspHz: 1500, raspSlope: 4, whine: 0, level: 2.2, inertia: 1, shiftCut: 0.12 },
@@ -128,6 +134,7 @@ const SQUEAL_DEFAULT: Squeal = { pitch: 1, q: 7, gain: 1, onset: 0 };
 const SQUEAL: Partial<Record<VehicleId, Squeal>> = {
   kart: { pitch: 1.5, q: 9, gain: 0.7, onset: 0.3 }, formula: { pitch: 1.25, q: 9, gain: 0.8, onset: 0.35 }, prototype: { pitch: 1.15, q: 8, gain: 0.8, onset: 0.35 },
   gt3: { pitch: 1.05, q: 7, gain: 1, onset: 0.3 }, gt4: { pitch: 1, q: 7, gain: 1, onset: 0.28 }, touring: { pitch: 0.95, q: 6, gain: 1.1, onset: 0.25 },
+  hypercar: { pitch: 1.15, q: 8, gain: 0.85, onset: 0.35 }, stock: { pitch: 0.85, q: 5, gain: 1.25, onset: 0.2 },
   muscle: { pitch: 0.85, q: 5, gain: 1.3, onset: 0.2 }, truck: { pitch: 0.7, q: 4, gain: 1.2, onset: 0.25 }, tank: { pitch: 0.4, q: 3, gain: 0.7, onset: 0.3 },
   superbike: { pitch: 1.4, q: 10, gain: 0.8, onset: 0.4 }, rally: { pitch: 1, q: 6, gain: 1, onset: 0.25 }, buggy: { pitch: 0.9, q: 5, gain: 0.9, onset: 0.25 },
   dragster: { pitch: 0.9, q: 5, gain: 1, onset: 0.3 }, electric: { pitch: 1.1, q: 8, gain: 0.9, onset: 0.3 },
@@ -169,6 +176,9 @@ const BPM = 98;
 type Layer = "drums" | "bass" | "music";
 const LAYERS: Layer[] = ["drums", "bass", "music"];
 type Loop = Record<Layer, AudioBuffer>;
+/** Places that borrow another place's music loop. */
+const MUSIC_OF: Record<string, string> = { alpine: "snow", coast: "desert" };
+
 interface Scene { biome: string; src: AudioBufferSourceNode[]; gains: Record<Layer, GainNode>; lp: BiquadFilterNode; out: GainNode }
 /** Loudness of the loops on the music bus: quiet and dark in menus, full and bright when the race is on. */
 const LOOP_LEVEL = { menu: 0.04, race: 0.07, title: 0.07 };
@@ -267,6 +277,7 @@ export class CarAudio {
   isMusic(): boolean { return this.musicOn; }
   /** Which music to play: a biome's layered loop, or null for the title screen's own track. */
   setBiome(biome: string | null): void {
+    biome = (biome && MUSIC_OF[biome]) || biome; // (a place with no music of its own plays a neighbour's)
     if (biome === this.biome) return;
     this.biome = biome;
     if (this.musicOn) this.startMusic();

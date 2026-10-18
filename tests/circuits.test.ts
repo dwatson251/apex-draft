@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CIRCUITS, Race, circuitFor, normalizePhrase, isCrossing, ROAD_HALF, botLine, centreAt, checkTrack, defaultCar, generateTrack, randomPhrase, Rng, trackLength, type Segment } from "@apex/sim";
+import { CIRCUITS, Race, circuitFor, normalizePhrase, parseLineFile, serializeLineFile, encodeShare, decodeShare, maxLapsFor, isCrossing, ROAD_HALF, botLine, centreAt, checkTrack, defaultCar, generateTrack, randomPhrase, Rng, trackLength, type Segment } from "@apex/sim";
 
 const MIN_GAP = 2 * ROAD_HALF + 4 - 0.5;
 
@@ -39,6 +39,27 @@ describe("circuits that cross themselves", () => {
     expect(kinds).toContain("bridge");
     expect(kinds).toContain("under");
     expect(checkTrack(t)).toEqual([]);
+  });
+});
+
+describe("a lap of the Nordschleife at full scale", () => {
+  const t = generateTrack("nordschleife");
+  it("has well over the old 64-segment limit, and a line round it can be saved, shared and read back", () => {
+    expect(t.circuit?.id).toBe("nurburgring-nordschleife");
+    expect(t.segments.length).toBeGreaterThan(150);
+    const line = botLine(t, 3, 0.8);
+    const file = parseLineFile(serializeLineFile({ phrase: "nordschleife", name: "me", car: defaultCar(), lines: [line] }));
+    expect(typeof file).toBe("object");
+    expect((file as { lines: unknown[] }).lines).toHaveLength(1);
+    const code = encodeShare({ phrase: "nordschleife", laps: 3, mode: "trial", rivals: 7, car: defaultCar(), obstacles: false, realism: false, playing: false, startTyre: "medium", pitPlan: [], line });
+    const back = decodeShare(code);
+    expect(typeof back).toBe("object");
+    expect((back as { line?: { segs: unknown[] } }).line?.segs).toHaveLength(t.segments.length);
+  });
+  it("is a lap the server will run only a few times round", () => {
+    expect(maxLapsFor(t)).toBeLessThan(25);
+    expect(maxLapsFor(t)).toBeGreaterThan(5);
+    expect(maxLapsFor(generateTrack("monza"))).toBe(50);
   });
 });
 

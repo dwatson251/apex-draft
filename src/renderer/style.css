@@ -50,7 +50,7 @@ select.fancy:disabled, input:disabled { opacity: 0.45; }
 .chip { display: inline-block; padding: 5px 13px; margin: 0 6px 6px 0; border-radius: 999px; background: #27324f; color: #fff; font: 800 13px/1.2 system-ui; letter-spacing: 0.3px; }
 .chip.dim { background: #1d253c; color: var(--dim); font-weight: 600; }
 .chip.circuit { background: #e9453b; color: #fff; }
-.chip.biome-grass { background: #2f8a42; } .chip.biome-desert { background: #d19a35; color: #2a1a00; } .chip.biome-snow { background: #9ccdf0; color: #0b2a40; } .chip.biome-city { background: #6a7490; } .chip.biome-moon { background: #b6b9c4; color: #1c1d24; }
+.chip.biome-grass { background: #2f8a42; } .chip.biome-desert { background: #d19a35; color: #2a1a00; } .chip.biome-snow { background: #9ccdf0; color: #0b2a40; } .chip.biome-city { background: #6a7490; } .chip.biome-moon { background: #b6b9c4; color: #1c1d24; } .chip.biome-alpine { background: #2c6a55; } .chip.biome-coast { background: #3a9ab0; color: #06212b; }
 
 .bigbtns { display: flex; flex-wrap: wrap; margin-top: 8px; }
 button.big { margin: 6px 10px 8px 0; padding: 16px 24px; border: 0; border-radius: 15px; font: 900 18px/1 system-ui, "Segoe UI", sans-serif; letter-spacing: 0.8px; text-transform: uppercase; color: #fff; cursor: pointer; box-shadow: 0 5px 0 rgba(0, 0, 0, 0.35), 0 10px 20px rgba(0, 0, 0, 0.3); transition: transform 0.08s, filter 0.15s, box-shadow 0.08s; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
@@ -478,7 +478,7 @@ button.back, .pill { letter-spacing: 0.06em; text-transform: uppercase; font-siz
 .opt { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); border-left: 3px solid var(--accent); }
 .chip { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; padding: 5px 11px; }
 .chip.circuit { background: #d6283f; border-color: transparent; } .chip.fun { background: #7a5cf0; border-color: transparent; }
-.chip.biome-grass, .chip.biome-desert, .chip.biome-snow, .chip.biome-city, .chip.biome-moon { border-color: transparent; }
+.chip.biome-grass, .chip.biome-desert, .chip.biome-snow, .chip.biome-city, .chip.biome-moon, .chip.biome-alpine, .chip.biome-coast { border-color: transparent; }
 .dd-btn { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.26); } .dd-btn:hover:not(:disabled) { background: #3a4b82; }
 .dd-list { background: rgba(10, 14, 26, 0.96); border: 1px solid rgba(255, 255, 255, 0.25); padding: 0; } .dd-opt { margin: 0; } .dd-opt:hover, .dd-opt.on { background: #3a4b82; }
 .stepper { background: rgba(5, 8, 18, 0.5); border: 1px solid rgba(255, 255, 255, 0.22); } .stepper button { background: rgba(255, 255, 255, 0.12); }

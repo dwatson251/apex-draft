@@ -13,7 +13,7 @@ export class WorkerPool {
   private all = new Set<Worker>();
   private closed = false;
 
-  constructor(private file: URL | string, private size: number, private timeoutMs = 120_000) {}
+  constructor(private file: URL | string, private size: number, private timeoutMs = 300_000) {}
 
   private spawn(): Worker {
     const w = new Worker(this.file);

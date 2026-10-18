@@ -108,7 +108,7 @@ export const DIRTY_HEAT = 0.25;
 export const TEMP_TAU = 8;
 export const TEMP_WORK = 0.5;
 /** Cooler air and rain take the road's baseline temperature down. */
-const AMBIENT: Record<string, number> = { grass: 0.4, desert: 0.62, snow: 0.18, city: 0.46, moon: 0.1, water: 0.35 };
+const AMBIENT: Record<string, number> = { grass: 0.4, desert: 0.62, snow: 0.18, city: 0.46, moon: 0.1, water: 0.35, alpine: 0.3, coast: 0.5 };
 /** A car counts as being on my path when its centre is this close to it. */
 const LATERAL = 8;
 /** The size of car the gaps above were chosen for (a rally car, about). */

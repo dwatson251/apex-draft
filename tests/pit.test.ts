@@ -197,7 +197,7 @@ describe("biomes", () => {
       seen.add(t.biome);
     }
     // open water is only for `fun-` phrases
-    expect([...seen].sort()).toEqual(BIOME_IDS.filter((id) => BIOMES[id].domain === "land").sort());
+    expect([...seen].sort()).toEqual(BIOME_IDS.filter((id) => BIOMES[id].domain === "land" && BIOMES[id].weight > 0).sort()); // (alpine and coast are only for circuits)
   });
   it("change how the surface behaves, and not the layout", () => {
     const base = generateTrack("quiet-fox-hugs-kites", { biome: "grass" });

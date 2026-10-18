@@ -69,8 +69,8 @@ export class Scenery {
     const rl = this.rail;
     rl.len = 2 * (2 * (rl.hw - rl.r)) + 2 * (2 * (rl.hh - rl.r)) + 2 * Math.PI * rl.r;
     const odds = (a: Record<BiomeId, number>) => feat.chance(a[biome]);
-    this.hasRail = odds({ grass: 0.45, desert: 0.35, snow: 0.4, city: 0.55, moon: 0.5, water: 0 });
-    this.planes = biome !== "moon" && odds({ grass: 0.4, desert: 0.4, snow: 0.3, city: 0.5, moon: 0, water: 0 });
+    this.hasRail = odds({ grass: 0.45, desert: 0.35, snow: 0.4, city: 0.55, moon: 0.5, water: 0, alpine: 0.3, coast: 0.3 });
+    this.planes = biome !== "moon" && odds({ grass: 0.4, desert: 0.4, snow: 0.3, city: 0.5, moon: 0, water: 0, alpine: 0.2, coast: 0.45 });
     const base = biome === "moon" && feat.chance(0.75);
     this.airport = this.planes || base ? { x: -178, y: 8, w: 96, h: H - 16 } : null;
     this.runway = { x: -150, y0: 22, y1: H - 22 };
