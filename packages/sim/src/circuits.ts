@@ -1,7 +1,9 @@
 import type { BiomeId } from "./biomes.ts";
 import { CIRCUIT_DATA } from "./circuitData.ts";
-import { KART_CIRCUIT_LIST } from "./karts.ts";
-import { KART_ROSTER } from "./kartroster.ts";
+import { KART_CIRCUIT_LIST, KART_INFO, type KartShape } from "./karts.ts";
+import type { KartRow } from "./kartroster.ts";
+import { METRES_PER_UNIT } from "./scale.ts";
+import { KART_CIRCUITS } from "./vehicles.ts";
 
 /**
  * The hidden circuits. Most are real ones laid out from a mapped line (`FREE`, below; the data is OpenStreetMap, see
@@ -164,7 +166,7 @@ const freeCircuit = (f: FreeSpec): Circuit => {
   return { id: f.id, name: f.name, lengthKm: f.lengthKm, blurb: f.blurb, cols: 0, rows: 0, biome: f.biome, cells: [], start: 0, free, ...(f.fictional ? { fictional: true } : {}), ...(f.crosses ? { crosses: true } : {}) };
 };
 
-export const CIRCUITS: Circuit[] = [...SPECS.map(build), ...FREE.map(freeCircuit), ...KART_CIRCUIT_LIST];
+export const CIRCUITS: Circuit[] = [...SPECS.map(build), ...FREE.map(freeCircuit)];
 const BY_PHRASE = new Map<string, Circuit>();
 /** A phrase names one circuit; two circuits claiming the same alias is a mistake, so it stops the build rather than letting the later one win. */
 const claim = (p: string, c: Circuit): void => {
@@ -174,9 +176,27 @@ const claim = (p: string, c: Circuit): void => {
 };
 SPECS.forEach((s, i) => { for (const p of [s.id, ...(s.aliases ?? [])]) claim(p, CIRCUITS[i]!); });
 FREE.forEach((f, i) => { for (const p of [f.id, ...(f.aliases ?? [])]) claim(p, CIRCUITS[SPECS.length + i]!); });
-for (const [i, c] of KART_CIRCUIT_LIST.entries()) {
-  const row = KART_ROSTER.find((r) => r.id === c.id)!;
-  for (const p of [c.id, ...row.aliases]) claim(p, CIRCUITS[SPECS.length + FREE.length + i]!);
+
+/**
+ * Add kart courses (a roster and the shape of each) to the circuits: they get their names and aliases as phrases, and race karts. Called once, by
+ * `installKartPack` (kartpack.ts); a second call with the same courses does nothing. Install before any track is built: tracks are cached by phrase.
+ */
+export function installKartCourses(roster: readonly KartRow[], data: Readonly<Record<string, KartShape>>): void {
+  for (const r of roster) {
+    const d = data[r.id];
+    if (!d || KART_INFO.has(r.id)) continue;
+    let len = 0;
+    for (let i = 0; i < d.points.length; i += 2) len += Math.hypot(d.points[(i + 2) % d.points.length]! - d.points[i]!, d.points[(i + 3) % d.points.length]! - d.points[i + 1]!);
+    KART_INFO.set(r.id, { theme: r.theme, game: r.game, gameTitle: r.gameTitle, cup: r.cup, laps: r.laps, fx: d.fx ?? [], climb: d.climb ?? [] });
+    const c: Circuit = {
+      id: r.id, name: r.name, lengthKm: Math.round((len * METRES_PER_UNIT) / 10) / 100, blurb: r.blurb, cols: 0, rows: 0, biome: r.biome, cells: [], start: 0,
+      free: d.points, kart: true,
+    };
+    KART_CIRCUIT_LIST.push(c);
+    CIRCUITS.push(c);
+    KART_CIRCUITS.add(r.id);
+    for (const p of [r.id, ...r.aliases]) claim(p, c);
+  }
 }
 
 /** The circuit a (normalised) phrase names, if any. Random phrases are four words and never match. */

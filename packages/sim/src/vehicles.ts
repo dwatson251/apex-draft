@@ -1,5 +1,4 @@
 import { Rng } from "./rng.ts";
-import { KART_ROSTER } from "./kartroster.ts";
 
 export type VehicleId = "kart" | "formula" | "rally" | "muscle" | "truck" | "tank"
   | "superbike" | "buggy" | "electric" | "dragster"
@@ -113,8 +112,8 @@ export const CIRCUIT_VEHICLES: Record<string, VehicleId> = {
   "trial-mountain": "gt3", "high-speed-ring": "hypercar", "dragon-trail": "gt3",
 };
 
-/** The Mario Kart courses (kartroster.ts): they race karts, whatever else is offered beside them. */
-export const KART_CIRCUITS: ReadonlySet<string> = new Set(KART_ROSTER.map((r) => r.id));
+/** The kart courses (filled by `installKartCourses` when the kart pack is installed): they race karts, whatever else is offered beside them. */
+export const KART_CIRCUITS: Set<string> = new Set();
 
 /** The machines for a track's race day. The same seed always gives the same answer. */
 export function vehicleForSeed(seed: number, domain: Domain = "land"): VehicleId {

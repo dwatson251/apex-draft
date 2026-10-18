@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { validateLine, CIRCUITS, KART_DATA, KART_INFO, KART_ROSTER, KART_THEMES, Race, ROAD_HALF, botLine, checkTrack, defaultCar, generateTrack, isCrossing, isRamp, trackLength, circuitFor, type Segment } from "@apex/sim";
+import { validateLine, CIRCUITS, KART_INFO, KART_THEMES, Race, ROAD_HALF, botLine, checkTrack, defaultCar, generateTrack, isCrossing, isRamp, trackLength, circuitFor, type Segment } from "@apex/sim";
+import { KART_DATA, KART_ROSTER } from "../packages/sim/src/kartpack.ts";
 
 /**
  * Every Mario Kart course (the cheap checks on all of them; the full-grid races on a sample, and on a third of the courses with ramps. KART_FULL=1 races them all).

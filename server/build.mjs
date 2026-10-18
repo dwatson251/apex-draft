@@ -10,4 +10,6 @@ await build({
   bundle: true, platform: "node", format: "esm", target: "node24", sourcemap: true, logLevel: "info",
   alias: { "@apex/sim": `${root}packages/sim/src/index.ts` },
   absWorkingDir: root,
+  // the kart fan pack is left out of the server unless it is built with APEX_KART_PACK=1 (see src/kartpack.ts)
+  define: { __KART_PACK__: JSON.stringify(process.env.APEX_KART_PACK === "1") },
 });

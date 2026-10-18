@@ -305,6 +305,15 @@ version in `share.ts` that still reads the old ones (version 5 is current, and 1
 
 ## Kart Tracks recipes
 
+The kart courses are a **fan pack**, not part of the game. Their names and shapes (`kartroster.ts`, `kartdata.ts`) are imported only by
+`packages/sim/src/kartpack.ts`, which `installKartCourses` registers as circuits. Who installs it:
+- dev (`npm run dev`, `npm run dev:web`): always;
+- the tests: always (`tests/setup.ts`); the tools in `tools/mariokart` that read circuits install it themselves;
+- a release build: only with `VITE_KART_PACK=1` (e.g. `VITE_KART_PACK=1 npm run dist`); otherwise `__KART_PACK__` is false and the pack is not in the bundle;
+- the server: only when built with `APEX_KART_PACK=1 npm run server:build`.
+
+Without it a course's name is an ordinary phrase (a random track). The release workflow does not set either flag.
+
 - Rebuild the laps: `npx vite-node tools/mariokart/build.ts [id ...]` (vite-node, because it reads the sim's sources), then `npx vite-node tools/mariokart/check.ts` (every gate, with the reason). `kinds.ts <id>` and `pairs.ts <id>` show a course's segment kinds and any roads too close.
 - Trace a new map: fetch it (`refs.ts <scratch dir> <page cache dir> <id>`; run `links.ts <cache dir>` first to fill the page cache), look at it with `gridall.py` and `montage.py`, then `tr.sh <id> <picture> sx sy dx dy [options]` for a flat-coloured map (see `autotrace.py`'s docstring for `--tol`, `--road`, `--notbg`, `--alpha`, `--bridge`, `--walk`) or `hand.py` for waypoints read off the picture. Re-run `fxauto.py` to lay pieces by theme. The maps are Nintendo's: keep them outside the repo.
 - Height: a shape may have `"climb": [{ "leg": 33, "a": 0, "to": 44, "b": 1, "h": 10 }, ...]`, placed like a piece (`at`/`end`, `p`/`q` or `leg`/`a`/`to`/`b`), with the height `h` (world units; negative comes back down) the road gains over that stretch. The climbs of a lap must add up to zero. `layClimb` (freetrack.ts) turns them into `elev` on the segments, which the profile makes into a grade (slower uphill, quicker down). Bowser's Castle (MK64) is the example: a 270 degree loop round a tower that crosses its own road (a `bridge` over an `under`).

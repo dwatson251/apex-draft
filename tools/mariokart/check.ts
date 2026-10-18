@@ -1,4 +1,7 @@
 import { CIRCUITS, ROAD_HALF, checkTrack, generateTrack, isCrossing, trackLength, KART_INFO } from "@apex/sim";
+import { installKartPack } from "../../packages/sim/src/kartpack.ts";
+
+installKartPack(); // the courses are a fan pack, not part of the game: see kartpack.ts
 
 /**
  * The gates a kart course must pass (the cheap ones of tests/karttracks.test.ts), course by course, with the reason when one fails.

@@ -3,10 +3,12 @@ import { resolve } from "node:path";
 
 const alias = { "@apex/sim": resolve(__dirname, "packages/sim/src/index.ts") };
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   main: { plugins: [externalizeDepsPlugin()], resolve: { alias } },
   preload: { plugins: [externalizeDepsPlugin()], resolve: { alias } },
   renderer: {
+    // the kart fan pack: in dev, or in a build that asks for it (see src/renderer/main.ts)
+    define: { __KART_PACK__: JSON.stringify(command === "serve" || process.env.VITE_KART_PACK === "1") },
     root: "src/renderer",
     resolve: { alias },
     // Not Vite's default 5173, which ftl-arena uses.
@@ -22,4 +24,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

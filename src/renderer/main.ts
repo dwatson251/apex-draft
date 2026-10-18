@@ -6,6 +6,10 @@ import { Game } from "./game.ts";
 import { WorldView } from "./world.ts";
 import { installNative } from "./platform.ts";
 
+// The kart fan pack (fan approximations of the Mario Kart courses, docs/KART_CREDITS.md) is in dev builds only, unless a build asks for it with
+// VITE_KART_PACK=1. A release leaves it out: the constant is false and the import goes with the dead branch.
+if (__KART_PACK__) (await import("../../packages/sim/src/kartpack.ts")).installKartPack();
+
 const app = new Application();
 await app.init({ resizeTo: document.getElementById("stage")!, background: 0x12151c, antialias: true, autoDensity: true, resolution: Math.min(window.devicePixelRatio || 1, 2) });
 document.getElementById("stage")!.appendChild(app.canvas);

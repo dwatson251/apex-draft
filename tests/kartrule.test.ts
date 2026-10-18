@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { KART_CIRCUITS, KART_ROSTER, MAX_CHOICES, VEHICLES, phraseToSeed, vehicleChoices } from "@apex/sim";
+import { KART_CIRCUITS, MAX_CHOICES, VEHICLES, phraseToSeed, vehicleChoices } from "@apex/sim";
+import { KART_ROSTER } from "../packages/sim/src/kartpack.ts";
 
 describe("the kart rule", () => {
   const ids = [...KART_CIRCUITS];

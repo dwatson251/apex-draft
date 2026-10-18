@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **The kart courses are a fan pack now, not part of the game.** Release builds and the online server leave them out; dev builds, the tests and a build made with `VITE_KART_PACK=1` (or a server with `APEX_KART_PACK=1`) put them back. Without the pack a course's name is an ordinary phrase. See DEVELOPER.md.
+- **The rain forecast is for the machine you drive.** It was worked out for the track's own class, while the race lays out its showers over the length of the race in your machine, so on a circuit raced in another class the forecast could name the wrong part of the race.
+
 ## 0.1.0-alpha.10
 
 - **Bowser's Castle (Mario Kart 64) has its tower.** The lap now makes the real course's 270-degree counter-clockwise loop round a circular tower and passes over the road it came in on (a bridge and an under-road, the same crossing as Rainbow Road's), climbing as it goes: the road gains 10 units round the tower and comes back down on the way home (uphill is slower, downhill quicker). Kart courses can now have a `climb` in their shape file (see DEVELOPER.md). The lap is about the same length as before. The gap jump it had is gone for now: the castle's bends leave no straight long enough for a ramp to land on.

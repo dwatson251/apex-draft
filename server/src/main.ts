@@ -3,6 +3,9 @@ import { Db } from "./db.ts";
 import { createApp } from "./app.ts";
 import { WorkerPool } from "./pool.ts";
 import { startQueue } from "./queue.ts";
+import { maybeInstallKartPack } from "./kartpack.ts";
+
+await maybeInstallKartPack();
 
 const env = process.env;
 const port = Number(env["PORT"] ?? 8787);

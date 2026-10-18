@@ -1,4 +1,7 @@
 import { generateTrack, isCrossing } from "@apex/sim";
+import { installKartPack } from "../../packages/sim/src/kartpack.ts";
+
+installKartPack(); // the courses are a fan pack, not part of the game: see kartpack.ts
 // the pairs of segments of a course that are too close: npx vite-node tools/mariokart/pairs.ts <id>
 const t = generateTrack(process.argv[2]!);
 const n = t.segments.length;

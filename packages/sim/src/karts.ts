@@ -1,12 +1,10 @@
 import type { Circuit } from "./circuits.ts";
 import type { FxType } from "./fx.ts";
-import { KART_DATA } from "./kartdata.ts";
-import { KART_ROSTER } from "./kartroster.ts";
-import { METRES_PER_UNIT } from "./scale.ts";
 
 /**
- * The Mario Kart courses as circuits: the roster (kartroster.ts, names and themes) with the shape of each (kartdata.ts, made by tools/mariokart from hand-placed
- * waypoints). A fan approximation of each layout, in this game's own units; nothing here comes from the games' files or pictures.
+ * Kart courses as circuits. The machinery lives here; the courses themselves are a fan pack (kartpack.ts: the Mario Kart roster in kartroster.ts and the shape
+ * of each in kartdata.ts, made by tools/mariokart from hand-placed waypoints) that is only installed in dev, in tests and in a build that asks for it
+ * (`installKartPack`). Without it there are no kart courses: their names are ordinary phrases.
  */
 
 /** The themes a course may have (the renderer draws each one in its own colours and scenery). */
@@ -29,19 +27,8 @@ export interface KartShape {
 /** What a course says about its look and rules beyond its shape. */
 export interface KartInfo { theme: string; game: string; gameTitle: string; cup: string; laps: number; fx: KartFx[]; climb: KartClimb[] }
 
-/** The theme and rules of a kart circuit by id, for the track and the renderer. */
+/** The theme and rules of a kart circuit by id, for the track and the renderer. Empty until a pack is installed. */
 export const KART_INFO = new Map<string, KartInfo>();
 
-/** The kart circuits with a shape, in roster order. A roster course without a shape is not offered yet. */
+/** The kart circuits with a shape, in roster order. A roster course without a shape is not offered yet. Empty until a pack is installed. */
 export const KART_CIRCUIT_LIST: Circuit[] = [];
-for (const r of KART_ROSTER) {
-  const d = KART_DATA[r.id];
-  if (!d) continue;
-  let len = 0;
-  for (let i = 0; i < d.points.length; i += 2) len += Math.hypot(d.points[(i + 2) % d.points.length]! - d.points[i]!, d.points[(i + 3) % d.points.length]! - d.points[i + 1]!);
-  KART_INFO.set(r.id, { theme: r.theme, game: r.game, gameTitle: r.gameTitle, cup: r.cup, laps: r.laps, fx: d.fx ?? [], climb: d.climb ?? [] });
-  KART_CIRCUIT_LIST.push({
-    id: r.id, name: r.name, lengthKm: Math.round((len * METRES_PER_UNIT) / 10) / 100, blurb: r.blurb, cols: 0, rows: 0, biome: r.biome, cells: [], start: 0,
-    free: d.points, kart: true,
-  });
-}
