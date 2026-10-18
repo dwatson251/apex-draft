@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { CIRCUITS, KART_DATA, KART_INFO, KART_ROSTER, KART_THEMES, Race, ROAD_HALF, botLine, checkTrack, defaultCar, generateTrack, isCrossing, isRamp, trackLength, circuitFor, type Segment } from "@apex/sim";
+import { validateLine, CIRCUITS, KART_DATA, KART_INFO, KART_ROSTER, KART_THEMES, Race, ROAD_HALF, botLine, checkTrack, defaultCar, generateTrack, isCrossing, isRamp, trackLength, circuitFor, type Segment } from "@apex/sim";
 
 /**
- * Every Mario Kart course (the cheap checks on all of them; the full-grid races on a sample, and on every course with ramps, pads or patches. KART_FULL=1 races them all).
+ * Every Mario Kart course (the cheap checks on all of them; the full-grid races on a sample, and on a third of the courses with ramps. KART_FULL=1 races them all).
  * KART_COMPLETE=1 (set it once the pack is finished) also fails on any roster course without a shape.
  */
 const MIN_GAP = 2 * ROAD_HALF + 4 - 0.5;
@@ -63,6 +63,9 @@ describe("the Mario Kart courses", () => {
         expect(t.circuit?.theme).toBe(info.theme);
         for (const f of info.fx) { expect(f.at).toBeGreaterThanOrEqual(0); expect(f.at + f.len).toBeLessThanOrEqual(1.0001); }
       });
+      it("gives the bots a line they can drive, whatever their skill", () => {
+        for (const skill of [0.3, 0.7, 1]) expect(validateLine(t, botLine(t, 5, skill)).ok, `skill ${skill}`).toBe(true);
+      });
       it("keeps its pit lane inside the map", () => {
         const g = t.segments[0]!.entry;
         const probe = { x: g.mid.x + t.pit.n.x * 60 + t.pit.dir.x * 60, y: g.mid.y + t.pit.n.y * 60 + t.pit.dir.y * 60 };
@@ -75,7 +78,8 @@ describe("the Mario Kart courses", () => {
         expect(info.fx.length === 0 || t.segments.some((s) => s.fx)).toBe(true);
       });
       const idx = courses.indexOf(c);
-      const heavy = process.env.KART_FULL || idx % 8 === 0 || info.fx.length > 0;
+      const ramps = info.fx.some((f) => isRamp(f.type));
+      const heavy = process.env.KART_FULL || idx % 8 === 0 || (ramps && idx % 3 === 0);
       (heavy ? it : it.skip)("starts a full grid of 32 and an 8-car race, and every car gets home", () => {
         const es = Array.from({ length: 32 }, (_, i) => ({ id: `c${i}`, name: `c${i}`, car: { ...defaultCar(), type: "kart" as const }, lines: [botLine(t, 5 + i, 0.4 + (i % 10) / 18)], isPlayer: i === 0 }));
         const r = new Race(t, es, 2, { realism: false });

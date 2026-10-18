@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CIRCUITS, CIRCUIT_DATA, ROAD_HALF, botLine, checkTrack, generateTrack, trackLength, validateLine, type Track } from "@apex/sim";
 
-const free = CIRCUITS.filter((c) => c.free);
+const free = CIRCUITS.filter((c) => c.free && !c.kart);
 
 /** Radius of the circle through points `hop` samples apart along the road, the smallest of them all. */
 function tightest(t: Track, hop = 2): number {
