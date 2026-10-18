@@ -103,6 +103,11 @@ export const CIRCUIT_VEHICLES: Record<string, VehicleId> = {
   "spa-francorchamps": "gt3", "laguna-seca": "gt3",
   "lago-maggiore": "gt4", "willow-springs": "gt4",
   "silverstone": "formula", "monza": "formula", "circuit-de-barcelona-catalunya": "formula", "monaco": "formula",
+  "suzuka": "formula", "interlagos": "formula", "gilles-villeneuve": "formula", "fuji": "gt3", "imola": "formula", "zandvoort": "formula", "cota": "formula", "red-bull-ring": "formula", "hungaroring": "formula",
+  "brands-hatch": "gt3", "mugello": "gt3", "paul-ricard": "gt3", "road-america": "gt3",
+  "nurburgring-gp": "gt3", "nurburgring-sprint": "gt3", "nurburgring-nordschleife": "gt3",
+  "sebring": "prototype",
+  "trial-mountain": "gt3", "high-speed-ring": "gt3", "dragon-trail": "gt3",
 };
 
 /** The Mario Kart courses (kartroster.ts): they race karts, whatever else is offered beside them. */

@@ -52,7 +52,7 @@ function layout(title: string, body: string): string {
 <script>document.querySelectorAll("button.copy").forEach(function(b){b.addEventListener("click",function(){navigator.clipboard&&navigator.clipboard.writeText(b.dataset.text||"");b.textContent="Copied"})})</script></body></html>`;
 }
 
-const badges = (fun: number | boolean, special: number | boolean): string => `${fun ? '<span class="badge fun" title="A fun track: crossings, bridges, shortcuts, water">Fun</span>' : ""}${special ? '<span class="badge circuit" title="A real circuit">Circuit</span>' : ""}`;
+const badges = (fun: number | boolean, special: number | boolean): string => `${fun ? '<span class="badge fun" title="A fun track: crossings, bridges, shortcuts, water">Fun</span>' : ""}${special ? '<span class="badge circuit" title="A hidden circuit">Circuit</span>' : ""}`;
 
 /** A track's name: the circuit's own for a real circuit, otherwise its phrase. */
 function trackTitle(key: string): string {
@@ -62,12 +62,14 @@ function trackTitle(key: string): string {
 
 /** A Mario Kart course is a known name, not a secret: its card shows its name, and its badge says what it is. */
 const isKart = (key: string): boolean => !!circuitFor(normalizePhrase(key))?.kart;
+/** What a hidden circuit is called until it is clicked: a made-up one is not a real one. */
+const spoilerKind = (key: string): string => (circuitFor(normalizePhrase(key))?.fictional ? "a fictional circuit" : "a real circuit");
 
 function trackCard(t: { key: string; fun: number; special: number; plays: number; drivers: number }): string {
   const inner = `<h3><a href="/tracks/${encodeURIComponent(t.key)}">${esc(trackTitle(t.key))}</a>${badges(t.fun, 0)}${isKart(t.key) ? '<span class="badge circuit" title="A Mario Kart course (fan approximation)">Kart</span>' : ""}</h3><div class="dim">${t.drivers} driver${t.drivers === 1 ? "" : "s"} · ${t.plays} run${t.plays === 1 ? "" : "s"}</div>`;
   // real circuits are the game's hidden tracks: their names stay out of sight until clicked
   return t.special && !isKart(t.key)
-    ? `<details class="spoiler"><summary>Spoiler: a real circuit${badges(0, 1)} <span class="dim">· click to reveal</span></summary><div class="card">${inner}</div></details>`
+    ? `<details class="spoiler"><summary>Spoiler: ${spoilerKind(t.key)}${badges(0, 1)} <span class="dim">· click to reveal</span></summary><div class="card">${inner}</div></details>`
     : `<div class="card">${inner}</div>`;
 }
 
@@ -119,7 +121,7 @@ function indexPage(db: Db): Page {
   const body = `<h1>Apex Draft</h1><p class="dim">Draw the racing line, then watch your car follow it. Lines uploaded from the game are run through the same simulation here, and other players' lines come back as rivals.</p>
 <p class="dim">${s.players} drivers · ${s.tracks} tracks · ${s.times} times</p>
 <h2>Popular tracks</h2>${pop.length ? `<div class="grid">${pop.map(trackCard).join("")}</div>` : '<p class="dim">No times yet. Upload one from the game.</p>'}
-<h2>Latest times</h2>${rec.length ? `<table><tr><th>Track</th><th>Car</th><th>Driver</th><th class="t">Time</th><th class="t">When</th></tr>${rec.map((r) => `<tr><td>${r.special && !isKart(r.track_key) ? `<details class="spoiler"><summary>Spoiler: a real circuit${badges(0, 1)}</summary><a href="/tracks/${encodeURIComponent(r.track_key)}">${esc(trackTitle(r.track_key))}</a></details>` : `<a href="/tracks/${encodeURIComponent(r.track_key)}">${esc(r.track_key)}</a>${badges(r.fun, 0)}`}</td><td>${esc(isVehicleId(r.vehicle) ? VEHICLES[r.vehicle].name : r.vehicle)}</td><td><a href="/players/${esc(r.player_id)}">${esc(r.name)}</a></td><td class="t">${fmtTime(r.time)}</td><td class="t dim">${ago(r.created_at)}</td></tr>`).join("")}</table>` : '<p class="dim">Nothing yet.</p>'}`;
+<h2>Latest times</h2>${rec.length ? `<table><tr><th>Track</th><th>Car</th><th>Driver</th><th class="t">Time</th><th class="t">When</th></tr>${rec.map((r) => `<tr><td>${r.special && !isKart(r.track_key) ? `<details class="spoiler"><summary>Spoiler: ${spoilerKind(r.track_key)}${badges(0, 1)}</summary><a href="/tracks/${encodeURIComponent(r.track_key)}">${esc(trackTitle(r.track_key))}</a></details>` : `<a href="/tracks/${encodeURIComponent(r.track_key)}">${esc(r.track_key)}</a>${badges(r.fun, 0)}`}</td><td>${esc(isVehicleId(r.vehicle) ? VEHICLES[r.vehicle].name : r.vehicle)}</td><td><a href="/players/${esc(r.player_id)}">${esc(r.name)}</a></td><td class="t">${fmtTime(r.time)}</td><td class="t dim">${ago(r.created_at)}</td></tr>`).join("")}</table>` : '<p class="dim">Nothing yet.</p>'}`;
   return { status: 200, type: "text/html; charset=utf-8", body: layout("Apex Draft", body) };
 }
 

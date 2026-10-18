@@ -29,6 +29,10 @@ export interface Circuit {
   free?: number[];
   /** one of the Mario Kart courses (karts.ts): its pieces and look come from KART_INFO */
   kart?: boolean;
+  /** a made-up circuit (from a game) rather than a real one */
+  fictional?: boolean;
+  /** the lap crosses itself (a bridge over the road under it) */
+  crosses?: boolean;
 }
 
 interface Spec {
@@ -119,7 +123,7 @@ const SPECS: Spec[] = [
  * game and eased only where a car could not drive it. Autodrome Lago Maggiore is the exception: it is a fictional circuit, traced from
  * its published map (tools/circuits/trace.ts).
  */
-interface FreeSpec { id: string; name: string; lengthKm: number; blurb: string; biome: BiomeId; aliases?: string[] }
+interface FreeSpec { id: string; name: string; lengthKm: number; blurb: string; biome: BiomeId; aliases?: string[]; fictional?: boolean; crosses?: boolean }
 const FREE: FreeSpec[] = [
   { id: "donington-park", name: "Donington Park National", lengthKm: 3.17, biome: "grass", aliases: ["donington", "donington-national", "donington-park-national"], blurb: "The National circuit: Redgate, the Craner Curves, the Old Hairpin, Starkey's, McLeans and Coppice, then the short cut to Goddards." },
   { id: "donington-park-gp", name: "Donington Park GP", lengthKm: 4.02, biome: "grass", aliases: ["donington-gp", "donington-grand-prix", "donington-park-grand-prix"], blurb: "The full Grand Prix loop: Redgate, the Craner Curves, the Old Hairpin, Coppice, the Fogarty Esses and the Melbourne loop onto the Wheatcroft Straight." },
@@ -132,21 +136,47 @@ const FREE: FreeSpec[] = [
   { id: "le-mans", name: "Circuit de la Sarthe", lengthKm: 13.63, biome: "grass", aliases: ["circuit-de-la-sarthe", "sarthe", "le-mans-24-hours", "24-hours-of-le-mans", "circuit-des-24-heures-du-mans", "24-heures-du-mans"], blurb: "Dunlop, the Esses, Tertre Rouge, the Mulsanne straight and its chicane, Mulsanne corner, Indianapolis, Arnage, the Porsche curves and the Ford chicanes. Squeezed down to a third of its size." },
   { id: "monaco", name: "Monaco", lengthKm: 3.34, biome: "city", aliases: ["circuit-de-monaco", "monte-carlo", "monaco-gp", "monaco-grand-prix"], blurb: "Sainte Dévote, the climb past the Casino, the Grand Hotel hairpin, the tunnel, the chicane, the pool and La Rascasse. There is nowhere to hide." },
   { id: "willow-springs", name: "Willow Springs", lengthKm: 4.0, biome: "desert", aliases: ["big-willow", "willow", "willow-springs-international-raceway"], blurb: "Big Willow: huge sweepers in the high desert." },
-  { id: "lago-maggiore", name: "Autodrome Lago Maggiore", lengthKm: 5.81, biome: "grass", aliases: ["autodrome-lago-maggiore", "lago-maggiore-full", "maggiore"], blurb: "A fictional Grand Prix circuit by the lake: a hard left at Turn 1, fast S-bends, a banked hairpin at the foot of a long descent, two long straights and the banked final turn." },
+  { id: "suzuka", name: "Suzuka", lengthKm: 5.81, biome: "grass", crosses: true, aliases: ["suzuka-circuit", "suzuka-international-racing-course", "suzuka-japan", "japanese-grand-prix"], blurb: "The figure of eight: the Esses, Degner, the Spoon curve, 130R and the Casio Triangle, with the back straight passing over the road beneath it." },
+  { id: "interlagos", name: "Autódromo José Carlos Pace (Interlagos)", lengthKm: 4.31, biome: "grass", aliases: ["interlagos-brazil", "autodromo-jose-carlos-pace", "sao-paulo", "brazilian-gp"], blurb: "Anti-clockwise and downhill: the Senna S, the Descida do Lago, Ferradura, Laranjinha, Pinheirinho, Bico de Pato and the climb to the pits." },
+  { id: "imola", name: "Imola", lengthKm: 4.91, biome: "grass", aliases: ["autodromo-enzo-e-dino-ferrari", "autodromo-internazionale-enzo-e-dino-ferrari", "imola-circuit", "san-marino-gp"], blurb: "Tamburello and Villeneuve, Tosa, Piratella, Acque Minerali, the Variante Alta and Rivazza." },
+  { id: "zandvoort", name: "Circuit Zandvoort", lengthKm: 4.26, biome: "grass", aliases: ["circuit-park-zandvoort", "cm-com-circuit-zandvoort", "zandvoort-circuit", "dutch-gp"], blurb: "Dune circuit: Tarzanbocht, Hugenholtzbocht, Scheivlak, Hans Ernst and the final turn onto the start straight." },
+  { id: "cota", name: "Circuit of the Americas", lengthKm: 5.51, biome: "grass", aliases: ["circuit-of-the-americas", "austin", "austin-texas", "us-gp"], blurb: "A blind climb to Turn 1, the Maggotts-Becketts-style esses, the long back straight into Turn 12 and the stadium section." },
+  { id: "red-bull-ring", name: "Red Bull Ring", lengthKm: 4.32, biome: "grass", aliases: ["spielberg", "osterreichring", "a1-ring", "styrian-gp", "austrian-gp"], blurb: "Short and steep in the Styrian hills: three fast straights, tight corners and the climb to Turn 3." },
+  { id: "brands-hatch", name: "Brands Hatch GP", lengthKm: 3.91, biome: "grass", aliases: ["brands-hatch-gp", "brands-hatch-grand-prix", "brands"], blurb: "Paddock Hill Bend, Druids, Graham Hill Bend, Surtees, Hawthorns, Westfield, Dingle Dell and Clearways." },
+  { id: "mugello", name: "Autodromo del Mugello", lengthKm: 5.25, biome: "grass", aliases: ["mugello-circuit", "autodromo-internazionale-del-mugello", "tuscan-gp"], blurb: "Arrabbiata 1 and 2, Casanova and Savelli, the Biondetti chicane and the long start straight in Tuscany." },
+  { id: "sebring", name: "Sebring International Raceway", lengthKm: 6.02, biome: "grass", aliases: ["sebring-raceway", "sebring-international", "sebring-12-hours", "12-hours-of-sebring"], blurb: "Bumpy airfield concrete: the Hairpin, Ullman Straight, Gendebien Bend, the Le Mans Curve and Sunset Bend." },
+  { id: "road-america", name: "Road America", lengthKm: 6.52, biome: "grass", aliases: ["road-america-elkhart-lake", "elkhart-lake", "elkhart"], blurb: "Wisconsin's fast road course: Turn 1, the Carousel, Canada Corner, the Kink and Hurry Downs." },
+  { id: "hungaroring", name: "Hungaroring", lengthKm: 4.38, biome: "grass", aliases: ["hungaroring-circuit", "budapest", "hungarian-gp"], blurb: "Tight and twisty, like a kart track in a bowl: one long straight and a slow corner after another." },
+  { id: "paul-ricard", name: "Circuit Paul Ricard", lengthKm: 5.84, biome: "grass", aliases: ["circuit-paul-ricard", "le-castellet", "french-gp", "paul-ricard-gp"], blurb: "The Mistral straight with its chicane, Signes and the S de la Verrerie, in the south of France." },
+  { id: "nurburgring-gp", name: "Nürburgring GP", lengthKm: 5.15, biome: "grass", aliases: ["nurburgring", "nuerburgring", "n-rburgring", "n-rburgring-gp", "nurburgring-grand-prix", "nuerburgring-gp", "nurburgring-gp-strecke", "eifel-gp"], blurb: "The Grand Prix circuit: the Castrol-S, Mercedes Arena, Dunlop Kehre and the Veedol chicane." },
+  { id: "nurburgring-sprint", name: "Nürburgring Sprint", lengthKm: 3.63, biome: "grass", aliases: ["nurburgring-sprintstrecke", "nuerburgring-sprint", "n-rburgring-sprint", "nurburgring-short", "nurburgring-short-gp"], blurb: "The short Sprintstrecke layout of the Grand Prix circuit." },
+  { id: "nurburgring-nordschleife", name: "Nürburgring Nordschleife", lengthKm: 20.83, biome: "grass", aliases: ["nordschleife", "nurburgring-nordschleife", "nuerburgring-nordschleife", "n-rburgring-nordschleife", "green-hell", "the-green-hell", "nurburgring-north-loop"], blurb: "The Green Hell at full scale: the Hatzenbach, Flugplatz, Schwedenkreuz, Adenauer Forst, Karussell, Pflanzgarten and the Döttinger Höhe straight." },
+  { id: "fuji", name: "Fuji Speedway", lengthKm: 4.56, biome: "grass", aliases: ["fuji-speedway", "fuji-international-speedway", "fuji-gp", "japanese-gp"], blurb: "Under the mountain: the Dunlop corner, the long start straight, 300R, Coca-Cola and Advan corners and the final chicane." },
+  { id: "gilles-villeneuve", name: "Circuit Gilles Villeneuve", lengthKm: 4.36, biome: "city", aliases: ["circuit-gilles-villeneuve", "montreal", "canadian-gp", "ile-notre-dame"], blurb: "Island park roads in Montréal: the Senna chicane, the hairpin, the long straights and the Wall of Champions." },
+  { id: "trial-mountain", name: "Trial Mountain Circuit", lengthKm: 5.43, biome: "grass", fictional: true, aliases: ["trial-mountain-circuit", "trial-mountain-gt7"], blurb: "A fictional mountain circuit from Gran Turismo, rebuilt for GT7: fifteen turns, a very long back straight and a chicane before the pits." },
+  { id: "high-speed-ring", name: "High Speed Ring", lengthKm: 4.35, biome: "grass", fictional: true, aliases: ["high-speed-ring-gt7", "highspeed-ring"], blurb: "A fictional circuit from Gran Turismo: six big corners and fast straights between them." },
+  { id: "dragon-trail", name: "Dragon Trail Seaside", lengthKm: 5.21, biome: "grass", fictional: true, aliases: ["dragon-trail-seaside", "seaside"], blurb: "A fictional seaside circuit in Croatia, from Gran Turismo: a long run down the coast, Nicola and Andrea at the top and the Smrt-šikanu chicane." },
+  { id: "lago-maggiore", name: "Autodrome Lago Maggiore", lengthKm: 5.81, biome: "grass", fictional: true, aliases: ["autodrome-lago-maggiore", "lago-maggiore-full", "maggiore"], blurb: "A fictional Grand Prix circuit by the lake: a hard left at Turn 1, fast S-bends, a banked hairpin at the foot of a long descent, two long straights and the banked final turn." },
 ];
 const freeCircuit = (f: FreeSpec): Circuit => {
   const free = CIRCUIT_DATA[f.id];
   if (!free) throw new Error(`${f.id}: no map data`);
-  return { id: f.id, name: f.name, lengthKm: f.lengthKm, blurb: f.blurb, cols: 0, rows: 0, biome: f.biome, cells: [], start: 0, free };
+  return { id: f.id, name: f.name, lengthKm: f.lengthKm, blurb: f.blurb, cols: 0, rows: 0, biome: f.biome, cells: [], start: 0, free, ...(f.fictional ? { fictional: true } : {}), ...(f.crosses ? { crosses: true } : {}) };
 };
 
 export const CIRCUITS: Circuit[] = [...SPECS.map(build), ...FREE.map(freeCircuit), ...KART_CIRCUIT_LIST];
 const BY_PHRASE = new Map<string, Circuit>();
-SPECS.forEach((s, i) => { for (const p of [s.id, ...(s.aliases ?? [])]) BY_PHRASE.set(p, CIRCUITS[i]!); });
-FREE.forEach((f, i) => { for (const p of [f.id, ...(f.aliases ?? [])]) BY_PHRASE.set(p, CIRCUITS[SPECS.length + i]!); });
+/** A phrase names one circuit; two circuits claiming the same alias is a mistake, so it stops the build rather than letting the later one win. */
+const claim = (p: string, c: Circuit): void => {
+  const had = BY_PHRASE.get(p);
+  if (had && had !== c) throw new Error(`the phrase "${p}" names both ${had.id} and ${c.id}`);
+  BY_PHRASE.set(p, c);
+};
+SPECS.forEach((s, i) => { for (const p of [s.id, ...(s.aliases ?? [])]) claim(p, CIRCUITS[i]!); });
+FREE.forEach((f, i) => { for (const p of [f.id, ...(f.aliases ?? [])]) claim(p, CIRCUITS[SPECS.length + i]!); });
 for (const [i, c] of KART_CIRCUIT_LIST.entries()) {
   const row = KART_ROSTER.find((r) => r.id === c.id)!;
-  for (const p of [c.id, ...row.aliases]) BY_PHRASE.set(p, CIRCUITS[SPECS.length + FREE.length + i]!);
+  for (const p of [c.id, ...row.aliases]) claim(p, CIRCUITS[SPECS.length + FREE.length + i]!);
 }
 
 /** The circuit a (normalised) phrase names, if any. Random phrases are four words and never match. */

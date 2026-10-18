@@ -511,7 +511,8 @@ export class Race {
     this.hasCross = track.allSegments.some((x) => x.kind === "cross");
     this.lapLen = trackLength(track);
     this.biome = biomeOf(track.biome);
-    this.maxTime = Math.max(900, laps * 100 + 300);
+    // (a long lap needs more time than a hundred seconds each: the Nordschleife at full scale is nearly 19000 units)
+    this.maxTime = Math.max(900, laps * 100 + 300, Math.ceil((laps * this.lapLen) / 30) + 300);
     this.rng = new Rng((track.seed ^ 0x5b17) >>> 0);
     this.weather = rules.weather === false ? { showers: [] } : weatherFor(track.seed, raceDuration(track, entrants[0]?.car.type ?? "rally", laps), track.biome);
     this.field = new WetField(track, rules.rubber);

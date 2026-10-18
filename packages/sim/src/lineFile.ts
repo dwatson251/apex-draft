@@ -1,6 +1,6 @@
 import { validateCar, type CarConfig } from "./car.ts";
 import { isVehicleId } from "./vehicles.ts";
-import type { Line } from "./line.ts";
+import { MAX_SEGMENTS, type Line } from "./line.ts";
 import { normalizePhrase } from "./seed.ts";
 
 /** Version 2 added `path` (the segment each list of waypoints belongs to, for a lap that takes a shortcut); version 1 files still open. */
@@ -39,7 +39,7 @@ export function parseLineFile(text: string): LineFile | string {
   if (!Array.isArray(raw.lines) || raw.lines.length < 1 || raw.lines.length > 12) return "needs 1 to 12 lap lines";
   const lines: Line[] = [];
   for (const l of raw.lines) {
-    if (!l || !isPt(l.start) || !Array.isArray(l.segs) || l.segs.length > 64) return "bad line";
+    if (!l || !isPt(l.start) || !Array.isArray(l.segs) || l.segs.length > MAX_SEGMENTS) return "bad line";
     const segs = [];
     for (const s of l.segs) {
       if (!Array.isArray(s) || s.length < 1 || s.length > 2000 || !s.every(isPt)) return "bad line segment";

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { loadWays, projector, type Pt } from "./osm.ts";
 import { graph, cyclesThrough, bridgeGaps, type Edge } from "./loop.ts";
-import { dist, fit, length, measure, radii, resample, smoothLoop, straighten, type Limits } from "./process.ts";
+import { crossingExempt, dist, fit, length, measure, radii, resample, smoothLoop, straighten, type Limits } from "./process.ts";
 import { SOURCES, type Source } from "./sources.ts";
 
 /**
@@ -32,7 +32,8 @@ function loopOf(src: Source): { pts: Pt[]; startArc: number } {
   const ways = all.filter((w) => !(src.avoid ?? []).includes(w.id) && (src.relation || (!/pit lane|kart|support|moto layout/i.test(w.tags.name ?? "") && w.tags.sport !== "karting" && w.tags.raceway !== "pit_lane")));
   const rel = src.relation;
   const { edges, nodes } = graph(ways, proj, rel?.tolerance ?? 4, !rel);
-  if (rel?.bridge) { const made = bridgeGaps(edges, nodes, rel.bridge); if (made) console.log(`  ${made} gap(s) in the map joined up`); }
+  const bridge = rel?.bridge ?? src.bridge;
+  if (bridge) { const made = bridgeGaps(edges, nodes, bridge); if (made) console.log(`  ${made} gap(s) in the map joined up`); }
   let cycles = cyclesThrough(edges, src.via);
   cycles = cycles.filter((c) => (src.require ?? []).every((id) => c.some((e) => e.way.id === id)));
   if (!cycles.length) throw new Error(`${src.id}: no lap found`);
@@ -88,7 +89,7 @@ function build(src: Source): Built {
     return worst;
   };
   let startIdx = nominal, bestScore = Infinity;
-  for (let off = -90; off <= 90; off++) {
+  for (let off = -(src.startSearch ?? 90); off <= (src.startSearch ?? 90); off++) {
     const at = (nominal + off + n) % n, score = bend(at) + 0.01 * Math.abs(off);
     if (score < bestScore) { bestScore = score; startIdx = at; }
   }
@@ -96,7 +97,7 @@ function build(src: Source): Built {
   // start there, with the road dead straight beside the pit lane, then bend the whole loop to fit the game
   const fromStart = (a: Pt[]) => [...a.slice(startIdx), ...a.slice(0, startIdx)];
   const start = straighten(fromStart(scaled), 0, 18, 14);
-  const { points, report } = fit(start, LIMITS, 60, 18);
+  const { points, report } = fit(start, { ...LIMITS, ...src.limits, ...(src.crosses ? { exempt: crossingExempt(start) } : {}) }, src.rounds ?? 60, 18);
   const minX = Math.min(...points.map((p) => p.x)), minY = Math.min(...points.map((p) => p.y));
   const game = points.map((p) => ({ x: p.x - minX + margin, y: p.y - minY + margin }));
   return { src, real: fromStart(real), startReal: 0, game, report, scale: src.scale };

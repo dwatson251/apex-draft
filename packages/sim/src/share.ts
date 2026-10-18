@@ -1,5 +1,5 @@
 import { STATS, STAT_MAX, STAT_MIN, type CarConfig } from "./car.ts";
-import type { Line } from "./line.ts";
+import { MAX_SEGMENTS, type Line } from "./line.ts";
 import { normalizePhrase } from "./seed.ts";
 import { COMPOUND_IDS, type Compound } from "./tyres.ts";
 import type { Vec2 } from "./vec.ts";
@@ -145,7 +145,7 @@ export function decodeShare(code: string): ShareState | string {
     };
     if (flags & 16) {
       const count = r.varint();
-      if (count > 64) return "too many segments";
+      if (count > MAX_SEGMENTS) return "too many segments";
       let path: number[] | undefined;
       if (flags & 32) {
         path = [];

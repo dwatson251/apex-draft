@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CIRCUITS, Race, isCrossing, ROAD_HALF, botLine, centreAt, checkTrack, defaultCar, generateTrack, randomPhrase, Rng, trackLength, type Segment } from "@apex/sim";
+import { CIRCUITS, Race, circuitFor, normalizePhrase, isCrossing, ROAD_HALF, botLine, centreAt, checkTrack, defaultCar, generateTrack, randomPhrase, Rng, trackLength, type Segment } from "@apex/sim";
 
 const MIN_GAP = 2 * ROAD_HALF + 4 - 0.5;
 
@@ -29,6 +29,26 @@ describe("lago-maggiore", () => {
     const c = CIRCUITS.find((x) => x.id === "lago-maggiore")!;
     expect(c.free?.length).toBeGreaterThan(400);
     expect(c.cells.length).toBe(0);
+  });
+});
+
+describe("circuits that cross themselves", () => {
+  it("Suzuka's figure of eight has a bridge over the road under it", () => {
+    const t = generateTrack("suzuka");
+    const kinds = t.segments.map((x) => x.kind);
+    expect(kinds).toContain("bridge");
+    expect(kinds).toContain("under");
+    expect(checkTrack(t)).toEqual([]);
+  });
+});
+
+describe("the phrases of the circuits", () => {
+  it("never name two circuits (an alias is claimed once, or the registry throws)", () => {
+    const seen = new Map<string, string>();
+    for (const c of CIRCUITS) for (const p of [c.id]) { expect(seen.get(p), p).toBeUndefined(); seen.set(p, c.id); }
+    expect(circuitFor("nurburgring")?.id).toBe("nurburgring-gp");
+    expect(circuitFor(normalizePhrase("Nürburgring Nordschleife"))?.id).toBe("nurburgring-nordschleife");
+    expect(circuitFor(normalizePhrase("Nuerburgring"))?.id).toBe("nurburgring-gp");
   });
 });
 
@@ -90,7 +110,7 @@ describe("hidden circuits", () => {
       it("gives the same track every time and a sane lap", () => {
         expect(trackLength(generateTrack(c.id))).toBe(trackLength(t));
         expect(trackLength(t)).toBeGreaterThan(1200);
-        expect(trackLength(t)).toBeLessThan(c.free ? 7000 : 6000);
+        expect(trackLength(t)).toBeLessThan(c.free ? 24000 : 6000);
       });
       it("runs an 8-car race to the flag with every car finishing", () => {
         const es = Array.from({ length: 8 }, (_, i) => ({ id: `c${i}`, name: `c${i}`, car: defaultCar(), lines: [botLine(t, 2 + (i % 4), 1)], isPlayer: false }));

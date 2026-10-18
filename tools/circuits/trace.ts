@@ -56,10 +56,11 @@ if (turnAfter(loop, startIdx) > 0) { loop = [...loop].reverse(); startIdx = n - 
 const at = (startIdx - Math.round(win / 2) + n) % n;
 const fromStart = [...loop.slice(at), ...loop.slice(0, at)];
 const start = straighten(fromStart, 0, 18, 14);
-const { points, report } = fit(start, LIMITS, 60, 18);
+const limits: Limits = { ...LIMITS, ...JSON.parse(process.env.TRACE_LIMITS ?? "{}") }; // (TRACE_LIMITS='{"gap":70}' to ask for more)
+const { points, report } = fit(start, limits, Number(process.env.TRACE_ROUNDS ?? 60), 18);
 const minX = Math.min(...points.map((p) => p.x)), minY = Math.min(...points.map((p) => p.y));
 const game = points.map((p) => ({ x: p.x - minX + margin, y: p.y - minY + margin }));
-const r = measure(game, start, LIMITS);
+const r = measure(game, start, limits);
 console.log(`${id}: ${(length(game) / 1000).toFixed(2)}k units, R>=${report.minRadius.toFixed(0)} gap>=${report.minGap.toFixed(0)}, drift mean ${r.meanDrift.toFixed(0)} max ${r.worstDrift.toFixed(0)} units`);
 
 const dataFile = here("../../packages/sim/src/circuitData.ts");

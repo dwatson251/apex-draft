@@ -41,6 +41,8 @@ export function smoothLoop(p: Pt[], passes: number, k = 0.5): Pt[] {
 export interface Limits {
   /** the tightest turn the road may make (radius of the centre line, units) */
   rMin: number;
+  /** how many slow waves the bend may use (more for a very twisty lap; default 14) */
+  harmonics?: number;
   /** the least distance between two parts of the road that are not near each other along it */
   gap: number;
   /** parts of the road closer than this along it are not "other" parts of it */
@@ -86,7 +88,7 @@ function solve(A: number[][], b: number[]): number[] {
  * the same), and the loop is rebuilt from those turns. The rebuilt loop is then moved, turned and gently warped (a few slow
  * waves in the heading) to lie as close as it can to `target` while staying closed.
  */
-function bend(P: Pt[], target: Pt[], rMin: number, pinned: (i: number) => boolean): Pt[] {
+function bend(P: Pt[], target: Pt[], rMin: number, pinned: (i: number) => boolean, harmonics = 14): Pt[] {
   const n = P.length, ds = length(P) / n, phiMax = ds / rMin;
   const theta0 = P.map((q, i) => { const r = P[(i + 1) % n]!; return Math.atan2(r.y - q.y, r.x - q.x); });
   const phi = theta0.map((t, i) => wrap(t - theta0[(i + n - 1) % n]!));
@@ -107,7 +109,7 @@ function bend(P: Pt[], target: Pt[], rMin: number, pinned: (i: number) => boolea
   theta[0] = theta0[0]!;
   for (let i = 1; i < n; i++) theta[i] = theta[i - 1]! + phi[i]!;
   // basis of heading changes: all edges together (a turn), then slow waves
-  const HARMONICS = 14;
+  const HARMONICS = harmonics;
   const basis: ((k: number) => number)[] = [() => 1];
   for (let m = 1; m <= HARMONICS; m++) { basis.push((k) => Math.cos((2 * Math.PI * m * k) / n), (k) => Math.sin((2 * Math.PI * m * k) / n)); }
   const m = 2 + basis.length;
@@ -154,13 +156,13 @@ function bend(P: Pt[], target: Pt[], rMin: number, pinned: (i: number) => boolea
   return X.slice(0, n).map((q, i) => ({ x: q.x - (ex * i) / n, y: q.y - (ey * i) / n }));
 }
 
-/** Push apart the parts of the road that are not next to each other along it. Returns how many pairs were too close. */
+/** Push apart the parts of the road that are not next to each other along it. Returns how many pairs were too close to begin with. */
 function separate(P: Pt[], lim: Limits, pinned: (i: number) => boolean): number {
   const n = P.length, spacing = length(P) / n, nearIdx = Math.ceil(lim.near / spacing);
-  let bad = 0;
+  let first = -1;
   for (let rep = 0; rep < 4; rep++) {
     const dx = new Float64Array(n), dy = new Float64Array(n);
-    bad = 0;
+    let bad = 0;
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
       if (Math.min(j - i, n - (j - i)) <= nearIdx || lim.exempt?.(i, j)) continue;
       const a = P[i]!, b = P[j]!, ex = b.x - a.x, ey = b.y - a.y;
@@ -174,9 +176,10 @@ function separate(P: Pt[], lim: Limits, pinned: (i: number) => boolean): number 
       const wi = pj ? 1 : pi ? 0 : 0.5, wj = pi ? 1 : pj ? 0 : 0.5; // a pinned point stays and the other one gives way
       dx[i] -= ex * push * wi; dy[i] -= ey * push * wi; dx[j] += ex * push * wj; dy[j] += ey * push * wj;
     }
+    if (first < 0) first = bad;
     P.forEach((q, i) => { q.x += dx[i]!; q.y += dy[i]!; });
   }
-  return bad;
+  return first; // (the pairs too close before any pushing: zero means the road already kept its distance)
 }
 
 /**
@@ -192,7 +195,7 @@ export function fit(original: Pt[], lim: Limits, rounds = 40, pinHalf = 0): { po
   let it = 0;
   for (; it < rounds; it++) {
     const t0 = Date.now();
-    P = bend(P, target, lim.rMin, pinned);
+    P = bend(P, target, lim.rMin, pinned, lim.harmonics);
     if (process.env.FITLOG) console.log('  round', it, Date.now() - t0, 'ms');
     P = resample(P, original.length);
     const q = P.map((p) => ({ ...p }));
@@ -237,4 +240,24 @@ export function straighten(p: Pt[], at: number, half: number, blend: number): Pt
     out[i] = { x: line.x * w + p[i]!.x * (1 - w), y: line.y * w + p[i]!.y * (1 - w) };
   }
   return out;
+}
+
+/** Where the loop crosses itself: pairs of edge indices (k, m) whose segments intersect. */
+export function crossingsOf(loop: Pt[]): [number, number][] {
+  const n = loop.length, out: [number, number][] = [];
+  const side = (a: Pt, b: Pt, c: Pt): number => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  for (let k = 0; k < n; k++) for (let m = k + 3; m < n; m++) {
+    if (k === 0 && m >= n - 2) continue;
+    const a = loop[k]!, b = loop[(k + 1) % n]!, c = loop[m]!, d = loop[(m + 1) % n]!;
+    if (side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0) out.push([k, m]);
+  }
+  return out;
+}
+
+/** The pairs of points near a crossing, which may lie on each other (two roads, one over the other): the fit leaves them alone. Undefined when the loop does not cross itself. */
+export function crossingExempt(loop: Pt[], window = 11): ((i: number, j: number) => boolean) | undefined {
+  const cr = crossingsOf(loop), n = loop.length;
+  if (!cr.length) return undefined;
+  const d = (a: number, b: number): number => Math.min(Math.abs(a - b), n - Math.abs(a - b));
+  return (i, j) => cr.some(([k, m]) => (d(i, k) <= window && d(j, m) <= window) || (d(j, k) <= window && d(i, m) <= window));
 }

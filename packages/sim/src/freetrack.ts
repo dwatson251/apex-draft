@@ -156,7 +156,7 @@ export function buildFreeCircuit(c: Circuit, typed: string, opts: { obstacles?: 
     if (s.index === 0 || s.index === n - 1) s.kind = "straight";
     placeFeatures(s, rng, s.index === 0 || s.index === n - 1);
   }
-  if (c.kart) markCrossings(segments);
+  if (c.kart || c.crosses) markCrossings(segments);
   const kart = c.kart ? KART_INFO.get(c.id) : undefined;
   if (kart) layFx(segments, kart.fx);
   if (opts.obstacles === false) for (const s of segments) s.obstacles = [];

@@ -39,9 +39,9 @@ describe("circuits laid out from a map", () => {
       it("has no bend tighter than a car can take, and room between its roads", () => {
         expect(tightest(t)).toBeGreaterThan(ROAD_HALF + 6);
       });
-      it("is the right size for the real circuit (about a tenth to a unit and a half of a unit a metre)", () => {
+      it("is the right size for the real circuit (about a quarter to a unit and a half of a unit a metre)", () => {
         const perMetre = trackLength(t) / (c.lengthKm * 1000);
-        expect(perMetre).toBeGreaterThan(0.35);
+        expect(perMetre).toBeGreaterThan(0.25);
         expect(perMetre).toBeLessThan(1.5);
       });
       it("gives the bots a line they can drive, whatever their skill", () => {

@@ -173,8 +173,8 @@ shadow cast to the lower right over the road beneath. The deck is in its own lay
 under it vanish and reappear), and cars on it are drawn above the deck (with their ordinary shadow: a lifted one made them look as if they were flying).
 
 ## Mapped circuits
-The real circuits (Spa, Monza, Silverstone, Barcelona, Laguna Seca, Monaco, Le Mans, Daytona's road course, Donington and Willow
-Springs) are not cell loops. Each is a line of points (`circuitData.ts`, made by `tools/circuits`, see below), and `freetrack.ts` turns it
+The mapped circuits (the real ones from Spa to the Nürburgring Nordschleife, and the Gran Turismo fictionals traced from their maps; see
+`docs/CIRCUIT_CREDITS.md`) are not cell loops. Each is a line of points (`circuitData.ts`, made by `tools/circuits`, see below), and `freetrack.ts` turns it
 into a `Track` with `free: true`:
 - the points are run through a closed uniform cubic B-spline, and the line is cut into segments of about `SEGMENT_LENGTH` (120) units
   starting at the start line, each between two gates square to the road (so the pit lane, the line drawing, the bots and the wet field
@@ -187,11 +187,11 @@ into a `Track` with `free: true`:
 `tools/circuits` makes the data, offline, from OpenStreetMap: `sources.ts` says where each circuit is (a bounding box and either a
 circuit relation, or a way on the lap, or a closed way); `fetch.ts` downloads the ways from the Overpass API; `build.ts` finds the lap
 (a loop through the mapped ways, joining small gaps and choosing the one nearest the real length), turns it into metres, scales it
-(`scale` units a metre; the laps are 3 to 6 thousand units), picks the straightest stretch near the real start line for the start,
+(`scale` units a metre; the laps are 3 to 6 thousand units, and the Nordschleife at full scale is 18 thousand: nothing caps a lap but the 512 segments of a saved or shared line, `MAX_SEGMENTS`), picks the straightest stretch near the real start line for the start,
 makes the road dead straight there, and then bends the line the least that makes a road the cars can use. `process.ts` does that last step:
 each point's turn is limited to that of a bend of radius 36 (the excess is spread along the road, so a hairpin gets wider), the loop is
 rebuilt from its turns and fitted back toward where it was with a few slow waves of heading and kept closed, and parts of the road that
-are not near each other along it are pushed at least 60 units apart. It prints how close the result is to the real shape. Run
+are not near each other along it are pushed at least 60 units apart (a circuit's `Source` can override the limits, the number of fit rounds and of slow waves, and say that it crosses itself, so the fit leaves the crossing alone). It prints how close the result is to the real shape. Run
 `npm run circuits:fetch` once and `npm run circuits` to rebuild `circuitData.ts`.
 
 ## The grid

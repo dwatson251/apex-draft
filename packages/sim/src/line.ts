@@ -16,6 +16,9 @@ export interface Line {
   path?: number[];
 }
 
+/** The most segments a saved or shared lap can have (the Nordschleife at full scale is about 190). */
+export const MAX_SEGMENTS = 512;
+
 /** The id of the segment that `line.segs[k]` is drawn in. */
 export const idAt = (line: { path?: number[] }, k: number): number => line.path?.[k] ?? k;
 
