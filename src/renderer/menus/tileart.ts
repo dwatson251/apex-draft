@@ -18,6 +18,8 @@ export const TILE_ART: Record<string, string> = {
   play: svg('<path d="M24 160c30-6 44-34 70-40s46 10 82-6" stroke-dasharray="10 12"/><circle cx="100" cy="86" r="56"/><path d="M84 58v56l46-28z" fill="currentColor"/>'),
   // a ladder with a trophy at the top
   career: svg('<path d="M62 180V60M138 180V60M62 160h76M62 130h76M62 100h76M62 70h76"/><path d="M84 22h32v14c0 10-7 17-16 17s-16-7-16-17z"/><path d="M100 53v7"/>'),
+  // a folded map with a pin
+  atlas: svg('<path d="M30 50l45-18 50 18 45-18v118l-45 18-50-18-45 18z"/><path d="M75 32v118M125 50v118"/><circle cx="100" cy="92" r="14"/><path d="M100 106v22"/>'),
   quick: svg(FLAG),
   weekend: svg('<rect x="30" y="50" width="140" height="110" rx="6"/><path d="M30 82h140M62 34v28M138 34v28"/><path d="M52 104h22M89 104h22M126 104h22M52 130h22M89 130h22" stroke-width="4"/>'),
   champ: svg('<path d="M70 40h60v40a30 30 0 0 1-60 0z"/><path d="M70 52H44c0 28 10 40 28 44M130 52h26c0 28-10 40-28 44"/><path d="M100 110v32M72 162h56M84 142h32"/>'),

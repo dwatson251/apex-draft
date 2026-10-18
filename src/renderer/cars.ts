@@ -16,12 +16,14 @@ export const variantOf = (id: string): number => { let h = 2166136261; for (let 
 export interface Livery {
   primary: number;
   secondary: number;
-  /** 0 none, 1 one stripe down the middle, 2 two stripes, 3 a band along each side */
-  stripe: 0 | 1 | 2 | 3;
+  /** 0 none, 1 one stripe down the middle, 2 two stripes, 3 a band along each side; trophy rewards: 4 chequered bonnet and tail, 5 chevrons */
+  stripe: 0 | 1 | 2 | 3 | 4 | 5;
   /** 1 to 99 painted on the car; 0 for none */
   number: number;
 }
 export const LIVERY_COLORS = [0xffcf3f, 0xff7a2f, 0xe9453b, 0xe86bb5, 0x9a6bff, 0x4a8fe8, 0x4fe0ff, 0x5ad07a, 0xf1f1f1, 0x8a8f9a, 0x2b2f3a, 0x14161c] as const;
+/** Paints a trophy opens (trophies.ts rewards). */
+export const GOLD = 0xd4af37, CHROME = 0xc9d1dc;
 export const DEFAULT_LIVERY: Livery = { primary: 0xffcf3f, secondary: 0x14161c, stripe: 0, number: 0 };
 
 export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: boolean, variant = 0, livery?: Livery): CarShape {
@@ -335,6 +337,13 @@ export function buildCar(vehicle: Vehicle | VehicleId, color: number, isPlayer: 
     if (livery.stripe === 1) ends(-0.16, 0.16);
     else if (livery.stripe === 2) { ends(-0.32, -0.17); ends(0.17, 0.32); }
     else if (livery.stripe === 3) { bar(-0.7, 0.7, -0.8, -0.66); bar(-0.7, 0.7, 0.66, 0.8); }
+    else if (livery.stripe === 4) {
+      // a chequered nose and tail: squares in the stripe colour, every other one
+      for (const [x0, x1] of [[0.52, 0.94], [-0.94, -0.54]] as const) for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) % 2 === 0) bar(x0 + ((x1 - x0) / 4) * i, x0 + ((x1 - x0) / 4) * (i + 1), -0.8 + 0.4 * j, -0.8 + 0.4 * (j + 1));
+    } else if (livery.stripe === 5) {
+      // chevrons pointing forward down the middle
+      for (const x of [0.86, 0.66, -0.54, -0.74]) d.poly([x * hl, 0, (x - 0.14) * hl, -0.5 * hw, (x - 0.24) * hl, -0.5 * hw, (x - 0.1) * hl, 0, (x - 0.24) * hl, 0.5 * hw, (x - 0.14) * hl, 0.5 * hw]).fill({ color: livery.secondary, alpha: 0.95 });
+    }
     body.addChild(d);
     if (livery.number > 0) {
       // a round plate on the roof, in the stripe colour, with the number in whichever of black and white reads better on it

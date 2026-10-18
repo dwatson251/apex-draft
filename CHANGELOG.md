@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **The atlas and trophies.** Time Attack > *Atlas* lists every hidden real circuit: a name once you have found it (type it as the track phrase), its length and your best time, and *???* until then. Nineteen trophies for what you do (your first win, a win on Hard, from the back of the grid, under the safety car, in the rain, three stars in Line Golf, rungs of the career, circuits found...), each with a toast when it comes.
+- **Livery rewards.** Four trophies open something for the paint: gold and chrome, a chequered nose and tail, and chevrons.
 - **Career.** A ladder of seasons in the Race menu, one machine a rung: karting, touring cars, GT4, GT3, prototypes, formula cars and hypercars, the top three on the real circuits. Each season is four rounds (a qualifier and a race) against the same rivals; finish in the top three and the next rung opens, otherwise you run it again on new tracks. Your best season on each rung is kept.
 - **Yellow flags and the safety car.** In a race, cars coming up to a wreck slow down past it. When two cars are in trouble at once, or one has been stuck for four seconds, the safety car comes out (never on the last lap): the leader is held to its pace and the field closes up behind, until the road has been clear for twenty seconds and it has been out at least thirty. A flag in the race panel and a toast say when it is out and when it goes in. The server replays races with it.
 - **Record a clip.** *● Record* on the race bar records the race as a video (WebM, up to a minute) and saves it when you stop, or when the race ends. Watch a replay and record that.

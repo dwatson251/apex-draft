@@ -26,7 +26,7 @@ export function homeHtml(o: { version: string; quit: boolean; note: string; chal
 }
 
 /** A group of modes behind one tile on the home screen: Race (against rivals) or Time Attack (against the clock). */
-export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: string; golf: string; career: string }): string {
+export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: string; golf: string; career: string; atlas: string }): string {
   const t = (spec: TileSpec) => tile(spec, esc);
   const head = (title: string, sub: string) => `<header class="tilehead"><button class="back" id="back">← Back</button><div><h2>${title}</h2><p class="dim">${sub}</p></div></header>`;
   return kind === "race"
@@ -35,10 +35,11 @@ export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: st
         ${t({ id: "h-weekend", art: "weekend", colour: "#e0409a", title: "Race Weekend", sub: "Practice, qualifier, race" })}
         ${t({ id: "h-career", art: "career", colour: "#f08c00", title: "Career", sub: o.career })}
         ${t({ id: "h-champ", art: "champ", colour: "#d6283f", title: "Championship", sub: o.champ })}</div>`
-    : `${head("Time Attack", "You, the track and the clock")}<div class="tilegrid group">
+    : `${head("Time Attack", "You, the track and the clock")}<div class="tilegrid group four">
         ${t({ id: "h-trial", art: "trial", colour: "#f2b705", title: "Solo Time Trial", sub: "Any track, as many tries as you like" })}
         ${t({ id: "h-daily", art: "daily", colour: "#14b8a6", title: "Daily", sub: o.daily })}
-        ${t({ id: "h-golf", art: "golf", colour: "#7bc043", title: "Line Golf", sub: o.golf })}</div>`;
+        ${t({ id: "h-golf", art: "golf", colour: "#7bc043", title: "Line Golf", sub: o.golf })}
+        ${t({ id: "h-atlas", art: "atlas", colour: "#3fa7d6", title: "Atlas", sub: o.atlas })}</div>`;
 }
 
 const DIFFICULTY_BLURB: Record<Difficulty, string> = {
@@ -232,4 +233,13 @@ export function careerHtml(o: {
       <table><tr><th>#</th><th>Driver</th><th class="num">Wins</th><th class="num">Points</th></tr>${s.rows.map((r, i) => `<tr class="${r.me ? "me" : ""}"><td>${i + 1}</td><td>${esc(r.name)}</td><td class="num">${r.wins}</td><td class="num">${r.points}</td></tr>`).join("")}</table>
       <div class="bigbtns"><button class="big yellow wide" id="career-go">Race round ${s.round + 1}</button><button class="big grey" id="career-quit">Abandon</button></div>`
       : `<p>Each round is a qualifier and a race, against the same rivals all season.</p><div class="bigbtns"><button class="big yellow wide" id="career-start">Start the season</button></div>`}</div></div>`;
+}
+
+/** The atlas: every real circuit, named once found (a phrase typed in race setup finds it), with the best time on it; and the trophies. */
+export function atlasHtml(o: { circuits: { name: string | null; km: number; best: string | null; fictional: boolean }[]; trophies: { name: string; blurb: string; when: number | null; reward: string | null }[] }): string {
+  const found = o.circuits.filter((c) => c.name).length, got = o.trophies.filter((x) => x.when).length;
+  return `<div class="head"><button class="back" id="back">← Back</button><div><h2>Atlas</h2><p class="dim">The real circuits hide behind their names: type one as the track phrase to find it. ${found} of ${o.circuits.length} found.</p></div></div>
+    <div class="atlas">${o.circuits.map((c) => c.name ? `<div class="spot found"><b>${esc(c.name)}</b><span class="dim">${c.km} km${c.fictional ? " · fictional" : ""}</span><em>${c.best ? `best ${c.best}` : "no time yet"}</em></div>` : `<div class="spot"><b>???</b><span class="dim">${c.km} km${c.fictional ? " · fictional" : ""}</span></div>`).join("")}</div>
+    <h3>Trophies <span class="dim">${got} of ${o.trophies.length}</span></h3>
+    <div class="trophies">${o.trophies.map((x) => `<div class="trophy ${x.when ? "got" : ""}"><b>${x.when ? "🏆" : "🔒"} ${esc(x.name)}</b><span class="dim">${esc(x.blurb)}${x.reward ? ` Opens ${esc(x.reward)}.` : ""}</span></div>`).join("")}</div>`;
 }

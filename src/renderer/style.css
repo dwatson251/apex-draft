@@ -557,3 +557,11 @@ button.big { background-color: #3a4b82; }
 .rung i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.12); font-weight: 800; font-size: 12px; }
 .rung div { flex: 1; display: flex; flex-direction: column; } .rung span { font-size: 12px; } .rung em { font-style: normal; font-size: 12px; }
 .rung.now { border-color: #f08c00; background: rgba(240, 140, 0, 0.14); } .rung.done i { background: #2fbf71; color: #08140c; } .rung.locked { opacity: 0.5; }
+
+/* the atlas and the trophies */
+.atlas { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; margin-bottom: 12px; max-height: 40vh; overflow-y: auto; }
+.atlas .spot { display: flex; flex-direction: column; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px dashed rgba(255, 255, 255, 0.18); font-size: 13px; }
+.atlas .spot.found { border-style: solid; border-color: rgba(63, 167, 214, 0.6); background: rgba(63, 167, 214, 0.12); } .atlas .spot em { font-style: normal; font-size: 12px; color: #9fdcff; }
+.trophies { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.trophy { display: flex; flex-direction: column; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); opacity: 0.6; font-size: 13px; } .trophy.got { opacity: 1; background: rgba(255, 207, 63, 0.12); border: 1px solid rgba(255, 207, 63, 0.4); }
+.toast.trophy { border-color: #ffcf3f; }

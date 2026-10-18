@@ -12,7 +12,7 @@ import {
 import { CarAudio } from "./audio.ts";
 import { Online } from "./online.ts";
 import { WORLD_TIME, realSeconds } from "./scale.ts";
-import { DEFAULT_LIVERY, LIVERY_COLORS, type Livery } from "./cars.ts";
+import { CHROME, DEFAULT_LIVERY, GOLD, LIVERY_COLORS, type Livery } from "./cars.ts";
 import { FUEL_ICON, TEMP_ICON, TYRE_SMALL, bubble, weatherGrid } from "./hudicons.ts";
 import { Bar, type BarButton } from "./bar.ts";
 import { SPLIT_EVERY, lapsApart, splitSeconds, standingsRows } from "./standings.ts";
@@ -22,12 +22,13 @@ import {
   TACTIC_INFO, crossedPlace, firstDryLap, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
   type Challenge, type ChallengeStore, type Championship, type DailyRecord,
 } from "@apex/sim";
+import { CIRCUITS, TROPHIES, newTrophies, rewardsOf, type RunSummary, type TrophyMode } from "@apex/sim";
 import { CAREER_TIERS, PROMOTE_PLACE, finishSeason, newCareer, normaliseCareer, startSeason, type Career } from "@apex/sim";
 import { SIM_VERSION, duelCode, readDuel, buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile, type RaceEdit, type RaceRules } from "@apex/sim";
 import { MAX_REPLAYS, MAX_REPLAY_BYTES, keepReplay, loadReplays, rulesIn, rulesOut, type Replay } from "./replays.ts";
 import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
 import { copyText, dropdown, wireControls } from "./menus/controls.ts";
-import { careerHtml, challengesHtml, championshipHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
+import { atlasHtml, careerHtml, challengesHtml, championshipHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
 import type { Handle, HandleKind, Skid, WorldView } from "./world.ts";
 
 const ME = "me";
@@ -43,6 +44,9 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const START_FIRST = 1;
 const START_GAP = 0.85;
 interface StartSeq { t: number; lit: number; out: number; done: boolean }
+
+/** What each livery reward is called in the garage. */
+const REWARD_NAMES = { gold: "gold paint", chrome: "chrome paint", chequer: "the chequered pattern", chevron: "the chevron pattern" } as const;
 
 /** The longest clip a recording makes. */
 const REC_MAX_MS = 60_000;
@@ -131,6 +135,10 @@ export class Game {
   private champPick: { difficulty: Difficulty; vehicle: VehicleId } = { difficulty: "easy", vehicle: "rally" };
   /** a Daily, a Challenge or a round of the Championship being played: it borrows the settings and gives them back (see `modeBackup`) */
   private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ"; career?: boolean } | { kind: "play" } | { kind: "golf"; date: string } | { kind: "replay"; rep: Replay } | { kind: "duel"; name: string; vehicle: string; line: Line; car: CarConfig } | null = null;
+  /** trophies earned (trophies.ts), with when; races finished and won; the real circuits found, with when */
+  private trophies: Record<string, number> = {};
+  private stats = { races: 0, wins: 0 };
+  private found: Record<string, number> = {};
   /** the career ladder (career.ts) and its season in progress */
   private career: Career = newCareer();
   /** The season being raced: the career's, or the standalone championship's. */
@@ -152,7 +160,7 @@ export class Game {
   private toastLayer: HTMLDivElement;
   /** the track has a rough surface somewhere, so the sound looks for one under the cars */
   private roughTrack = false;
-  private screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "career" | "race" | "attack" = "home";
+  private screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "career" | "atlas" | "race" | "attack" = "home";
   private flow: Flow = "quick";
   private run: RunConfig = { flow: "quick", kind: "race", laps: 3, realism: false, rivals: 7, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty: "easy" };
   /** the weekend in progress, if any */
@@ -270,6 +278,9 @@ export class Game {
     this.challenges = normaliseChallenges(await load<unknown>("challenges", {}));
     this.champ = normaliseChampionship(await load<unknown>("championship", null));
     this.career = normaliseCareer(await load<unknown>("career", null));
+    { const t = await load<unknown>("trophies", {}); if (t && typeof t === "object") for (const [k, v] of Object.entries(t)) if (typeof v === "number" && TROPHIES.some((x) => x.id === k)) this.trophies[k] = v; }
+    { const st = await load<{ races?: unknown; wins?: unknown }>("stats", {}); this.stats = { races: Math.max(0, Number(st?.races) || 0), wins: Math.max(0, Number(st?.wins) || 0) }; }
+    { const f = await load<unknown>("found", {}); if (f && typeof f === "object") for (const [k, v] of Object.entries(f)) if (typeof v === "number" && CIRCUITS.some((c) => c.id === k && !c.kart)) this.found[k] = v; }
     this.normaliseSettings(); // again: the difficulty depends on the records
     this.savedLines = await load<Record<string, unknown>>("lines", {});
     // times set before the machine was a choice belong to the track's own machine
@@ -348,7 +359,7 @@ export class Game {
     if (s.livery !== undefined) {
       const l = s.livery as Partial<Livery>;
       const ok = (n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 0xffffff;
-      s.livery = ok(l.primary) && ok(l.secondary) && [0, 1, 2, 3].includes(l.stripe as number) && Number.isInteger(l.number) && l.number! >= 0 && l.number! <= 99 ? { primary: l.primary!, secondary: l.secondary!, stripe: l.stripe!, number: l.number! } : undefined;
+      s.livery = ok(l.primary) && ok(l.secondary) && [0, 1, 2, 3, 4, 5].includes(l.stripe as number) && Number.isInteger(l.number) && l.number! >= 0 && l.number! <= 99 ? { primary: l.primary!, secondary: l.secondary!, stripe: l.stripe!, number: l.number! } : undefined;
       if (!s.livery) delete s.livery;
     }
     // the experimental racing room and overtaking switches are gone (they only made races slower and rougher): forget a saved choice
@@ -479,6 +490,7 @@ export class Game {
       else if (this.screen === "garage") this.go(this.garageFrom);
       else if (this.screen === "setup") this.go(this.flow === "trial" ? "attack" : "race");
       else if (this.screen === "championship" || this.screen === "career") this.go("race");
+      else if (this.screen === "atlas") this.go("attack");
       else if (this.screen !== "home") this.go("home");
     } else if (this.inGame) { this.screen = "home"; this.openMenu(); }
   }
@@ -574,11 +586,12 @@ export class Game {
     else if (this.screen === "challenges") this.renderChallenges();
     else if (this.screen === "championship") this.renderChampionship();
     else if (this.screen === "career") this.renderCareer();
+    else if (this.screen === "atlas") this.renderAtlas();
     else if (this.screen === "race" || this.screen === "attack") this.renderGroup(this.screen);
     else this.renderHome();
   }
 
-  private go(screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "career" | "race" | "attack"): void {
+  private go(screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "career" | "atlas" | "race" | "attack"): void {
     this.screen = screen;
     this.note = "";
     this.renderMenu();
@@ -612,6 +625,7 @@ export class Game {
     const el = this.menuPanel(groupHtml(kind, {
       daily: ran !== undefined ? `Today ${fmt(ran)}${streak > 1 ? ` · ${streak} days` : ""}` : streak > 0 ? `${streak} day streak: run today` : "One track a day, for all",
       career: (() => { const c = this.career, t = CAREER_TIERS[c.tier]!; return c.current ? `${t.name}: round ${c.current.done + 1} of ${c.current.rounds.length}` : `${t.name}: rung ${c.tier + 1} of ${CAREER_TIERS.length}`; })(),
+      atlas: `${Object.keys(this.found).length} of ${CIRCUITS.filter((c) => !c.kart).length} circuits · ${Object.keys(this.trophies).length} of ${TROPHIES.length} trophies`,
       golf: (() => { const r = this.golfRec[golfPhrase(dailyDate(new Date()))]; return r ? `Today ${"★".repeat(r.stars)}${"☆".repeat(3 - r.stars)} in ${r.points} points` : "Fewest points that beat the clock"; })(),
       champ: this.champ ? (isOver(this.champ) ? "Season over" : `Round ${this.champ.done + 1} of ${this.champ.rounds.length}`) : `${ROUNDS} races, one title`,
     }), "tiles");
@@ -623,6 +637,7 @@ export class Game {
     this.on(el, "#h-trial", () => this.openSetup("trial"));
     this.on(el, "#h-daily", () => this.startDaily());
     this.on(el, "#h-golf", () => this.startGolf());
+    this.on(el, "#h-atlas", () => this.go("atlas"));
   }
 
   private openSetup(flow: Flow): void {
@@ -1028,6 +1043,32 @@ export class Game {
     wireControls(el, { change: (id, v) => { if (id === "champ-vehicle" && isVehicleId(v)) { pick.vehicle = v; this.renderChampionship(); } } });
   }
 
+  /**
+   * Hand out the trophies a session has earned (null: only the ones that come from the totals, such as circuits found), with a toast each, and say
+   * when one opens something for the livery.
+   */
+  private award(r: RunSummary | null): void {
+    const sum: RunSummary = r ?? { mode: "trial", position: null, field: 1, grid: null, laps: 0, difficulty: "easy", realism: false, pits: 0, emergencies: 0, safetyCar: false, rain: false, golfStars: 0, careerTier: this.career.tier };
+    const got = newTrophies(sum, { ...this.stats, circuits: Object.keys(this.found).length }, this.trophies);
+    if (!got.length) return;
+    for (const t of got) {
+      this.trophies[t.id] = Date.now();
+      this.toast(`🏆 <b>${esc(t.name)}</b> · ${esc(t.blurb)}${t.reward ? ` <span class="good">New for the livery: ${REWARD_NAMES[t.reward]}</span>` : ""}`, "trophy");
+    }
+    void save("trophies", this.trophies);
+  }
+
+  /** The atlas: the real circuits found and not yet, and the trophies. */
+  private renderAtlas(): void {
+    const real = CIRCUITS.filter((c) => !c.kart);
+    const bestOn = (id: string): number | undefined => { let b: number | undefined; for (const [k, v] of Object.entries(this.best)) if (k.startsWith(`${id}:`) || k === id) b = b === undefined ? v : Math.min(b, v); return b; };
+    const el = this.menuPanel(atlasHtml({
+      circuits: real.map((c) => ({ name: this.found[c.id] ? c.name : null, km: c.lengthKm, best: this.found[c.id] ? (bestOn(c.id) !== undefined ? fmt(bestOn(c.id)!) : null) : null, fictional: !!c.fictional })),
+      trophies: TROPHIES.map((t) => ({ name: t.name, blurb: t.blurb, when: this.trophies[t.id] ?? null, reward: t.reward ? REWARD_NAMES[t.reward] : null })),
+    }), "wide");
+    this.on(el, "#back", () => this.go("attack"));
+  }
+
   /** The career: the ladder of rungs, and the season on the player's own. */
   private renderCareer(): void {
     const c = this.career, cur = c.current;
@@ -1066,11 +1107,17 @@ export class Game {
     const liv: Livery = { ...DEFAULT_LIVERY, ...this.settings.livery };
     const hex = (c: number): string => `#${c.toString(16).padStart(6, "0")}`;
     const kindNow = this.pickVehicle(placeFor(this.settings.phrase).choices);
-    const swatches = (which: "primary" | "secondary", label: string) => `<div class="swatches" data-sw="${which}" role="group" aria-label="${label}">${LIVERY_COLORS.map((c) => `<button class="sw${c === liv[which] ? " on" : ""}" data-c="${c}" style="background:${hex(c)}" aria-label="${label} ${hex(c)}"></button>`).join("")}</div>`;
+    const rewards = rewardsOf(this.trophies);
+    const colours = [...LIVERY_COLORS, ...(rewards.has("gold") ? [GOLD] : []), ...(rewards.has("chrome") ? [CHROME] : [])];
+    const stripes = [0, 1, 2, 3, ...(rewards.has("chequer") ? [4] : []), ...(rewards.has("chevron") ? [5] : [])];
+    const swatches = (which: "primary" | "secondary", label: string) => `<div class="swatches" data-sw="${which}" role="group" aria-label="${label}">${colours.map((c) => `<button class="sw${c === liv[which] ? " on" : ""}" data-c="${c}" style="background:${hex(c)}" aria-label="${label} ${hex(c)}"></button>`).join("")}</div>`;
     // a small drawing of each stripe style, in the colours chosen
     const stripeArt = (n: number): string => {
       const r = (y0: number, y1: number) => `<rect x="9" y="${y0}" width="46" height="${y1 - y0}" fill="${hex(liv.secondary)}"/>`;
-      return `<svg viewBox="0 0 64 32" width="64" height="32" aria-hidden="true"><rect x="3" y="4" width="58" height="24" fill="${hex(liv.primary)}" stroke="#0b1020" stroke-width="2"/>${n === 1 ? r(13, 19) : n === 2 ? r(9, 13) + r(19, 23) : n === 3 ? r(5, 9) + r(23, 27) : ""}</svg>`;
+      const sq = (x: number, y: number) => `<rect x="${x}" y="${y}" width="6" height="6" fill="${hex(liv.secondary)}"/>`;
+      const extra = n === 4 ? [3, 15].map((x0) => [0, 1].map((i) => [0, 1, 2, 3].map((j) => ((i + j) % 2 ? "" : sq(x0 + 6 * i + (x0 > 3 ? 31 : 0), 4 + 6 * j))).join("")).join("")).join("")
+        : n === 5 ? [16, 28, 40].map((x) => `<path d="M${x} 16l-8-9h5l8 9-8 9h-5z" fill="${hex(liv.secondary)}"/>`).join("") : "";
+      return `<svg viewBox="0 0 64 32" width="64" height="32" aria-hidden="true"><rect x="3" y="4" width="58" height="24" fill="${hex(liv.primary)}" stroke="#0b1020" stroke-width="2"/>${n === 1 ? r(13, 19) : n === 2 ? r(9, 13) + r(19, 23) : n === 3 ? r(5, 9) + r(23, 27) : extra}</svg>`;
     };
     const el = this.menuPanel(`
       <header class="tilehead"><button class="back" id="back">← Done</button><div><h2>Garage</h2>
@@ -1093,7 +1140,7 @@ export class Game {
           <label>Body</label>${swatches("primary", "Body colour")}
           <label>Stripes and number</label>${swatches("secondary", "Stripe colour")}
           <div class="paintrow">
-            <div><label>Stripes</label><div class="stripes">${[0, 1, 2, 3].map((n) => `<button class="sq stripe${n === liv.stripe ? " on" : ""}" data-stripe="${n}" aria-label="${["No stripe", "Centre stripe", "Twin stripes", "Side stripes"][n]}">${stripeArt(n)}</button>`).join("")}</div></div>
+            <div><label>Stripes</label><div class="stripes">${stripes.map((n) => `<button class="sq stripe${n === liv.stripe ? " on" : ""}" data-stripe="${n}" aria-label="${["No stripe", "Centre stripe", "Twin stripes", "Side stripes", "Chequered", "Chevrons"][n]}">${stripeArt(n)}</button>`).join("")}</div></div>
             <div><label for="livnum">Number</label><input id="livnum" type="number" min="0" max="99" value="${liv.number || ""}" placeholder="#" /></div>
           </div>
         </section>
@@ -1163,6 +1210,12 @@ export class Game {
     // the title already built this track (and its scenery) behind the menu
     if (this.inGame || this.previewKey !== `${normalizePhrase(s.phrase)}|${s.obstacles}`) this.track = generateTrack(s.phrase, { obstacles: s.obstacles });
     this.vehicle = this.pickVehicle(vehicleChoicesForTrack(this.track));
+    // a real circuit, found: it goes in the atlas
+    if (this.track.circuit && !this.track.circuit.theme && !KART_CIRCUITS.has(this.track.circuit.id) && !this.found[this.track.circuit.id]) {
+      this.found[this.track.circuit.id] = Date.now(); void save("found", this.found);
+      this.toast(`🗺️ Found <b>${esc(this.track.circuit.name)}</b>: it is in the atlas now`, "good");
+      this.award(null);
+    }
     this.preloadGhosts();
     this.ambient = null; this.previewKey = "";
     this.audio.setBiome(this.track.biome);
@@ -2584,6 +2637,10 @@ export class Game {
     if (r.flow === "weekend" && this.weekend && this.race) this.weekend.rubber = this.race.rubberOut();
     const mine = res.find((x) => x.isPlayer)!;
     const time = sessionBest(mine.lapTimes, kind);
+    if (kind === "trial" && time !== null && !early) {
+      const golf = this.golfScore(this.me?.lines.at(-1) ?? null);
+      this.award({ mode: this.special?.kind === "golf" ? "golf" : this.special?.kind === "daily" ? "daily" : "trial", position: null, field: 1, grid: null, laps: r.laps, difficulty: r.difficulty, realism: false, pits: 0, emergencies: 0, safetyCar: false, rain: false, golfStars: golf?.stars ?? 0, careerTier: this.career.tier });
+    }
     const name = this.sessionTitle();
     // seen early, the cool-down lap is still being driven and has no time yet
     const shown = early ? mine.lapTimes.slice(0, -1) : mine.lapTimes;
@@ -2717,6 +2774,12 @@ export class Game {
     if (r.flow === "tutorial" && this.tutBackup) { this.tutBackup.tutorialDone = true; this.persist(); }
     const crossed = crossedPlace(res, ME);
     const rival = res.find((x) => x.id === "duel");
+    if (!this.special || this.special.kind !== "replay") {
+      const mode: TrophyMode = this.special?.kind === "champ" ? (this.special.career ? "career" : "champ") : this.special?.kind === "duel" ? "duel" : this.special?.kind === "challenge" ? "challenge" : r.elimination ? "elim" : r.flow === "weekend" ? "weekend" : "race";
+      this.stats = { races: this.stats.races + 1, wins: this.stats.wins + (mine.position === 1 ? 1 : 0) }; void save("stats", this.stats);
+      const race = this.race!;
+      this.award({ mode, position: mine.position, field: res.length, grid: mine.slot + 1, laps: r.laps, difficulty: r.difficulty, realism: r.realism, pits: mine.pits, emergencies: mine.emergencies, safetyCar: race.events.some((e) => e.type === "sc"), rain: race.rainTrace.some((x) => x > 0.3), golfStars: 0, careerTier: this.career.tier });
+    }
     const title = this.special?.kind === "duel" && rival ? (mine.position === 1 ? `You beat ${esc(rival.name)}!` : `${esc(rival.name)}'s line wins`) : mine.position === 1 ? "You won!" : mine.eliminated ? `Out in P${mine.position}` : `You finished P${mine.position}`;
     // (with tyres and fuel in play the classification adds time penalties, so it can differ from the order the cars crossed the line in)
     const orderNote = !r.elimination && crossed !== null && crossed !== mine.position ? `<p class="dim">You crossed the line <b>P${crossed}</b>; with the time penalties (a car that never stopped in the pits, or never ran a required tyre, is given one) you are classified <b>P${mine.position}</b>.</p>` : "";
