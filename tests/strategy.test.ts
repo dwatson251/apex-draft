@@ -25,7 +25,7 @@ describe("tyre temperature", () => {
   });
   it("warms from cold and stays in a sensible range over a race", () => {
     const c = solo("alpha").cars[0]!;
-    expect(c.tmtrace[0]).toBe(TEMP_START);
+    expect(c.tmtrace[0]).toBeCloseTo(TEMP_START, 5); // (stored as a 32-bit float)
     const hot = Math.max(...c.tmtrace), cold = Math.min(...c.tmtrace);
     expect(hot).toBeLessThan(1); expect(cold).toBeGreaterThan(0.2);
     expect(hot).toBeGreaterThan(c.tmtrace[0]!);

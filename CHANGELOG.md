@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Long races use a fifth of the memory.** What a race records for playback (every car's place, speed, fuel, tyres... at every tick) is kept in typed arrays instead of plain ones: about 32 bytes a car a tick instead of 156, so a 50-lap race of 32 cars at Spa holds about 0.4 GB instead of 1.7 GB, which phones and the Steam Deck could not spare.
 - **The kart courses are a fan pack now, not part of the game.** Release builds and the online server leave them out; dev builds, the tests and a build made with `VITE_KART_PACK=1` (or a server with `APEX_KART_PACK=1`) put them back. Without the pack a course's name is an ordinary phrase. See DEVELOPER.md.
 - **The rain forecast is for the machine you drive.** It was worked out for the track's own class, while the race lays out its showers over the length of the race in your machine, so on a circuit raced in another class the forecast could name the wrong part of the race.
 

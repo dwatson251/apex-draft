@@ -15,6 +15,26 @@ import { buildProfile, indexAt, sampleAt, type Profile } from "./profile.ts";
 import { AIR_DRAG, JUMP_MIN_V, LAND_LOSS, AIR_MAX, PAD_CAP, PAD_KICK, PAD_TICKS, PAD_TOP, airTicks, jumpPeak } from "./fx.ts";
 import { levelsOf, nearbySegments, trackLength, CELL, CAR_R, ROAD_HALF, type Track } from "./track.ts";
 
+import { Tape, f32, f64, i8, u8 } from "./tape.ts";
+
+/** The per-tick records of a car (see `RaceCar.trace` and the rest). */
+type Tapes = {
+  trace: Tape<Float32Array>; prog: Tape<Float64Array>; vtrace: Tape<Float32Array>; gtrace: Tape<Uint8Array>; ltrace: Tape<Int8Array>; atrace: Tape<Float32Array>;
+  ftrace: Tape<Float32Array>; ttrace: Tape<Float32Array>; ptrace: Tape<Uint8Array>; btrace: Tape<Float32Array>; tmtrace: Tape<Float32Array>; ctrace: Tape<Uint8Array>;
+};
+type TapeKey = keyof Tapes;
+
+/** A car with its records: each `RaceCar.trace` (and the rest) reads as a typed array of what its tape holds so far. */
+function withTapes(c: Omit<RaceCar, TapeKey | "tapes">): RaceCar {
+  const tapes: Tapes = {
+    trace: new Tape(f32, 12288), prog: new Tape(f64), vtrace: new Tape(f32), gtrace: new Tape(u8), ltrace: new Tape(i8), atrace: new Tape(f32),
+    ftrace: new Tape(f32), ttrace: new Tape(f32), ptrace: new Tape(u8), btrace: new Tape(f32), tmtrace: new Tape(f32), ctrace: new Tape(u8),
+  };
+  Object.defineProperty(c, "tapes", { value: tapes, enumerable: false });
+  for (const k of Object.keys(tapes) as TapeKey[]) Object.defineProperty(c, k, { get: () => tapes[k].values(), enumerable: true });
+  return c as RaceCar;
+}
+
 export const TICK = 1 / 60;
 /** Distance between rows of the starting grid, units; the second car of a row sits half a row back. */
 export const GRID_GAP = 16;
@@ -357,17 +377,17 @@ export interface RaceCar {
   lapStart: number[];
   finishTime: number | null;
   /** frames[tick*3 .. +3] = x, y, heading */
-  trace: number[];
+  readonly trace: Float32Array;
   /** progress() at every tick, for live standings */
-  prog: number[];
+  readonly prog: Float64Array;
   /** speed at every tick, units/s */
-  vtrace: number[];
+  readonly vtrace: Float32Array;
   /** 1 on the ticks the car is a ghost */
-  gtrace: number[];
+  readonly gtrace: Uint8Array;
   /** the level at every tick: positive on a bridge (which one), negative on the road under it, 0 anywhere else */
-  ltrace: number[];
+  readonly ltrace: Int8Array;
   /** how high the car is above the road at every tick, 0 to 1: 0 on the ground, up to 1 at the top of a jump */
-  atrace: number[];
+  readonly atrace: Float32Array;
   /** ticks left in the air after a ramp (0 on the ground), and how long the flight is in all */
   air: number;
   airT: number;
@@ -375,11 +395,11 @@ export interface RaceCar {
   peak: number;
   pad: number;
   /** fuel left, tank units, at every tick */
-  ftrace: number[];
+  readonly ftrace: Float32Array;
   /** tyre health 0 to 1 at every tick */
-  ttrace: number[];
+  readonly ttrace: Float32Array;
   /** 0 on the road, 1 in the pit lane, 2 being serviced, 3 out of the race */
-  ptrace: number[];
+  readonly ptrace: Uint8Array;
   fuel: number;
   tyre: number;
   /** pit stops made */
@@ -419,7 +439,7 @@ export interface RaceCar {
   /** slip angle, radians, toward the turn: the hull points further round than the path it is on (a car's is small: its tyres' slip angle; a boat's is a drift) */
   beta: number;
   /** beta at every tick */
-  btrace: number[];
+  readonly btrace: Float32Array;
   radius: number;
   /** the machine's real size (units), and the radius of the circle round the whole car: for a quick look at who could be touching */
   length: number;
@@ -457,9 +477,11 @@ export interface RaceCar {
   /** how much of a slipstream the car was in on the last tick (also the dirty air it is driving through in a bend) */
   wake: number;
   /** tyre temperature once a second of ticks, for the interface */
-  tmtrace: number[];
+  readonly tmtrace: Float32Array;
   /** 0 soft, 1 medium, 2 wet, at every tick */
-  ctrace: number[];
+  readonly ctrace: Uint8Array;
+  /** where the per-tick records above are kept (each record is a view of its tape) */
+  readonly tapes: Tapes;
   /** every compound it has run so far */
   used: Compound[];
 }
@@ -560,16 +582,15 @@ export class Race {
       }
       const at = spread ? { s0: p0.length * (1 - Math.min(0.98, Math.max(0.02, e.startFrac!))), off: 0 } : spot(back);
       const sNew = at.s0;
-      const c: RaceCar = {
+      const c: RaceCar = withTapes({
         entrant: e, slot, lap: slot === 0 ? 0 : -1,
         s: sNew, gridOff: at.off, v: spread ? 40 : 0, x: 0, y: 0, h: 0,
         ghost: false, stuck: 0, air: 0, airT: 0, peak: 0, pad: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
-        trace: [], prog: [], vtrace: [], gtrace: [], ltrace: [], atrace: [], ftrace: [], ttrace: [], ptrace: [],
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
-        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, wake: 0, tmtrace: [], ctrace: [], used: [],
-        hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, btrace: [], radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
-      };
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, wake: 0, used: [],
+        hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
+      });
       c.used.push(c.compound);
       if (slot === 0) this.startLap(c);
       this.place(c);
@@ -758,21 +779,22 @@ export class Race {
   }
 
   private record(): void {
-    for (const c of this.cars) c.trace.push(Math.round(c.x * 100) / 100, Math.round(c.y * 100) / 100, Math.round(c.h * 1000) / 1000);
     for (const c of this.cars) {
-      c.prog.push(this.progress(c));
-      c.vtrace.push(Math.round(c.v * 10) / 10);
-      c.gtrace.push(c.ghost ? 1 : 0);
-      c.ltrace.push(this.levelOf(c));
-      c.atrace.push(c.air > 0 ? Math.round(Math.sin(Math.PI * (1 - c.air / c.airT)) * c.peak * 100) / 100 : 0);
+      const t = c.tapes;
+      t.trace.push3(Math.round(c.x * 100) / 100, Math.round(c.y * 100) / 100, Math.round(c.h * 1000) / 1000);
+      t.prog.push(this.progress(c));
+      t.vtrace.push(Math.round(c.v * 10) / 10);
+      t.gtrace.push(c.ghost ? 1 : 0);
+      t.ltrace.push(this.levelOf(c));
+      t.atrace.push(c.air > 0 ? Math.round(Math.sin(Math.PI * (1 - c.air / c.airT)) * c.peak * 100) / 100 : 0);
       // (in the box the gauges show the stop as it happens, not the jump at the end of it)
       const shown = this.stopShown(c);
-      c.ftrace.push(Math.round(shown.fuel * 10) / 10);
-      c.ttrace.push(Math.round(shown.tyre * 1000) / 1000);
-      c.tmtrace.push(Math.round(c.temp * 100) / 100);
-      c.ctrace.push(c.compound === "soft" ? 0 : c.compound === "medium" ? 1 : 2);
-      c.btrace.push(Math.round(c.beta * 1000) / 1000);
-      c.ptrace.push(c.out ? 3 : c.dwell > 0 ? 2 : c.prof.lane[indexAt(c.prof, c.s)] ? 1 : 0);
+      t.ftrace.push(Math.round(shown.fuel * 10) / 10);
+      t.ttrace.push(Math.round(shown.tyre * 1000) / 1000);
+      t.tmtrace.push(Math.round(c.temp * 100) / 100);
+      t.ctrace.push(c.compound === "soft" ? 0 : c.compound === "medium" ? 1 : 2);
+      t.btrace.push(Math.round(c.beta * 1000) / 1000);
+      t.ptrace.push(c.out ? 3 : c.dwell > 0 ? 2 : c.prof.lane[indexAt(c.prof, c.s)] ? 1 : 0);
     }
   }
 

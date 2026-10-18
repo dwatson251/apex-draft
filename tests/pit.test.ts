@@ -60,7 +60,7 @@ describe("pit stops", () => {
     const t = generateTrack("brave-owl-rides-melons", { biome: "grass" });
     const r = new Race(t, field(t, 1, () => [true, false, false]), 3); r.runToEnd();
     const p = r.cars[0]!;
-    const inBox = p.ptrace.map((v, k) => (v === 2 && p.vtrace[k] === 0 ? k : -1)).filter((k) => k >= 0);
+    const inBox = Array.from(p.ptrace).map((v, k) => (v === 2 && p.vtrace[k] === 0 ? k : -1)).filter((k) => k >= 0);
     expect(inBox.length).toBeGreaterThan(60);
     const fuel = inBox.map((k) => p.ftrace[k]!), tyre = inBox.map((k) => p.ttrace[k]!);
     // the tank fills a little every tick, never goes down, and ends full

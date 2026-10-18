@@ -21,7 +21,7 @@ export function standingsRows(n: number, me: number): number[] {
 export const SPLIT_EVERY = 30;
 
 /** Smallest index in 0..hi whose value is at least `v` (the values only ever go up), or hi when none is. */
-function firstAtLeast(arr: number[], v: number, hi: number): number {
+function firstAtLeast(arr: ArrayLike<number>, v: number, hi: number): number {
   let lo = 0, top = hi;
   while (lo < top) { const mid = (lo + top) >> 1; if (arr[mid]! >= v) top = mid; else lo = mid + 1; }
   return lo;
@@ -36,7 +36,7 @@ function trackGap(raw: number, lapLength: number): number {
  * How many whole laps the other car is ahead of the player (negative: behind), counting only real laps: a car just across the start line
  * while the player is just short of it is a few yards ahead, not a lap. 0 when they are within a lap of each other.
  */
-export function lapsApart(me: number[], other: number[], k: number, lapLength: number): number {
+export function lapsApart(me: ArrayLike<number>, other: ArrayLike<number>, k: number, lapLength: number): number {
   const pm = me[k], po = other[k];
   if (pm === undefined || po === undefined) return 0;
   return Math.trunc(trackGap(po - pm, lapLength) / lapLength) || 0;
@@ -47,7 +47,7 @@ export function lapsApart(me: number[], other: number[], k: number, lapLength: n
  * car in front was where the player is now, or how long ago the player was where the car behind is. `prog` is each car's progress at
  * every tick (whole laps first, then the way round). Null when the other car is a lap or more away, or there is no data yet.
  */
-export function splitSeconds(me: number[], other: number[], k: number, lapLength: number): number | null {
+export function splitSeconds(me: ArrayLike<number>, other: ArrayLike<number>, k: number, lapLength: number): number | null {
   const pm = me[k], po = other[k];
   if (pm === undefined || po === undefined) return null;
   if (lapsApart(me, other, k, lapLength) !== 0) return null;
