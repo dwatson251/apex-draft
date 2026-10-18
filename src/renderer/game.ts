@@ -42,6 +42,9 @@ const START_FIRST = 1;
 const START_GAP = 0.85;
 interface StartSeq { t: number; lit: number; out: number; done: boolean }
 
+/** Laps of an elimination race: one for every rival, so one car goes out on each lap but the last, which is a duel (25 at most). */
+const elimLaps = (rivals: number): number => Math.min(25, Math.max(2, rivals));
+
 export const fmt = (sim: number | null | undefined) => {
   if (sim === null || sim === undefined) return "–";
   const t = realSeconds(sim), m = Math.floor(t / 60);
@@ -100,6 +103,8 @@ interface RunConfig {
   wearTyre: number;
   mandatory: Compound[];
   difficulty: Difficulty;
+  /** an elimination race (Quick Race only) */
+  elimination?: boolean;
 }
 
 interface Motion { v: number; acc: number; slip: number; beta: number; braking: boolean; /** angle of the front wheels, radians, positive to the right */ steer: number }
@@ -614,13 +619,13 @@ export class Game {
       flow, phrase: s.phrase, chips, difficulty: flow === "trial" ? null : s.difficulty,
       unlocked: DIFFICULTIES.filter((d) => isUnlocked(d, this.records)), nextLock: (() => { const d = DIFFICULTIES.find((x) => !isUnlocked(x, this.records)); return d ? `${DIFFICULTY_NAMES[d]}: ${lockReason(d)}` : ""; })(), noRealism: easy, blurb: circuit ? circuit.blurb : biome.blurb,
       forecast: realism && flow !== "trial" ? this.forecastFor(s.phrase, s.laps, chosen, true) : null,
-      laps: s.laps, rivals: s.rivals, realism, wearFuel: s.wearFuel ?? 1, wearTyre: s.wearTyre ?? 1, mandatory: s.mandatory ?? [],
+      laps: flow === "quick" && s.elimination ? elimLaps(s.rivals) : s.laps, rivals: s.rivals, realism: realism && !(flow === "quick" && s.elimination), elimination: flow === "quick" && !!s.elimination, wearFuel: s.wearFuel ?? 1, wearTyre: s.wearTyre ?? 1, mandatory: s.mandatory ?? [],
       carLine: `Car: ${s.car.name} (${carCost(s.car)}/${CAR_BUDGET} points)`,
       bestLine: flow === "trial" ? (tt !== undefined ? `Your time: <b>${fmt(tt)}</b>` : "") : "",
       record: flow === "trial" ? null : { stars: starsFor(this.records, recordKey(phrase, chosen)), place: bestPlace(this.records, recordKey(phrase, chosen)) },
       gridLine: (flow === "quick" ? (tt !== undefined ? `Your grid place comes from your time trial: <b>${fmt(tt)}</b>` : "Your grid place comes from the lap time of the line you draw. A Time Trial time, once you have one, counts instead.") : flow === "weekend" ? "Your grid place comes from the qualifier." : "")
         // (reportRun only sends a race the server can replay: say so, rather than leave a race off the boards without a word)
-        + (flow !== "trial" && s.difficulty !== "hard" ? ` <span class="unranked">This race won't go on the online boards: only races on Hard do. Your lap times still count.</span>` : ""),
+        + (flow !== "trial" && (s.difficulty !== "hard" || (flow === "quick" && s.elimination)) ? ` <span class="unranked">This race won't go on the online boards: only ${flow === "quick" && s.elimination ? "ordinary races" : "races"} on Hard do. Your lap times still count.</span>` : ""),
       note: this.note,
     }));
     this.note = "";
@@ -660,6 +665,7 @@ export class Game {
         else if (id === "wearFuel") s.wearFuel = clampWear(Number(v));
         else if (id === "wearTyre") s.wearTyre = clampWear(Number(v));
         else if (id === "realism") s.realism = v === "1";
+        else if (id === "elim") s.elimination = v === "1";
         else if (id === "difficulty" && isDifficulty(v) && isUnlocked(v, this.records)) s.difficulty = v;
         else if (id === "vehicle" && isVehicleId(v)) { s.vehicle = v; s.vehiclePhrase = normalizePhrase(s.phrase); }
         this.normaliseSettings();
@@ -719,6 +725,8 @@ export class Game {
     if (flow === "tutorial") return { flow, kind: "race", laps: 3, realism: true, rivals: 3, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty: "hard" };
     if (kind === "trial") return { flow, kind, laps: sessionLaps("trial"), realism: false, rivals: 0, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty };
     if (kind === "practice" || kind === "qualifying") return { flow, kind, laps: sessionLaps(kind), realism: false, rivals: s.rivals, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty };
+    // an elimination race: no tyres or fuel, and a lap for every rival, so the last lap is a duel (25 at most)
+    if (flow === "quick" && s.elimination) return { flow, kind, laps: elimLaps(s.rivals), realism: false, rivals: s.rivals, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty, elimination: true };
     const realism = realismAllowed(difficulty) && (flow === "weekend" ? true : s.realism);
     return { flow, kind, laps: s.laps, realism, rivals: s.rivals, wearFuel: realism ? clampWear(s.wearFuel) : 1, wearTyre: realism ? clampWear(s.wearTyre) : 1, mandatory: realism ? s.mandatory ?? [] : [], difficulty };
   }
@@ -730,7 +738,7 @@ export class Game {
     if (r.flow === "tutorial") return "Tutorial";
     if (r.kind === "trial") return "Solo time trial";
     if (r.flow === "weekend") return `Race weekend · ${r.kind === "practice" ? "Practice" : r.kind === "qualifying" ? "Qualifier" : "Race"}`;
-    return "Quick race";
+    return this.run.elimination ? "Elimination race" : "Quick race";
   }
 
   /** Which lap of the session this is, for the heads-up display. `lap` counts from 1. */
@@ -770,7 +778,8 @@ export class Game {
   /** Times only compare with times set under the same rules. */
   private bestKey(phrase: string): string {
     const r = this.run;
-    return `${phrase}:${r.laps}:${r.realism ? "r" : "x"}c:${this.vehicle}`;
+    // (an elimination race is timed against its own kind: its winner drives the whole distance with the field thinning out)
+    return `${phrase}:${r.laps}:${r.realism ? "r" : "x"}c:${this.vehicle}${r.elimination ? ":elim" : ""}`;
   }
 
   /** The fastest lap you have set on this track (any number of laps), which can put you further up the grid. */
@@ -1747,7 +1756,7 @@ export class Game {
     const baseRules = r.kind !== "race" ? sessionRules(r.kind) : r.realism ? { ...sessionRules("race", { wearMult: { fuel: r.wearFuel, tyre: r.wearTyre }, mandatory: r.mandatory }), weather: true } : { realism: false, weather: false };
     // the rubber the weekend's earlier sessions laid down stays on the road (not on hard, whose races the server replays from scratch)
     const rubber = r.flow === "weekend" && r.difficulty !== "hard" ? this.weekend?.rubber : undefined;
-    const rules = { ...baseRules, ...(rubber ? { rubber } : {}) };
+    const rules = { ...baseRules, ...(rubber ? { rubber } : {}), ...(r.elimination ? { elimination: true } : {}) };
     this.race = new Race(this.track, entrants, r.laps, rules);
     this.lapNo = 0;
     this.view.clearSkids();
@@ -2222,6 +2231,7 @@ export class Game {
         if (p.speed <= 2 && (ev.id === ME || ev.other === ME)) this.audio.bump(ev.strength ?? 0);
         continue;
       }
+      if (ev.type === "elim") { const who = race.cars.find((c) => c.entrant.id === ev.id); this.toast(ev.id === ME ? "<b>You're out!</b> Last on the road as the leader started the lap" : `<b>${esc(who?.entrant.name ?? "")}</b> is out`, ev.id === ME ? "bad" : ""); continue; }
       if (ev.id !== ME || p.speed > 2) continue;
       if (ev.type === "cross") this.audio.cheer();
       else if (ev.type === "pitStart") this.audio.drill(realSeconds(pitStopTime(this.vehicle)));
@@ -2332,7 +2342,7 @@ export class Game {
     this.reported = race;
     const car = this.playerCar();
     this.online.uploadLine(this.track.phrase, this.vehicle, car, this.me.lines[0]!);
-    if (r.kind !== "race" || this.special || r.difficulty !== "hard" || r.rivals > MAX_RACE_RIVALS) return; // only the hard field is one the server can replay // the server will not replay a field bigger than it allows
+    if (r.kind !== "race" || this.special || r.elimination || r.difficulty !== "hard" || r.rivals > MAX_RACE_RIVALS) return; // only the hard field is one the server can replay // the server will not replay a field bigger than it allows
     this.online.uploadRace({
       kind: r.flow === "weekend" ? "weekend" : "quick", phrase: this.track.phrase, vehicle: this.vehicle, car, laps: r.laps, rivals: r.rivals, realism: r.realism, lines: this.me.lines,
       wearFuel: r.wearFuel, wearTyre: r.wearTyre, mandatory: r.mandatory, startTyre: this.me.startTyre, startTactic: this.me.startTactic, pitPlan: this.me.pitPlan, autoPit: this.me.autoPit,
@@ -2473,11 +2483,11 @@ export class Game {
     if (r.flow === "weekend" && this.weekend) this.weekend = finishSession(this.weekend, "race", null);
     if (r.flow === "tutorial" && this.tutBackup) { this.tutBackup.tutorialDone = true; this.persist(); }
     const crossed = crossedPlace(res, ME);
-    const title = mine.position === 1 ? "You won!" : `You finished P${mine.position}`;
+    const title = mine.position === 1 ? "You won!" : mine.eliminated ? `Out in P${mine.position}` : `You finished P${mine.position}`;
     // (with tyres and fuel in play the classification adds time penalties, so it can differ from the order the cars crossed the line in)
-    const orderNote = crossed !== null && crossed !== mine.position ? `<p class="dim">You crossed the line <b>P${crossed}</b>; with the time penalties (a car that never stopped in the pits, or never ran a required tyre, is given one) you are classified <b>P${mine.position}</b>.</p>` : "";
+    const orderNote = !r.elimination && crossed !== null && crossed !== mine.position ? `<p class="dim">You crossed the line <b>P${crossed}</b>; with the time penalties (a car that never stopped in the pits, or never ran a required tyre, is given one) you are classified <b>P${mine.position}</b>.</p>` : "";
     if (mine.position === 1 && !mine.dnf && this.special?.kind !== "challenge") this.audio.stinger("win");
-    const when = (x: CarResult) => (fmt(x.finishTime) + (x.penalty ? ` <span class="bad">+${realSeconds(x.penalty).toFixed(1)}</span>` : ""));
+    const when = (x: CarResult) => x.eliminated ? `<span class="dim">out, lap ${x.lapTimes.length + 1}</span>` : (fmt(x.finishTime) + (x.penalty ? ` <span class="bad">+${realSeconds(x.penalty).toFixed(1)}</span>` : ""));
     const grid = r.flow === "weekend" ? this.weekend?.grid?.[ME] : undefined;
     const noStop = mine.penalty - mine.missing.length * pitPenalty(this.vehicle);
     const el = this.show("center", `

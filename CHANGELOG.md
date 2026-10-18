@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Elimination races.** Turn on *Elimination* in Quick Race: each time the leader starts a new lap, the last car still running is out, down to a duel on the last lap (a lap for every rival, 25 at most). A toast says who has gone; the results list who went out on which lap. Elimination races are kept apart from ordinary ones for best times, and are not sent to the online boards.
 - **Cars pull hardest off the line and fade toward top speed.** Acceleration used to be the same all the way up to top speed. Now a car puts down all its grip at low speed, then its power and the air take over and the pull fades, as a real car's does: getting out of a slow corner well matters more, a long straight a little less. A slipstream or a pad stretches the curve so a car can still go past its top speed.
 - **One grip for turning and braking.** A tyre turning at the limit has less left to brake or accelerate with (the friction circle), so a line that brakes in a straight line before a bend and straightens the exit is quicker than one that brakes and turns at once.
 - **Tyres have a cliff.** Grip fades gently for most of a set's life and falls away in the last quarter (it used to fall in a straight line), and it fades as the lap goes rather than all at once at the start of the next lap. Wets wear a touch faster on a wet road to keep about 15 laps.

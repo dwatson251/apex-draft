@@ -278,6 +278,8 @@ export interface RaceRules {
   wearMult?: { fuel: number; tyre: number };
   /** compounds every car must run at some point; each one missing from a finisher costs PIT_PENALTY */
   mandatory?: Compound[];
+  /** an elimination race: each time the leader starts a new lap, the last car still running is out (it takes the flag there) */
+  elimination?: boolean;
 }
 
 /** The most the fuel burn or tyre wear can be turned up. */
@@ -292,7 +294,7 @@ export interface PitStop { lap: number; tyre?: Compound; /** how to drive the st
 /** The most stops that can be queued at once (stops already made do not count). */
 export const MAX_PIT_STOPS = 5;
 
-export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump" | "spin" | "rain" | "pad";
+export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump" | "spin" | "rain" | "pad" | "elim";
 export interface RaceEvent {
   tick: number;
   id: string;
@@ -492,6 +494,8 @@ export interface RaceCar {
   wake: number;
   /** the tyre grip (wear and temperature) the lap's path was built with: grip lost since then is taken off as the lap goes, not all at the next one */
   gripBuilt: number;
+  /** elimination race: the order it went out in (1 first), 0 while it is still in */
+  elim: number;
   /** tyre temperature once a second of ticks, for the interface */
   readonly tmtrace: Float32Array;
   /** 0 soft, 1 medium, 2 wet, at every tick */
@@ -522,6 +526,8 @@ export interface CarResult {
   /** how many of those were emergency refuels */
   emergencies: number;
   lapTimes: number[];
+  /** in an elimination race, the order this car went out in (1 first), or 0 if it was never out */
+  eliminated: number;
 }
 
 export class Race {
@@ -529,6 +535,9 @@ export class Race {
   readonly events: RaceEvent[] = [];
   tick = 0;
   private profiles = new Map<string, Profile>();
+  /** elimination race: the furthest lap any car has started, and how many cars are out */
+  private leadLap = 0;
+  private elimOut = 0;
   readonly lapLen: number;
   private biome: Biome;
   readonly weather: Weather;
@@ -604,7 +613,7 @@ export class Race {
         ghost: false, stuck: 0, air: 0, airT: 0, peak: 0, pad: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
-        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, gripBuilt: 1, wake: 0, used: [],
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, gripBuilt: 1, elim: 0, wake: 0, used: [],
         hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
       });
       c.used.push(c.compound);
@@ -660,6 +669,17 @@ export class Race {
   }
 
   private alive = (c: RaceCar): boolean => c.finishTime === null && !c.out;
+
+  /** Elimination race: the leader (`leader`) has just started a new lap, so the last car still running is out, as long as two are left. */
+  private eliminate(t: number, leader: RaceCar): void {
+    const running = this.cars.filter((o) => this.alive(o) && o !== leader);
+    if (running.length < 1) return;
+    let last = running[0]!;
+    for (const o of running) if (this.progress(o) < this.progress(last)) last = o;
+    last.finishTime = t;
+    last.elim = ++this.elimOut;
+    this.emit(last.entrant.id, "elim");
+  }
 
   /** A lap's path with nothing special: fresh tyres and a full tank. Used for qualifying and the grid. */
   private profile(e: Entrant, lap: number): Profile {
@@ -1560,6 +1580,7 @@ export class Race {
         this.emit(c.entrant.id, "cross");
         if (c.lap >= this.laps) { c.finishTime = t; break; }
         if (c.lap >= 0) c.lapStart.push(t);
+        if (this.rules.elimination && c.lap > this.leadLap) { this.leadLap = c.lap; this.eliminate(t, c); }
         this.startLap(c);
         c.needProf = true;
         p = c.prof;
@@ -1659,6 +1680,8 @@ export class Race {
   results(): CarResult[] {
     const adj = (c: RaceCar) => (c.finishTime === null ? null : c.finishTime + this.penaltyOf(c));
     const order = [...this.cars].sort((a, b) => {
+      // (in an elimination race the cars that were never out come first, then the rest, the last to go out first)
+      if (a.elim || b.elim) return a.elim && b.elim ? b.elim - a.elim : a.elim ? 1 : -1;
       const ta = adj(a), tb = adj(b);
       if (ta !== null && tb !== null) return ta - tb || a.slot - b.slot;
       if (ta !== null) return -1;
@@ -1670,12 +1693,13 @@ export class Race {
     return order.map((c, i) => {
       const lapTimes: number[] = [];
       for (let k = 0; k < c.lapStart.length; k++) {
-        const end = k + 1 < c.lapStart.length ? c.lapStart[k + 1]! : c.finishTime;
+        // (a car put out of an elimination race stops part of the way round: that lap was never finished)
+        const end = k + 1 < c.lapStart.length ? c.lapStart[k + 1]! : c.elim ? null : c.finishTime;
         if (end !== null) lapTimes.push(end - c.lapStart[k]!);
       }
       return {
         id: c.entrant.id, name: c.entrant.name, isPlayer: !!c.entrant.isPlayer, slot: c.slot, position: i + 1,
-        finishTime: adj(c), rawTime: c.finishTime, penalty: this.penaltyOf(c), missing: this.missingOf(c), dnf: c.out, pits: c.pits, emergencies: c.emergencies, lapTimes,
+        finishTime: adj(c), rawTime: c.finishTime, penalty: this.penaltyOf(c), missing: this.missingOf(c), dnf: c.out, pits: c.pits, emergencies: c.emergencies, lapTimes, eliminated: c.elim,
       };
     });
   }

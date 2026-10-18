@@ -65,6 +65,8 @@ export interface Settings {
   tutorialDone?: boolean;
   /** pit stops queued: the end of lap `lap` (counting from 0), on this tyre */
   pitPlan: { lap: number; tyre: Compound; tactic?: Tactic }[];
+  /** Quick Race as an elimination race: the last car is out every lap (the laps follow the field) */
+  elimination?: boolean;
   /** the pit wall calls the stops not queued (realism only); on unless turned off */
   autoPit?: boolean;
   /** how to drive the first stint (realism only); balanced if left out */

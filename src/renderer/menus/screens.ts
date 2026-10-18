@@ -67,6 +67,8 @@ export interface SetupData {
   /** the difficulties the player has opened, to choose from; and what opens the next one, if one is still locked */
   unlocked: Difficulty[];
   nextLock: string;
+  /** Quick Race as an elimination race (the laps then follow the field) */
+  elimination: boolean;
   /** easy has no realism: the toggle and the wear options are not shown */
   noRealism: boolean;
   /** stars and best place on this track and machine, for a race */
@@ -114,9 +116,10 @@ export function setupHtml(d: SetupData): string {
     ${race ? `<div class="opts">
       <div class="opt"><span>Rivals <em>${esc(DIFFICULTY_BLURB[d.difficulty ?? "easy"])}</em></span>${dropdown("difficulty", d.difficulty ?? "easy", d.unlocked.map((x) => ({ value: x, label: DIFFICULTY_NAMES[x] })), { label: "How hard the rivals drive" })}</div>
       ${d.nextLock ? `<p class="dim info lock-note">🔒 ${esc(d.nextLock)}</p>` : ""}
-      <div class="opt"><span>Laps</span>${stepper("laps", d.laps, 1, 50)}</div>
+      ${d.flow === "quick" ? `<div class="opt"><span>Elimination <em>the last car is out every lap, down to a duel</em></span>${toggle("elim", d.elimination)}</div>` : ""}
+      <div class="opt"><span>Laps${d.elimination ? " <em>one for every rival</em>" : ""}</span>${stepper("laps", d.laps, 1, 50, { disabled: d.elimination })}</div>
       <div class="opt"><span>Players</span>${dropdown("rivals", String(d.rivals), FIELD_SIZES.map((n) => ({ value: String(n - 1), label: String(n) })), { label: "Players on the grid, you included" })}</div>
-      ${d.flow === "quick" && !d.noRealism ? `<div class="opt"><span>Realism <em>tyres, fuel, pit stops, weather</em></span>${toggle("realism", d.realism)}</div>` : ""}
+      ${d.flow === "quick" && !d.noRealism && !d.elimination ? `<div class="opt"><span>Realism <em>tyres, fuel, pit stops, weather</em></span>${toggle("realism", d.realism)}</div>` : ""}
       ${wear ? `<div class="opt"><span>Fuel use</span>${dropdown("wearFuel", String(d.wearFuel), mult(), { label: "Fuel use" })}</div>
       <div class="opt"><span>Tyre wear</span>${dropdown("wearTyre", String(d.wearTyre), mult(), { label: "Tyre wear" })}</div>
       <div class="opt wide"><span>Tyres you must use</span>${compoundChips("mandatory", d.mandatory)}</div>` : ""}
