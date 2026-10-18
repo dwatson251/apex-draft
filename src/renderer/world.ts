@@ -480,6 +480,39 @@ export class WorldView {
     }
   }
 
+  /**
+   * A line coloured by the speed the car carries along it (after `drawCurves`, which clears): red where it is slow, amber, then green where it is
+   * fast, from `vmin` to `vmax`. `keep` leaves out samples (a lap still being drawn shows only the road drawn so far). Samples of one colour band are
+   * stroked together, so a lap is a few dozen strokes and not thousands.
+   */
+  drawSpeed(path: { x: ArrayLike<number>; y: ArrayLike<number>; v: ArrayLike<number>; vmin: number; vmax: number; keep?: (i: number) => boolean; width?: number; alpha?: number; closed?: boolean }): void {
+    const g = this.lines, n = path.x.length, bands = 14, width = path.width ?? 3.2, alpha = path.alpha ?? 1;
+    const span = Math.max(path.vmax - path.vmin, 1e-6);
+    const band = (i: number) => Math.min(bands - 1, Math.max(0, Math.floor(((path.v[i]! - path.vmin) / span) * bands)));
+    let run: number[] = [], cur = -1;
+    const flush = () => { if (run.length >= 4) { g.moveTo(run[0]!, run[1]!); for (let k = 2; k < run.length; k += 2) g.lineTo(run[k]!, run[k + 1]!); g.stroke({ width, color: speedColour((cur + 0.5) / bands), alpha, join: "round", cap: "round" }); } };
+    const last = path.closed ? n : n - 1;
+    for (let i = 0; i < last; i++) {
+      const j = (i + 1) % n;
+      if (path.keep && !(path.keep(i) && path.keep(j))) { flush(); run = []; cur = -1; continue; }
+      const b = band(i);
+      if (b !== cur) { flush(); run = cur < 0 || !run.length ? [] : run.slice(-2); cur = b; if (!run.length) run.push(path.x[i]!, path.y[i]!); }
+      run.push(path.x[j]!, path.y[j]!);
+    }
+    flush();
+  }
+
+  /** Like `drawCurves`, but on top of what is already drawn (the speed colours) instead of clearing it. */
+  drawCurvesOver(curves: { pts: Vec2[]; color: number; width?: number; alpha?: number }[]): void {
+    const g = this.lines;
+    for (const c of curves) {
+      if (c.pts.length < 2) continue;
+      g.moveTo(c.pts[0]!.x, c.pts[0]!.y);
+      for (let i = 1; i < c.pts.length; i++) g.lineTo(c.pts[i]!.x, c.pts[i]!.y);
+      g.stroke({ width: c.width ?? 2, color: c.color, alpha: c.alpha ?? 1, join: "round", cap: "round" });
+    }
+  }
+
   /** Draggable points: a square where the segment starts, a diamond where it ends, round dots between. */
   drawHandles(hs: Handle[]): void {
     const g = this.lines;
@@ -621,3 +654,11 @@ export class WorldView {
 }
 
 export { MARGIN_CELLS };
+
+/** Red (slow) through amber to green (fast), for `f` from 0 to 1. */
+export function speedColour(f: number): number {
+  const stops: [number, number, number][] = [[255, 77, 77], [255, 194, 63], [79, 210, 138]];
+  const t = Math.min(1, Math.max(0, f)) * 2, k = Math.min(1, Math.floor(t)), u = t - k;
+  const a = stops[k]!, b = stops[k + 1]!;
+  return (Math.round(a[0] + (b[0] - a[0]) * u) << 16) | (Math.round(a[1] + (b[1] - a[1]) * u) << 8) | Math.round(a[2] + (b[2] - a[2]) * u);
+}

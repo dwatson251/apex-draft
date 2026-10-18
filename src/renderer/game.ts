@@ -22,6 +22,7 @@ import {
   TACTIC_INFO, crossedPlace, firstDryLap, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
   type Challenge, type ChallengeStore, type Championship, type DailyRecord,
 } from "@apex/sim";
+import { buildProfile, segmentTimes, type Profile } from "@apex/sim";
 import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
 import { copyText, dropdown, wireControls } from "./menus/controls.ts";
 import { challengesHtml, championshipHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
@@ -1028,6 +1029,49 @@ export class Game {
   /** What the player drives: their own stats in this track's kind of machine. */
   private playerCar(): CarConfig { return { ...this.settings.car, type: this.vehicle }; }
 
+  /**
+   * How fast the player's car goes round a line, for the speed colours and the predicted lap: a flying lap with no tyres, fuel or traffic. A lap still
+   * being drawn is filled in the way "finish for me" would (only the part drawn is shown). Kept for the last line asked about: the map is redrawn on
+   * every drag, but the line under it only changes when a segment is finished.
+   */
+  private lineProfile(line: Line | null): Profile | null {
+    if (!line || !line.segs.length) return null;
+    const car = this.playerCar(), key = `${this.track.phrase}|${this.vehicle}|${car.accel}${car.top}${car.grip}${car.brake}|${JSON.stringify(line)}`;
+    if (this.speedKey === key) return this.speedProf;
+    let prof: Profile | null = null;
+    try { prof = buildProfile(this.track, isComplete(this.track, line) ? line : completeLine(this.track, line), car); } catch { prof = null; }
+    this.speedKey = key; this.speedProf = prof;
+    return prof;
+  }
+  private speedKey = "";
+
+  /**
+   * Where the player's line loses time against the best computer line, both driven by the player's own car on a flying lap with no traffic,
+   * segment by segment: the three worst, and the whole lap. The segments are lit on the map. Empty when there is nothing to say.
+   */
+  private lineDeltas(): string {
+    const line = this.me?.lines.at(-1) ?? this.currentLine;
+    const mine = line ? this.lineProfile(line) : null;
+    if (!line || !mine || !isComplete(this.track, line)) return "";
+    let ref: Profile;
+    try { ref = buildProfile(this.track, botLine(this.track, 5, 1), this.playerCar()); } catch { return ""; }
+    const a = segmentTimes(mine), b = segmentTimes(ref);
+    const worst = [...a].filter(([id]) => b.has(id)).map(([id, t]) => ({ id, d: realSeconds(t - b.get(id)!) })).filter((x) => x.d >= 0.05).sort((x, y) => y.d - x.d).slice(0, 3);
+    const total = realSeconds(mine.ideal - ref.ideal);
+    this.view.drawTrack(this.track, { visible: null, selected: new Set(worst.map((x) => x.id)) });
+    const head = Math.abs(total) < 0.05 ? "Your line is as quick as the best computer line" : total > 0 ? `Your line is <b class="bad">${total.toFixed(2)} s</b> a lap slower than the best computer line` : `Your line is <b class="good">${(-total).toFixed(2)} s</b> a lap quicker than the best computer line`;
+    return `<div class="deltas"><p>${head} <span class="dim">(in your car, a flying lap with nobody in the way)</span>.</p>${worst.length ? `<p class="dim">Most time lost, lit on the map:</p><ul>${worst.map((x) => `<li>Segment ${this.posOf(line, x.id) + 1}<b class="bad">+${x.d.toFixed(2)} s</b></li>`).join("")}</ul>` : ""}</div>`;
+  }
+  private speedProf: Profile | null = null;
+
+  /** Draw a line in its speed colours (after `drawCurves`). */
+  private drawSpeedLine(prof: Profile, keep?: (seg: number) => boolean, alpha = 1, width = 3.2): void {
+    // (from the slowest point of the lap to the fastest, so the corners stand out whatever the car and the ground)
+    let vmin = Infinity, vmax = 1;
+    for (let i = 0; i < prof.n; i++) { vmin = Math.min(vmin, prof.vFly[i]!); vmax = Math.max(vmax, prof.vFly[i]!); }
+    this.view.drawSpeed({ x: prof.x, y: prof.y, v: prof.vFly, vmin, vmax, closed: !prof.open, alpha, width, ...(keep ? { keep: (i: number) => keep(prof.seg[i]!) } : {}) });
+  }
+
   private ghostQuery(limit: number): { phrase: string; vehicle: string; limit: number; time?: number } {
     const phrase = normalizePhrase(this.settings.phrase);
     const vehicle = this.pickVehicle(placeFor(phrase).choices);
@@ -1140,14 +1184,19 @@ export class Game {
     }
     this.view.drawTrack(t, { visible, selected: d.mode === "amend" ? new Set([d.id]) : undefined });
     const curves: { pts: Vec2[]; color: number; width?: number; alpha?: number }[] = [];
-    if (d.mode === "lap" && d.line && d.line.segs.length) {
-      curves.push({ pts: smooth([d.line.start, ...d.line.segs.flat()], false).map((x) => x.p), color: PLAYER_COLOR, width: 2, alpha: 0.55 });
-    } else if (d.mode === "amend" && d.line) {
-      curves.push({ pts: lapCurve(d.line, t.segments.length).map((x) => x.p), color: PLAYER_COLOR, width: 2, alpha: 0.35 });
-    }
     const pv = this.preview(d);
-    if (pv) curves.push({ pts: pv.curve, color: pv.ok ? 0x4fd28a : 0xff5d6c, width: 3 });
-    this.view.drawCurves(curves);
+    if (pv) curves.push({ pts: pv.curve, color: pv.ok ? 0xffffff : 0xff5d6c, width: 3 });
+    this.view.drawCurves([]);
+    // the line so far in its speed colours (the segment being drawn is left out: it is the white or red preview)
+    const prof = d.line ? this.lineProfile(d.line) : null;
+    if (prof && d.line) {
+      const drawn = new Set(d.line.segs.map((_, k) => idAt(d.line!, k)));
+      if (d.mode === "lap") this.drawSpeedLine(prof, (sg) => drawn.has(sg) && sg !== d.id, 0.9, 2.6);
+      else this.drawSpeedLine(prof, (sg) => sg !== d.id, 0.55, 2.4);
+    } else if (d.mode === "lap" && d.line && d.line.segs.length) {
+      curves.unshift({ pts: smooth([d.line.start, ...d.line.segs.flat()], false).map((x) => x.p), color: PLAYER_COLOR, width: 2, alpha: 0.55 });
+    }
+    this.view.drawCurvesOver(curves);
     this.view.drawHandles(this.handles(d).map((h): Handle => ({ p: h.p, kind: h.kind, active: d.drag?.kind === h.kind && d.drag.i === h.i })));
   }
 
@@ -1530,7 +1579,9 @@ export class Game {
     const changed = this.changedThisLap();
     const used = new Set([...changed, ...sel]).size;
     this.view.drawTrack(this.track, { visible: null, selected: sel, bad });
-    this.view.drawCurves([{ pts: lapCurve(line, this.track.segments.length).map((x) => x.p), color: PLAYER_COLOR, width: 3 }]);
+    const prof = check.ok ? this.lineProfile(line) : null;
+    if (prof) { this.view.drawCurves([]); this.drawSpeedLine(prof); }
+    else this.view.drawCurves([{ pts: lapCurve(line, this.track.segments.length).map((x) => x.p), color: PLAYER_COLOR, width: 3 }]);
     if (this.race) this.drawCarsAt(this.race.tick);
     const next = this.nextLapIndex();
     const tooMany = !firstLap && changed.length > MAX_AMENDS;
@@ -1560,7 +1611,7 @@ export class Game {
       ...(!firstLap && changed.length ? [{ id: "revert", label: "Revert", color: "orange" as const, tip: "Undo every change you have made to your line during this stop.", onClick: () => { this.currentLine = this.me.lines[this.lapNo]!; this.shareLine = this.currentLine; this.syncHash(); this.pick = null; this.showPicker(null); } }] : []),
       ...(real ? [{ id: "pits", label: `Pit strategy${this.queuedStops().length ? ` (${this.queuedStops().length})` : ""}`, color: "violet" as const, tip: "Queue pit stops: pick the lap and the tyre. Up to 5, one per lap, and none on the last lap.", onClick: () => this.togglePlan() }] : []),
       { id: "go", label: goLabel, color: "yellow", wide: true, disabled: !(check.ok && !tooMany), tip: firstLap ? (this.timed() ? "Start the session with this line." : "Start the race with this line.") : "Leave the pits and carry on with your line as it now is.", onClick: () => { this.pick = null; this.closePlan(); if (firstLap) this.startRace(); else this.resumeRace(); } },
-    ], `${firstLap ? `Select segments on the map to edit them, or go. ${this.timed() ? "" : `<span class="dim">Once the race starts you can only change your line during a pit stop.</span>`}` : `You are in the pits: change up to <b>${MAX_AMENDS}</b> segments before you go back out (<b>${used}</b> used).`} <span class="dim">Scroll to zoom, drag to pan.</span>`);
+    ], `${prof ? `<span class="predict">Flying lap <b>${fmt(prof.ideal)}</b> <i class="speedkey"><em>slow</em><em>fast</em></i></span> ` : ""}${firstLap ? `Select segments on the map to edit them, or go. ${this.timed() ? "" : `<span class="dim">Once the race starts you can only change your line during a pit stop.</span>`}` : `You are in the pits: change up to <b>${MAX_AMENDS}</b> segments before you go back out (<b>${used}</b> used).`} <span class="dim">Scroll to zoom, drag to pan.</span>`);
     if (this.planOpen) this.renderPlan();
     this.updateTutorial();
   }
@@ -2358,6 +2409,7 @@ export class Game {
       ${kind === "qualifying" ? `<p style="font-size:26px;margin:8px 0"><b>${fmt(time)}</b> <span class="dim" style="font-size:13px">${time === null ? "no timed lap set" : "best timed lap"}</span></p>
       <table>${laps}</table>` : `<div class="best-box"><span>Best lap</span><b>${time === null ? "–" : fmt(time)}</b></div>
       <ul class="lap-list">${lastLaps || '<li class="dim"><span>No laps timed</span></li>'}</ul>`}${extra}
+      ${this.lineDeltas()}
       ${buttons}`);
     this.on(el, "#res-menu", () => this.showMenu());
     if (dailyDate_) void this.online.daily(dailyDate_).then((b) => {
@@ -2438,6 +2490,7 @@ export class Game {
       <table><tr><th>#</th><th>Driver</th><th class="num">Stops</th><th class="num">Time</th><th class="num">Best lap</th></tr>
       ${res.map((x) => `<tr class="${x.isPlayer ? "me" : ""}"><td>${x.position}</td><td>${esc(x.name)}</td><td class="num">${x.pits}${x.emergencies ? ` <span class="bad" title="emergency refuel">!</span>` : ""}</td><td class="num">${when(x)}</td><td class="num">${fmt(x.lapTimes.length ? Math.min(...x.lapTimes) : null)}</td></tr>`).join("")}</table>
       <p class="dim">Your laps: ${mine.lapTimes.map(fmt).join(" · ")}</p>
+      ${this.lineDeltas()}
       ${season}
       ${this.special?.kind === "champ" ? `<button class="primary" id="next-round">${this.champ && isOver(this.champ) ? "Final standings" : "Next round"}</button>` : `<button class="primary" id="again">${r.flow === "weekend" ? "Weekend again" : "Race again"}</button>`}<button id="res-menu">Menu</button>`);
     this.on(el, "#res-menu", () => this.showMenu());

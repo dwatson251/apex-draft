@@ -33,6 +33,8 @@ export interface Profile {
   canon: Float64Array;
   /** speed limit after braking for what is ahead */
   vLim: Float64Array;
+  /** speed on a flying lap: the limit above, and the time it takes to accelerate up to it (what `ideal` is the time of) */
+  vFly: Float64Array;
   accelMul: Float64Array;
   /** braking at each sample relative to the car's own (hills, rough surface); 1 on the flat and on tarmac */
   brakeMul: Float64Array;
@@ -286,7 +288,7 @@ export function buildProfile(track: Track, line: Line, car: CarConfig, opts: Pro
   for (let k = 0; k < n; k++) ideal += ds / Math.max((v[k]! + v[(k + 1) % n]!) / 2, 1);
   let pitFromS: number | undefined;
   if (pitIn) for (let i = 0; i < n; i++) if (lane[i] && i > n / 2) { pitFromS = i * ds; break; }
-  return { n, ds, length: total, x, y, h, seg, half, canon, vLim, accelMul, brakeMul, gripMul, ghost, jump, jumpPower, kick, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
+  return { n, ds, length: total, x, y, h, seg, half, canon, vLim, vFly: v, accelMul, brakeMul, gripMul, ghost, jump, jumpPower, kick, ideal, pickups, kap, lane, open: wrapBreak, pitS, pitFromS };
 }
 
 /** Linear lookup into a per-sample array at arclength s (wrapping, unless the lap is open: then it stops at the ends). */
@@ -325,4 +327,18 @@ function heightAt(center: { x: number; y: number }[], elev: number[], x: number,
   if (tp >= 0 && tp <= 1) return elev[k]! + (elev[k + 1]! - elev[k]!) * tp;
   if (tm >= 0 && tm <= 1) return elev[k]! + (elev[k - 1]! - elev[k]!) * tm;
   return elev[k]!;
+}
+
+/**
+ * Time on a flying lap spent in each segment of the line (by segment id), from `vFly`: where a line gains or loses against another, free of traffic,
+ * pit stops and the weather. A segment the line does not drive is not in the map.
+ */
+export function segmentTimes(p: Profile): Map<number, number> {
+  const out = new Map<number, number>();
+  for (let k = 0; k < p.n; k++) {
+    const j = p.open ? Math.min(k + 1, p.n - 1) : (k + 1) % p.n;
+    const dt = p.ds / Math.max((p.vFly[k]! + p.vFly[j]!) / 2, 1);
+    out.set(p.seg[k]!, (out.get(p.seg[k]!) ?? 0) + dt);
+  }
+  return out;
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **See how fast your line is before you race it.** Your line is drawn in speed colours, red where the car is slow, through amber, to green where it is quick, from the slowest point of the lap to the fastest: the segments you have drawn while you draw (the rest is worked out the way *Finish for me* would), and the whole lap on the map before the start and in the pits. The map also shows the **flying lap** the line is worth in your car.
+- **Where your line loses time.** The results now compare your line with the best computer line, both in your car on a flying lap with nobody in the way: how much a lap it gains or loses, and the three segments where it loses most, lit on the map.
 - **Play now.** A tile on the home screen goes straight to drawing a random track: three laps, seven rivals, no tyres or fuel, at Medium once you have opened it. Your own Quick Race setup is left as it was.
 - **Difficulty is chosen on the race setup**, in a dropdown beside the laps and the field, instead of on a screen of its own between the menu and the setup. The next locked difficulty says what opens it.
 - **The pit wall can call your stops.** In the pit strategy panel, *Let the pit wall call the stops* (on by default) brings you in when the computer drivers would come in: for fuel, worn tyres or the wrong tyre for the road. Stops you queue still come first. It is set before the start, and the server replays it.

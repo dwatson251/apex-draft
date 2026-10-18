@@ -517,3 +517,15 @@ button.big { background-color: #3a4b82; }
 /* pit strategy: the pit wall toggle */
 .panel.plan label.autopit { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 4px 0 10px; text-transform: none; letter-spacing: 0; font-size: 14px; cursor: pointer; }
 .panel.plan label.autopit input { transform: translateY(2px) scale(1.25); accent-color: var(--accent); }
+
+/* the predicted lap and the speed colours' key, in the bar under the map */
+.predict { white-space: nowrap; margin-right: 6px; }
+.predict b { color: #fff; }
+.speedkey { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; font-style: normal; font-size: 11px; opacity: 0.85; vertical-align: middle; }
+.speedkey::before { content: ""; order: 1; width: 64px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #ff4d4d, #ffc23f, #4fd28a); }
+.speedkey em:first-child { order: 0; font-style: normal; } .speedkey em:last-child { order: 2; font-style: normal; }
+
+/* results: where the line loses time against the best computer line */
+.deltas { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
+.deltas p { margin: 0 0 6px; } .deltas ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.deltas li { display: flex; gap: 8px; align-items: baseline; padding: 4px 10px; border-radius: 999px; background: rgba(255, 207, 63, 0.16); border: 1px solid rgba(255, 207, 63, 0.5); font-size: 13px; }
