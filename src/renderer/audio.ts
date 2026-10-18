@@ -723,10 +723,24 @@ export class CarAudio {
   private intensity = 0;
 
   /** A short flourish: a win, a goal met, the end of a round. */
-  stinger(kind: "win" | "goal" | "round"): void {
-    // a short brass fanfare: each note a chord of detuned saws through a filter that opens as it sounds, the last one held
+  stinger(kind: "win" | "goal" | "round" | "trophy"): void {
     const ctx = this.ctx, fx = this.fx;
     if (!ctx || !fx) return;
+    if (kind === "trophy") {
+      // a trophy: a quick rising arpeggio of bells (a sine and its bright overtone, struck and ringing out), then a held sparkle on top
+      const t0 = ctx.currentTime + 0.02;
+      [1047, 1319, 1568, 2093].forEach((f, i) => {
+        const t = t0 + i * 0.075, ring = i === 3 ? 0.9 : 0.35;
+        for (const [mult, peak] of [[1, 0.09], [2.76, 0.025]] as const) {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = "sine"; o.frequency.value = f * mult;
+          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + ring);
+          o.connect(g); g.connect(fx); o.start(t); o.stop(t + ring + 0.05);
+        }
+      });
+      return;
+    }
+    // a short brass fanfare: each note a chord of detuned saws through a filter that opens as it sounds, the last one held
     const phrase: [number[], number][] = kind === "win" ? [[[523, 659], 0.14], [[587, 740], 0.14], [[659, 784], 0.14], [[784, 988, 1175], 0.75]] : kind === "goal" ? [[[659, 830], 0.14], [[880, 1109, 1319], 0.55]] : [[[392, 494], 0.14], [[523, 659, 784], 0.45]];
     let t = ctx.currentTime + 0.03;
     for (const [chord, dur] of phrase) {

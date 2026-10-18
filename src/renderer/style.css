@@ -400,8 +400,10 @@ button.tile:focus-visible, button.tile.on, button.tile:active:not(:disabled) { b
 button.tile:active { transform: scale(0.985); }
 @media (hover: hover) { button.tile:hover:not(:disabled) { background: var(--c); border-color: rgba(255, 255, 255, 0.85); } .tile:hover .art { opacity: 0.55; transform: scale(1.06); } }
 body.pad .tile:focus { outline: 3px solid #ffcf3f; outline-offset: 2px; }
-@media (max-width: 900px) { .tilegrid.home6 { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 112px; } .tilegrid.home6 .tile.xl { grid-column: span 2; grid-row: span 1; } .tilegrid.group { grid-template-columns: 1fr; grid-auto-rows: 96px; } .tiles .tilehead h1.logo { font-size: 36px; } }
-@media (max-height: 520px) and (min-width: 620px) { .tilegrid.home6 { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 72px; } .tilegrid.home6 .tile.xl, .tilegrid.home6 .tile.w2 { grid-column: span 1; grid-row: span 1; } .tilegrid.group { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 120px; } .tilegrid.group.two { grid-template-columns: repeat(2, 1fr); } .tile { padding: 8px 12px; } .tile .sub { font-size: 11px; } .tile b { font-size: 15px; } .tiles .tilehead h1.logo { font-size: 30px; } .tiles .tilehead .tagline { display: none; } .tiles .tilehead { margin-bottom: 8px; } }
+/* a phone held upright: too narrow for four columns, so two (a phone on its side, the way the Android app plays, keeps the desktop layout: below) */
+@media (max-width: 900px) and (orientation: portrait) { .tilegrid.home6 { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 112px; } .tilegrid.home6 .tile.xl { grid-column: span 2; grid-row: span 1; } .tilegrid.group { grid-template-columns: 1fr; grid-auto-rows: 96px; } .tiles .tilehead h1.logo { font-size: 36px; } }
+/* a short, wide screen (a phone on its side): the same layout as the desktop, the rows sized so the whole menu fits the height without scrolling */
+@media (max-height: 520px) and (min-width: 620px) { .tilegrid.home6 { grid-auto-rows: clamp(52px, calc((100dvh - 96px) / 3), 138px); gap: 8px; } .tilegrid.group { grid-auto-rows: clamp(70px, calc(100dvh - 110px), 250px); gap: 8px; } .tilegrid.group.two { grid-template-columns: repeat(2, 1fr); } .tile .art { opacity: 0.22; } .tile { padding: 8px 12px; } .tile .sub { font-size: 11px; } .tile b { font-size: 15px; } .tiles .tilehead h1.logo { font-size: 30px; } .tiles .tilehead .tagline { display: none; } .tiles .tilehead { margin-bottom: 8px; } }
 /* the title sits straight on the track behind it, which can be light (snow): keep its small text readable */
 .tiles .tilehead .tagline, .tiles .tilehead .dim, .tiles .ver { color: #e8edf8; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7); }
 
@@ -547,9 +549,9 @@ button.big { background-color: #3a4b82; }
 @media (prefers-reduced-motion: reduce) { .scflag { animation: none; } }
 .toast.sc { border-color: #ffcf3f; }
 
-/* the Race group with four modes, and the career ladder */
+/* Time Attack with four modes, and the career ladder */
 .tilegrid.group.four { grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 900px) { .tilegrid.group.four { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 900px) and (orientation: portrait) { .tilegrid.group.four { grid-template-columns: 1fr 1fr; } }
 .career { display: grid; grid-template-columns: minmax(220px, 1fr) 1.4fr; gap: 16px; align-items: start; }
 @media (max-width: 700px) { .career { grid-template-columns: 1fr; } }
 .ladder { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -564,7 +566,6 @@ button.big { background-color: #3a4b82; }
 .atlas .spot.found { border-style: solid; border-color: rgba(63, 167, 214, 0.6); background: rgba(63, 167, 214, 0.12); } .atlas .spot em { font-style: normal; font-size: 12px; color: #9fdcff; }
 .trophies { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
 .trophy { display: flex; flex-direction: column; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); opacity: 0.6; font-size: 13px; } .trophy.got { opacity: 1; background: rgba(255, 207, 63, 0.12); border: 1px solid rgba(255, 207, 63, 0.4); }
-.toast.trophy { border-color: #ffcf3f; }
 
 /* drops on the glass in heavy rain: soft round blobs that slide slowly down (pointer events pass through) */
 #raindrops { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s;
@@ -596,5 +597,33 @@ input.vol { width: min(220px, 50vw); accent-color: var(--accent); }
 /* the Race group as a mosaic, like the home screen: Quick Race big on the left, the other four in a square beside it */
 .tilegrid.group.mosaic { grid-template-columns: repeat(4, 1fr); grid-auto-rows: 160px; }
 .tilegrid.group.mosaic .tile.xl { grid-column: span 2; grid-row: span 2; }
-@media (max-width: 900px) { .tilegrid.group.mosaic { grid-template-columns: 1fr 1fr; grid-auto-rows: 110px; } .tilegrid.group.mosaic .tile.xl { grid-row: span 1; } }
-@media (max-height: 520px) and (min-width: 620px) { .tilegrid.group.mosaic { grid-auto-rows: 84px; } }
+@media (max-width: 900px) and (orientation: portrait) { .tilegrid.group.mosaic { grid-template-columns: 1fr 1fr; grid-auto-rows: 110px; } .tilegrid.group.mosaic .tile.xl { grid-row: span 1; } }
+@media (max-height: 520px) and (min-width: 620px) { .tilegrid.group.mosaic { grid-auto-rows: clamp(52px, calc((100dvh - 110px) / 2), 160px); } }
+
+/* the results of a race: compact, so a phone on its side needs no scrolling; the buttons stay at the bottom */
+.panel.center.results { max-height: calc(100dvh - 24px); overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-bottom: 0; }
+.res-head { display: flex; gap: 12px; align-items: center; } .res-head h2 { margin: 0; } .res-head p { margin: 2px 0 0; font-size: 12px; }
+.res-place { flex: 0 0 auto; min-width: 54px; padding: 6px 8px; text-align: center; border-radius: 10px; font: 900 26px/1 system-ui, sans-serif; background: rgba(255, 255, 255, 0.1); }
+.res-place.p1 { background: #ffcf3f; color: #1b1b1b; } .res-place.pod { background: rgba(255, 207, 63, 0.25); }
+.res-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: rgba(255, 255, 255, 0.75); } .res-stats b { color: #fff; }
+.res-chips { display: flex; flex-wrap: wrap; gap: 4px; } .res-chips p { margin: 0; padding: 2px 9px; border-radius: 999px; font-size: 12px; background: rgba(95, 224, 138, 0.14); border: 1px solid rgba(95, 224, 138, 0.4); }
+.res-chips p.bad { background: rgba(255, 93, 108, 0.14); border-color: rgba(255, 93, 108, 0.45); }
+.panel.results p.small { margin: 0; font-size: 12px; } .panel.results > p.dim { margin: 0; font-size: 12px; }
+.res-brief { font-size: 13px; } .res-brief td { padding: 3px 6px; } .res-brief tr.gap td { padding: 0 6px; line-height: 1; }
+.res-more summary { cursor: pointer; font-size: 12px; color: rgba(255, 255, 255, 0.7); } .res-more table { font-size: 12px; margin-top: 4px; }
+.panel.results .deltas { margin: 0; padding: 6px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; }
+.panel.results .deltas li { padding: 1px 8px; font-size: 11px; }
+.res-btns { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 12px; background: linear-gradient(transparent, var(--panel-bg, #161b29) 30%); }
+.res-btns button { margin: 0; }
+@media (max-height: 520px) { .res-place { font-size: 20px; min-width: 44px; } .panel.center.results h2 { font-size: 18px; } }
+
+/* trophies: solid cards in the top left, out of the way of the race and the results */
+#trophies { position: absolute; top: 12px; left: 12px; z-index: 40; display: flex; flex-direction: column; gap: 8px; pointer-events: none; max-width: min(340px, calc(100% - 96px)); }
+.trophy-card { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: #161b29; border: 1px solid #3a4258; border-left: 4px solid #ffcf3f; border-radius: 10px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); color: #fff; animation: trophyin 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.trophy-card i { font-style: normal; font-size: 28px; line-height: 1; }
+.trophy-card b { display: block; font: 800 14px/1.2 system-ui, sans-serif; color: #ffcf3f; } .trophy-card span { display: block; font-size: 12px; color: #d6dbe6; } .trophy-card em { display: block; font-style: normal; font-size: 12px; color: #5fe08a; margin-top: 2px; }
+.trophy-card.out { opacity: 0; transform: translateX(-24px); transition: opacity 0.35s, transform 0.35s; }
+@keyframes trophyin { from { opacity: 0; transform: translateX(-40px); } }
+@media (prefers-reduced-motion: reduce) { .trophy-card { animation: none; } .trophy-card.out { transform: none; } }
+/* a phone on its side: smaller cards, the name only, so they keep to the corner and clear of the results */
+@media (max-height: 520px) { #trophies { top: 8px; left: 8px; gap: 5px; max-width: 200px; } .trophy-card { padding: 5px 9px; gap: 7px; border-left-width: 3px; } .trophy-card i { font-size: 18px; } .trophy-card b { font-size: 12px; } .trophy-card span { display: none; } .trophy-card em { font-size: 10px; } }

@@ -55,6 +55,9 @@ const TUT_TIPS: readonly string[] = [
   "Tip: a smooth, sparse line is usually quicker than a busy one. Fewer points, longer curves.",
 ];
 
+/** How long a trophy card stays up. */
+const TROPHY_MS = 5000;
+
 /** What each livery reward is called in the garage. */
 const REWARD_NAMES = { gold: "gold paint", chrome: "chrome paint", chequer: "the chequered pattern", chevron: "the chevron pattern" } as const;
 
@@ -1074,7 +1077,7 @@ export class Game {
     if (!got.length) return;
     for (const t of got) {
       this.trophies[t.id] = Date.now();
-      this.toast(`🏆 <b>${esc(t.name)}</b> · ${esc(t.blurb)}${t.reward ? ` <span class="good">New for the livery: ${REWARD_NAMES[t.reward]}</span>` : ""}`, "trophy");
+      this.trophyCard("🏆", t.name, t.blurb, t.reward ? `New for the livery: ${REWARD_NAMES[t.reward]}` : "");
     }
     void save("trophies", this.trophies);
   }
@@ -1234,7 +1237,7 @@ export class Game {
     // a real circuit, found: it goes in the atlas
     if (this.track.circuit && !this.track.circuit.theme && !KART_CIRCUITS.has(this.track.circuit.id) && !this.found[this.track.circuit.id]) {
       this.found[this.track.circuit.id] = Date.now(); void save("found", this.found);
-      this.toast(`🗺️ Found <b>${esc(this.track.circuit.name)}</b>: it is in the atlas now`, "good");
+      this.trophyCard("🗺️", `Found: ${this.track.circuit.name}`, "A real circuit, in the atlas now", "");
       this.award(null);
     }
     this.preloadGhosts();
@@ -1318,8 +1321,8 @@ export class Game {
     const worst = [...a].filter(([id]) => b.has(id)).map(([id, t]) => ({ id, d: realSeconds(t - b.get(id)!) })).filter((x) => x.d >= 0.05).sort((x, y) => y.d - x.d).slice(0, 3);
     const total = realSeconds(mine.ideal - ref.ideal);
     this.view.drawTrack(this.track, { visible: null, selected: new Set(worst.map((x) => x.id)) });
-    const head = Math.abs(total) < 0.05 ? "Your line is as quick as the best computer line" : total > 0 ? `Your line is <b class="bad">${total.toFixed(2)} s</b> a lap slower than the best computer line` : `Your line is <b class="good">${(-total).toFixed(2)} s</b> a lap quicker than the best computer line`;
-    return `<div class="deltas"><p>${head} <span class="dim">(in your car, a flying lap with nobody in the way)</span>.</p>${worst.length ? `<p class="dim">Most time lost, lit on the map:</p><ul>${worst.map((x) => `<li>Segment ${this.posOf(line, x.id) + 1}<b class="bad">+${x.d.toFixed(2)} s</b></li>`).join("")}</ul>` : ""}</div>`;
+    const head = Math.abs(total) < 0.05 ? "as quick as" : total > 0 ? `<b class="bad">${total.toFixed(2)}s</b> a lap slower than` : `<b class="good">${(-total).toFixed(2)}s</b> a lap quicker than`;
+    return `<div class="deltas" title="Both in your car, on a flying lap with nobody in the way"><span>Your line is ${head} the best computer line</span>${worst.length ? `<ul>${worst.map((x) => `<li>Seg ${this.posOf(line, x.id) + 1} <b class="bad">+${x.d.toFixed(2)}</b></li>`).join("")}</ul>` : ""}</div>`;
   }
   private speedProf: Profile | null = null;
 
@@ -2327,6 +2330,28 @@ export class Game {
   }
 
   /** A line of text that appears at the top of the screen for a moment. */
+  /**
+   * A trophy (or a circuit found), as a card in the top left corner: solid, so it reads as something earned and not a passing note, out of the way of
+   * the race and the results, with a jingle. A few stack; each goes after a few seconds.
+   */
+  private trophyCard(icon: string, title: string, text: string, extra: string): void {
+    let layer = document.getElementById("trophies");
+    if (!layer) { layer = document.createElement("div"); layer.id = "trophies"; layer.setAttribute("aria-live", "polite"); this.toastLayer.parentElement?.appendChild(layer); }
+    const el = document.createElement("div");
+    el.className = "trophy-card";
+    el.innerHTML = `<i aria-hidden="true">${icon}</i><div><b>${esc(title)}</b><span>${esc(text)}</span>${extra ? `<em>${esc(extra)}</em>` : ""}</div>`;
+    // (each one a moment after the one before, so two earned together are two jingles and two cards, not one)
+    const wait = Math.max(0, this.trophyFree - performance.now());
+    this.trophyFree = performance.now() + wait + 700;
+    window.setTimeout(() => {
+      layer!.appendChild(el);
+      while (layer!.children.length > 3) layer!.firstElementChild?.remove();
+      this.audio.stinger("trophy");
+      window.setTimeout(() => { el.classList.add("out"); window.setTimeout(() => el.remove(), 400); }, TROPHY_MS);
+    }, wait);
+  }
+  private trophyFree = 0;
+
   private toast(text: string, cls = ""): void {
     const el = document.createElement("div");
     el.className = `toast ${cls}`;
@@ -2771,7 +2796,7 @@ export class Game {
     if (!mine.dnf && mine.finishTime !== null && (this.best[key] === undefined || mine.finishTime < this.best[key]!)) {
       this.best[key] = mine.finishTime;
       void save("best", this.best);
-      record = '<p class="good">New best time for this track and these rules!</p>';
+      record = '<p class="good" title="for this track and these rules">New best time</p>';
     }
     const fastest = mine.lapTimes.length ? Math.min(...mine.lapTimes) : null;
     const lapKey = this.lapKey(this.track.phrase);
@@ -2784,7 +2809,7 @@ export class Game {
       this.records = recordFinish(this.records, rk, r.difficulty, mine.position);
       void save("records", this.records);
       const opened = DIFFICULTIES.filter((d) => isUnlocked(d, this.records) && !open.includes(d));
-      if (starsFor(this.records, rk) > before) earned += `<p class="good">${"★".repeat(starsFor(this.records, rk))} stars for this track</p>`;
+      if (starsFor(this.records, rk) > before) earned += `<p class="good">${"★".repeat(starsFor(this.records, rk))} on this track</p>`;
       for (const d of opened) earned += `<p class="good">${d[0]!.toUpperCase() + d.slice(1)} unlocked!</p>`;
     }
     // a Challenge: judged from the finished race
@@ -2821,6 +2846,8 @@ export class Game {
     const crossed = crossedPlace(res, ME);
     const rival = res.find((x) => x.id === "duel");
     if (!this.special || this.special.kind !== "replay") {
+      // (the trophies wait for the win's fanfare to finish, so the two are heard one after the other)
+      if (mine.position === 1) this.trophyFree = Math.max(this.trophyFree, performance.now() + 1100);
       const mode: TrophyMode = this.special?.kind === "champ" ? (this.special.career ? "career" : "champ") : this.special?.kind === "duel" ? "duel" : this.special?.kind === "challenge" ? "challenge" : r.elimination ? "elim" : r.flow === "weekend" ? "weekend" : "race";
       this.stats = { races: this.stats.races + 1, wins: this.stats.wins + (mine.position === 1 ? 1 : 0) }; void save("stats", this.stats);
       const race = this.race!;
@@ -2833,18 +2860,28 @@ export class Game {
     const when = (x: CarResult) => x.eliminated ? `<span class="dim">out, lap ${x.lapTimes.length + 1}</span>` : (fmt(x.finishTime) + (x.penalty ? ` <span class="bad">+${realSeconds(x.penalty).toFixed(1)}</span>` : ""));
     const grid = r.flow === "weekend" ? this.weekend?.grid?.[ME] : undefined;
     const noStop = mine.penalty - mine.missing.length * pitPenalty(this.vehicle);
-    const el = this.show("center", `
-      <h2>${r.flow === "weekend" ? "Race weekend · " : ""}${title}</h2>
-      <p class="dim">${esc(this.track.phrase)} · ${r.laps} lap(s) · ${esc(VEHICLES[this.vehicle].plural)}${r.realism ? (r.wearFuel > 1 || r.wearTyre > 1 ? ` · fuel ${r.wearFuel}× · tyres ${r.wearTyre}×` : "") : " · no tyres or fuel"}${grid !== undefined ? ` · started P${grid + 1}` : ""}${r.flow !== "tutorial" ? ` · ${r.difficulty}` : ""}</p>${orderNote}${record}${earned}
-      ${mine.emergencies ? `<p class="bad">The tank ran dry ${mine.emergencies === 1 ? "once" : `${mine.emergencies} times`}: ${mine.emergencies === 1 ? "an emergency refuel" : "emergency refuels"} cost you a slow limp to the pits and a long stop.</p>` : ""}
-      ${noStop > 0 ? `<p class="bad">+${realSeconds(noStop).toFixed(1)}s because you never stopped in the pits.</p>` : ""}
-      ${mine.missing.length ? `<p class="bad">+${realSeconds(mine.missing.length * pitPenalty(this.vehicle)).toFixed(1)}s for never running ${mine.missing.map((c) => COMPOUNDS[c].name).join(" or ")} tyres.</p>` : ""}
-      <table><tr><th>#</th><th>Driver</th><th class="num">Stops</th><th class="num">Time</th><th class="num">Best lap</th></tr>
-      ${res.map((x) => `<tr class="${x.isPlayer ? "me" : ""}"><td>${x.position}</td><td>${esc(x.name)}</td><td class="num">${x.pits}${x.emergencies ? ` <span class="bad" title="emergency refuel">!</span>` : ""}</td><td class="num">${when(x)}</td><td class="num">${fmt(x.lapTimes.length ? Math.min(...x.lapTimes) : null)}</td></tr>`).join("")}</table>
-      <p class="dim">Your laps: ${mine.lapTimes.map(fmt).join(" · ")}</p>
+    // compact, so it fits a phone on its side: the place, your time, chips for what you earned, the podium and you, the rest behind a toggle
+    const winner = res[0]!, gapTo = (x: CarResult) => (x.finishTime !== null && winner.finishTime !== null && x !== winner && !x.eliminated ? `+${realSeconds(x.finishTime - winner.finishTime).toFixed(1)}` : when(x));
+    const ahead = mine.position === 1 && res[1]?.finishTime != null && mine.finishTime !== null ? `ahead by <b>${realSeconds(res[1].finishTime - mine.finishTime).toFixed(1)}s</b>` : mine.position > 1 && !mine.eliminated ? `<b>${gapTo(mine)}s</b> to the winner` : "";
+    const shown = [...new Set([0, 1, 2, mine.position - 1])].filter((i) => i < res.length).sort((a, b) => a - b);
+    const row = (x: CarResult, full: boolean) => `<tr class="${x.isPlayer ? "me" : ""}"><td>${x.position}</td><td>${esc(x.name)}</td>${full ? `<td class="num">${x.pits}${x.emergencies ? ` <span class="bad" title="emergency refuel">!</span>` : ""}</td><td class="num">${when(x)}</td><td class="num">${fmt(x.lapTimes.length ? Math.min(...x.lapTimes) : null)}</td>` : `<td class="num">${x === winner ? when(x) : gapTo(x)}</td>`}</tr>`;
+    const brief = shown.map((i, k) => `${k > 0 && i - shown[k - 1]! > 1 ? '<tr class="gap"><td></td><td class="dim">…</td><td></td></tr>' : ""}${row(res[i]!, false)}`).join("");
+    const chips = `${record}${earned}`;
+    const el = this.show("center results", `
+      <div class="res-head"><b class="res-place ${mine.position === 1 ? "p1" : mine.position <= 3 ? "pod" : ""}">P${mine.position}</b><div><h2>${r.flow === "weekend" ? "Race weekend · " : ""}${title}</h2>
+        <p class="dim">${esc(this.track.phrase)} · ${r.laps} lap${r.laps > 1 ? "s" : ""} · ${esc(VEHICLES[this.vehicle].plural)}${r.realism ? (r.wearFuel > 1 || r.wearTyre > 1 ? ` · fuel ${r.wearFuel}× · tyres ${r.wearTyre}×` : "") : ""}${grid !== undefined ? ` · from P${grid + 1}` : ""}${r.flow !== "tutorial" ? ` · ${r.difficulty}` : ""}</p></div></div>
+      <div class="res-stats"><span>Time <b>${when(mine)}</b></span><span>Best lap <b>${fmt(fastest)}</b></span>${ahead ? `<span>${ahead}</span>` : ""}</div>
+      ${chips ? `<div class="res-chips">${chips}</div>` : ""}${orderNote}
+      ${mine.emergencies ? `<p class="bad small">Ran dry ${mine.emergencies === 1 ? "once" : `${mine.emergencies} times`}: a slow limp to the pits and a long stop.</p>` : ""}
+      ${noStop > 0 ? `<p class="bad small">+${realSeconds(noStop).toFixed(1)}s: you never stopped in the pits.</p>` : ""}
+      ${mine.missing.length ? `<p class="bad small">+${realSeconds(mine.missing.length * pitPenalty(this.vehicle)).toFixed(1)}s: you never ran ${mine.missing.map((c) => COMPOUNDS[c].name).join(" or ")} tyres.</p>` : ""}
+      <table class="res-brief">${brief}</table>
+      <details class="res-more"><summary>Full results and your laps</summary>
+        <table><tr><th>#</th><th>Driver</th><th class="num">Stops</th><th class="num">Time</th><th class="num">Best lap</th></tr>${res.map((x) => row(x, true)).join("")}</table>
+        <p class="dim">Your laps: ${mine.lapTimes.map(fmt).join(" · ")}</p></details>
       ${this.lineDeltas()}
       ${season}
-      ${this.special?.kind === "champ" ? `<button class="primary" id="next-round">${(() => { const c = this.season(); return !c || isOver(c) ? (inCareer ? "Career" : "Final standings") : "Next round"; })()}</button>` : `<button class="primary" id="again">${r.flow === "weekend" ? "Weekend again" : "Race again"}</button>`}${this.keepThisRace(title, mine.position) ? '<button id="watch">Watch replay</button>' : ""}${this.duelButton(this.special?.kind === "duel" ? "Send your line back" : "Challenge a friend")}<button id="res-menu">Menu</button>`);
+      <div class="res-btns">${this.special?.kind === "champ" ? `<button class="primary" id="next-round">${(() => { const c = this.season(); return !c || isOver(c) ? (inCareer ? "Career" : "Final standings") : "Next round"; })()}</button>` : `<button class="primary" id="again">${r.flow === "weekend" ? "Weekend again" : "Race again"}</button>`}${this.keepThisRace(title, mine.position) ? '<button id="watch">Replay</button>' : ""}${this.duelButton(this.special?.kind === "duel" ? "Send your line back" : "Challenge a friend")}<button id="res-menu">Menu</button></div>`);
     this.on(el, "#res-menu", () => this.showMenu());
     this.wireDuelButton(el);
     this.on(el, "#watch", () => { const rep = this.replays[0]; if (rep) this.watchReplay(rep); });
