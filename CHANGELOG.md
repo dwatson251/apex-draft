@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-beta.2
+
+The second playtest build: the menus and results made for a phone on its side, and trophies as cards.
 
 - **The menus look the same on a phone on its side as on a desktop.** The home screen keeps its mosaic (Race big, Play now beside it, the rest below) and the Race and Time Attack menus keep theirs, with the rows sized to fit the screen's height; a phone held upright still gets two columns.
 - **The results fit on a phone.** A place badge, your time, best lap and gap, what you earned as small chips, the podium and you (gaps to the winner), and the line comparison in one line; the full table and your laps are behind *Full results*. The buttons stay at the bottom.
