@@ -55,6 +55,18 @@ describe("track identity", () => {
   });
 });
 
+describe("a Mario Kart course on the server", () => {
+  it("is keyed by its id, offers a kart and three other classes, and takes only those", () => {
+    const info = trackInfo("Mario Circuit 1");
+    expect(info).toMatchObject({ key: "mario-circuit-1", special: true, fun: false });
+    const pl = placeFor("mario-circuit-1");
+    expect(pl.vehicle).toBe("kart");
+    expect(pl.choices).toHaveLength(4);
+    expect(pl.choices[0]).toBe("kart");
+    expect(VEHICLE_IDS.some((v) => !pl.choices.includes(v))).toBe(true);
+  });
+});
+
 describe("the server", () => {
   let server: Server, base = "", db: Db;
   const secret = "11111111-2222-4333-8444-555555555555", other = "99999999-2222-4333-8444-555555555555";

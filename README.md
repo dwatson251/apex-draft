@@ -105,6 +105,7 @@ practise somewhere quiet and take the line into a race.
 | **Race Weekend** | **Practice** has no wear, with the others spread round the track. It ends when you say or after 10 minutes, and you can edit your line between runs. **Qualifier** is an out lap, three timed laps and a cool-down, and your best lap counts. Then the **Race** starts from the grid you qualified for. |
 | **Daily** | One track a day, the same for everyone, as a Time Trial in your own car. Your best, your streak and the online board for the day. |
 | **Championship** | Five races on linked tracks against the same rivals, with points for the places. Each round is a qualifier and a race. |
+| **Kart Tracks** | 165 Mario Kart courses from every game, in the Race group: pick a game, a cup and a course, then race it as any other track. Always starts on a kart, with ramps, speed pads and ice, sand, mud and water patches where the real course has them. Fan approximations: see below. |
 | **Challenges** | Ten races with a goal, worth one to three stars each. |
 | **Tutorial** | A guided run on the oval: drawing, locking in segments, queuing a pit stop and editing in the pits. |
 
@@ -179,6 +180,10 @@ What the phrase decides:
 
 The address of the game holds the track, your settings and the segments you have drawn. Copy it to share a track, or
 reload to carry on drawing. **Laps and times are never saved in it**, so a reload always starts the race afresh.
+
+## Kart Tracks and Nintendo
+
+The Kart Tracks are fan approximations of the layouts of the Mario Kart courses, drawn by hand or traced from the Super Mario Wiki's maps and scaled for this game. They are **not affiliated with or endorsed by Nintendo**. No Nintendo images, models, logos, characters or audio are included; the art is this game's own. See [docs/KART_CREDITS.md](docs/KART_CREDITS.md).
 
 ## Licence
 

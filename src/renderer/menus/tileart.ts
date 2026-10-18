@@ -15,6 +15,7 @@ export const TILE_ART: Record<string, string> = {
   tutorial: svg('<path d="M30 60l70-22 70 22v82l-70-22-70 22z"/><path d="M100 38v82"/><path d="M52 78l34 8M52 100l34 8M148 78l-34 8M148 100l-34 8" stroke-width="3"/>'),
   settings: svg('<path d="M30 60h140M30 100h140M30 140h140"/><circle cx="70" cy="60" r="14" fill="currentColor" fill-opacity=".25"/><circle cx="130" cy="100" r="14" fill="currentColor" fill-opacity=".25"/><circle cx="90" cy="140" r="14" fill="currentColor" fill-opacity=".25"/>'),
   quick: svg(FLAG),
+  karts: svg('<path d="M40 70c0-24 30-34 60-34s60 10 60 34-26 28-44 38-4 24 14 28 22 22 4 28H70c-34 0-44-16-30-36s34-18 34-38S40 94 40 70z"/><circle cx="60" cy="150" r="7" fill="currentColor" fill-opacity=".3"/>'),
   weekend: svg('<rect x="30" y="50" width="140" height="110" rx="6"/><path d="M30 82h140M62 34v28M138 34v28"/><path d="M52 104h22M89 104h22M126 104h22M52 130h22M89 130h22" stroke-width="4"/>'),
   champ: svg('<path d="M70 40h60v40a30 30 0 0 1-60 0z"/><path d="M70 52H44c0 28 10 40 28 44M130 52h26c0 28-10 40-28 44"/><path d="M100 110v32M72 162h56M84 142h32"/>'),
   trial: svg(WATCH),

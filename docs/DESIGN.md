@@ -274,3 +274,15 @@ squeezed with bottlenecks until it is not; one still too quick, or too slow, is 
 a shortcut. In the draw screen the exit of the other way on is a handle (`alt`), and `trackart` leaves out any sand or grandstand
 that would lie on another road.
 
+
+## Ramps, pads, patches and the air
+
+A segment may carry `fx` pieces (`fx.ts`): `jump`, `glide`, `boost`, `ice`, `sand`, `mud`, `water`, each over a span of the segment (fractions of its length). The profile folds them in like the landscape does: a pad multiplies top speed and acceleration, a ground patch multiplies grip, top speed, acceleration and braking (through `terrainMul`, so a machine built for rough ground gives some back), and a ramp marks a take-off sample (`Profile.jump`).
+
+A car whose `s` crosses a take-off sample at `JUMP_MIN_V` (45%) of its top speed or more, and that is not recovering, goes airborne for `AIR_BASE + AIR_K * v / vTop` ticks, clamped to 12..70 (a glide ramp twice that). In the air it has no throttle or brake and loses `AIR_DRAG` of its speed a tick, it ignores and is ignored by every other car (`apart`), and it lands losing up to `LAND_LOSS` of its speed. The record carries `atrace` (0..1, the arc) for drawing; the hash includes `air`. A ramp needs `LANDING_UNITS` (110, glide 170) of straight road after it with nothing standing in it (`checkFx`, part of `checkTrack`), because the cars brake for what is ahead of them only on the ground.
+
+`funPieces` (features.ts) lays 0-3 ramps, 0-2 pads and one patch on a `fun-` track, from `Rng(seed ^ 0x6b61727d)`, never next to the pit straight, a junction, a bridge or a shortcut.
+
+## The Kart Tracks
+
+`tools/mariokart` makes them: `hub.ts` and `links.ts` read the wiki's course list and check every link, `roster.ts` builds `roster.json` (theme, laps, the hazards the page mentions), `emit.ts` writes `kartroster.ts` (names, themes, aliases), `refs.ts` fetches the maps to a scratch folder outside the repo, `autotrace.py` (or hand placement with `hand.py`) turns a map into waypoints in `shapes/*.json`, `build.ts` scales, smooths and fits them into drivable laps in `kartdata.ts` (corners no tighter than 26 units, roads at least 56 apart except where a bridge crosses, ramps snapped to straights with room), and `check.ts` runs the gates. A lap that crosses itself gets bridges (`markCrossings` in freetrack.ts: the earlier road goes under). Themes are only paint (`look.ts`); the ground a course races on is grass, desert, snow or city, so only snow and sand change the grip.
