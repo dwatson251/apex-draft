@@ -109,7 +109,11 @@ export function skipTo(w: Weekend, phase: WeekendPhase): Weekend {
   return order.indexOf(phase) > order.indexOf(w.phase) ? { ...w, phase } : w;
 }
 
-/** Quick Race places the player by their Time Trial time on this track: with no time they start last. */
-export const quickGridTime = (playerTT: number | null | undefined): number => playerTT ?? Infinity;
+/**
+ * Quick Race places the player by their Time Trial time on this track. With no time they are placed as the computer drivers are, by the lap time
+ * of the line they drew (undefined: `Race` grids by the line's ideal lap). They used to start last, which read as a punishment for not having
+ * run a Time Trial first.
+ */
+export const quickGridTime = (playerTT: number | null | undefined): number | undefined => playerTT ?? undefined;
 
 export type { CarResult };

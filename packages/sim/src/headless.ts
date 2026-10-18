@@ -6,7 +6,7 @@ import { isComplete, validateLine, type Line } from "./line.ts";
 import { MAX_PIT_STOPS, Race, type CarResult, type Entrant, type RaceRules } from "./race.ts";
 import { Rng } from "./rng.ts";
 import { normalizePhrase } from "./seed.ts";
-import { sessionBest, sessionLaps, sessionRules, type SessionOptions } from "./session.ts";
+import { quickGridTime, sessionBest, sessionLaps, sessionRules, type SessionOptions } from "./session.ts";
 import { isCompound, type Compound } from "./tyres.ts";
 import { generateTrack, placeFor, trackLength, type Track } from "./track.ts";
 import { isVehicleId, type VehicleId } from "./vehicles.ts";
@@ -171,7 +171,7 @@ export function runRace(i: RaceInput): RaceOutcome {
     id: "me", name: "Driver", car: { ...i.car, name: String(i.car.name).slice(0, 40), type: vehicle },
     lines: i.lapLine.map((k) => i.lines[k]!), isPlayer: true,
     pitPlan: i.realism ? plan : [], startTyre: i.startTyre && isCompound(i.startTyre) ? i.startTyre : "medium", ...(i.startTactic && isTactic(i.startTactic) ? { startTactic: i.startTactic } : {}),
-    gridTime: i.playerTime ?? Infinity,
+    gridTime: quickGridTime(i.playerTime),
   };
   const ghosts: Entrant[] = i.ghosts.slice(0, i.rivals).map((g, n) => ({ id: `ghost:${g.id}`, name: g.name, car: { ...g.car, type: vehicle }, lines: [g.line], gridTime: g.time, bestLap: g.time }));
   const bots = makeBots(track, vehicle, ghosts.length, i.rivals);

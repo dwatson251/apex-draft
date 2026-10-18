@@ -48,9 +48,11 @@ describe("grid control", () => {
     expect(slot("c0")).toBe(4);
     expect(new Set(r.cars.map((c) => c.slot)).size).toBe(5);
   });
-  it("puts a car with no time at the back", () => {
+  it("grids a car with no time by its line, as the computer drivers are", () => {
     const r = new Race(t, field(6, (i) => (i === 0 ? { gridTime: quickGridTime(null) } : {})), 2, { realism: false });
-    expect(r.cars.find((c) => c.entrant.isPlayer)!.slot).toBe(5);
+    const ideal = (c: (typeof r.cars)[number]) => r["profile"](c.entrant, 0).ideal;
+    const me = r.cars.find((c) => c.entrant.isPlayer)!;
+    expect(me.slot).toBe(r.cars.filter((c) => ideal(c) < ideal(me)).length);
   });
   it("puts a car with a very quick time on pole", () => {
     const r = new Race(t, field(6, (i) => (i === 0 ? { gridTime: quickGridTime(1) } : {})), 2, { realism: false });

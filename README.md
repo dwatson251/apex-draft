@@ -102,7 +102,7 @@ practise somewhere quiet and take the line into a race.
 | Mode | What you get |
 | --- | --- |
 | **Solo Time Trial** | You, the track and the clock. An out lap, one timed lap and a cool-down lap. No rivals, no wear, soft tyres. Your best time is kept for that track, and it decides your grid place in Quick Race. |
-| **Quick Race** | A single race of up to 50 laps against up to 31 rivals. Turn **Realism** on for tyres, fuel, pit stops and weather. Scale wear and fuel use up to 40x to make a short race feel like an endurance one, and make some tyres mandatory. You start from the place your Time Trial time earns, or last if you have none. |
+| **Quick Race** | A single race of up to 50 laps against up to 31 rivals. Turn **Realism** on for tyres, fuel, pit stops and weather. Scale wear and fuel use up to 40x to make a short race feel like an endurance one, and make some tyres mandatory. You start from the place your Time Trial time earns, or, with none, where the lap time of your line puts you. |
 | **Race Weekend** | **Practice** has no wear, with the others spread round the track. It ends when you say or after 10 minutes, and you can edit your line between runs. **Qualifier** is an out lap, three timed laps and a cool-down, and your best lap counts. Then the **Race** starts from the grid you qualified for. |
 | **Daily** | One track a day, the same for everyone, as a Time Trial in your own car. Your best, your streak and the online board for the day. |
 | **Championship** | Five races on linked tracks against the same rivals, with points for the places. Each round is a qualifier and a race. |

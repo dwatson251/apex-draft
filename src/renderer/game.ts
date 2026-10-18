@@ -637,7 +637,7 @@ export class Game {
       carLine: `Car: ${s.car.name} (${carCost(s.car)}/${CAR_BUDGET} points)`,
       bestLine: flow === "trial" ? (tt !== undefined ? `Your time: <b>${fmt(tt)}</b>` : "") : "",
       record: flow === "trial" ? null : { stars: starsFor(this.records, recordKey(phrase, chosen)), place: bestPlace(this.records, recordKey(phrase, chosen)) },
-      gridLine: (flow === "quick" ? (tt !== undefined ? `Your grid place comes from your time trial: <b>${fmt(tt)}</b>` : "No time trial time on this track yet, so you start <b>last</b>.") : flow === "weekend" ? "Your grid place comes from the qualifier." : "")
+      gridLine: (flow === "quick" ? (tt !== undefined ? `Your grid place comes from your time trial: <b>${fmt(tt)}</b>` : "Your grid place comes from the lap time of the line you draw. A Time Trial time, once you have one, counts instead.") : flow === "weekend" ? "Your grid place comes from the qualifier." : "")
         // (reportRun only sends a race the server can replay: say so, rather than leave a race off the boards without a word)
         + (flow !== "trial" && (s.difficulty !== "hard" || s.overtake || s.room) ? ` <span class="unranked">This race won't go on the online boards: only races on Hard${s.overtake || s.room ? ", with the experimental settings off," : ""} do. Your lap times still count.</span>` : ""),
       note: this.note,
