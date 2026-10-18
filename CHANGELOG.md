@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0-beta.4
+
+- **Waveguide engines are equally loud.** Each was matched to its synth engine's level, but the ear hears the waveguide's low, heavy sound as quieter, so the high-revving ones (F1 most of all, then superbikes and the turbo fours) sounded faint. Every machine is now set to the same loudness as the ear hears it (A-weighted, about the synth engines' middle): the F1 is more than twice as loud as before.
+
 ## 0.2.0-beta.3
 
 The third playtest build: gear changes in the physics, pit stops planned by you (or by the pit wall on Easy), and the waveguide engines to try.
