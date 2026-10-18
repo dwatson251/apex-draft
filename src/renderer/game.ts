@@ -22,11 +22,12 @@ import {
   TACTIC_INFO, crossedPlace, firstDryLap, isTactic, surfaceAt, type Tactic, overtakeCount, recordChallenge, recordDaily, referenceTime, rosterOf, skipTo, standings, totalStars, VEHICLE_IDS,
   type Challenge, type ChallengeStore, type Championship, type DailyRecord,
 } from "@apex/sim";
+import { CAREER_TIERS, PROMOTE_PLACE, finishSeason, newCareer, normaliseCareer, startSeason, type Career } from "@apex/sim";
 import { SIM_VERSION, duelCode, readDuel, buildProfile, golfPar, golfPhrase, golfStars, golfTarget, linePoints, segmentTimes, type Profile, type RaceEdit, type RaceRules } from "@apex/sim";
 import { MAX_REPLAYS, MAX_REPLAY_BYTES, keepReplay, loadReplays, rulesIn, rulesOut, type Replay } from "./replays.ts";
 import { DIFFICULTIES, DIFFICULTY_NAMES, bestPlace, cornerCap, ghostsAllowed, highestUnlocked, isDifficulty, isUnlocked, lockReason, normaliseRecords, realismAllowed, recordFinish, recordKey, starsFor, type Difficulty, type Records } from "@apex/sim";
 import { copyText, dropdown, wireControls } from "./menus/controls.ts";
-import { challengesHtml, championshipHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
+import { careerHtml, challengesHtml, championshipHtml, groupHtml, tacticChips, homeHtml, pauseHtml, settingsHtml, setupHtml, type Flow } from "./menus/screens.ts";
 import type { Handle, HandleKind, Skid, WorldView } from "./world.ts";
 
 const ME = "me";
@@ -129,7 +130,16 @@ export class Game {
   private planTactic: Tactic = "balanced";
   private champPick: { difficulty: Difficulty; vehicle: VehicleId } = { difficulty: "easy", vehicle: "rally" };
   /** a Daily, a Challenge or a round of the Championship being played: it borrows the settings and gives them back (see `modeBackup`) */
-  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ" } | { kind: "play" } | { kind: "golf"; date: string } | { kind: "replay"; rep: Replay } | { kind: "duel"; name: string; vehicle: string; line: Line; car: CarConfig } | null = null;
+  private special: { kind: "daily"; date: string } | { kind: "challenge"; id: string } | { kind: "champ"; career?: boolean } | { kind: "play" } | { kind: "golf"; date: string } | { kind: "replay"; rep: Replay } | { kind: "duel"; name: string; vehicle: string; line: Line; car: CarConfig } | null = null;
+  /** the career ladder (career.ts) and its season in progress */
+  private career: Career = newCareer();
+  /** The season being raced: the career's, or the standalone championship's. */
+  private season(): Championship | null { return this.special?.kind === "champ" && this.special.career ? this.career.current : this.champ; }
+  /** Keep a season after a round, wherever it belongs. */
+  private saveSeason(c: Championship): void {
+    if (this.special?.kind === "champ" && this.special.career) { this.career = { ...this.career, current: c }; void save("career", this.career); }
+    else { this.champ = c; void save("championship", c); }
+  }
   /** races kept to watch again (replays.ts), newest first */
   private replays: Replay[] = [];
   /** the entrants as they were when the race began, and its rules, for the replay */
@@ -142,7 +152,7 @@ export class Game {
   private toastLayer: HTMLDivElement;
   /** the track has a rough surface somewhere, so the sound looks for one under the cars */
   private roughTrack = false;
-  private screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack" = "home";
+  private screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "career" | "race" | "attack" = "home";
   private flow: Flow = "quick";
   private run: RunConfig = { flow: "quick", kind: "race", laps: 3, realism: false, rivals: 7, wearFuel: 1, wearTyre: 1, mandatory: [], difficulty: "easy" };
   /** the weekend in progress, if any */
@@ -259,6 +269,7 @@ export class Game {
     { const g = await load<unknown>("golf", {}); if (g && typeof g === "object") for (const [k, v] of Object.entries(g as Record<string, { stars?: unknown; points?: unknown }>)) if (typeof v?.stars === "number" && typeof v.points === "number") this.golfRec[k] = { stars: v.stars, points: v.points }; }
     this.challenges = normaliseChallenges(await load<unknown>("challenges", {}));
     this.champ = normaliseChampionship(await load<unknown>("championship", null));
+    this.career = normaliseCareer(await load<unknown>("career", null));
     this.normaliseSettings(); // again: the difficulty depends on the records
     this.savedLines = await load<Record<string, unknown>>("lines", {});
     // times set before the machine was a choice belong to the track's own machine
@@ -467,7 +478,7 @@ export class Game {
       if (this.inGame) { if (this.screen === "settings") { this.screen = "home"; this.renderMenu(); } else this.closeMenu(); }
       else if (this.screen === "garage") this.go(this.garageFrom);
       else if (this.screen === "setup") this.go(this.flow === "trial" ? "attack" : "race");
-      else if (this.screen === "championship") this.go("race");
+      else if (this.screen === "championship" || this.screen === "career") this.go("race");
       else if (this.screen !== "home") this.go("home");
     } else if (this.inGame) { this.screen = "home"; this.openMenu(); }
   }
@@ -562,11 +573,12 @@ export class Game {
     else if (this.screen === "garage") this.showGarage();
     else if (this.screen === "challenges") this.renderChallenges();
     else if (this.screen === "championship") this.renderChampionship();
+    else if (this.screen === "career") this.renderCareer();
     else if (this.screen === "race" || this.screen === "attack") this.renderGroup(this.screen);
     else this.renderHome();
   }
 
-  private go(screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "race" | "attack"): void {
+  private go(screen: "home" | "setup" | "settings" | "garage" | "challenges" | "championship" | "career" | "race" | "attack"): void {
     this.screen = screen;
     this.note = "";
     this.renderMenu();
@@ -599,6 +611,7 @@ export class Game {
     const today = dailyDate(new Date()), ran = this.dailyRec.days[today], streak = dailyStreak(this.dailyRec, today);
     const el = this.menuPanel(groupHtml(kind, {
       daily: ran !== undefined ? `Today ${fmt(ran)}${streak > 1 ? ` · ${streak} days` : ""}` : streak > 0 ? `${streak} day streak: run today` : "One track a day, for all",
+      career: (() => { const c = this.career, t = CAREER_TIERS[c.tier]!; return c.current ? `${t.name}: round ${c.current.done + 1} of ${c.current.rounds.length}` : `${t.name}: rung ${c.tier + 1} of ${CAREER_TIERS.length}`; })(),
       golf: (() => { const r = this.golfRec[golfPhrase(dailyDate(new Date()))]; return r ? `Today ${"★".repeat(r.stars)}${"☆".repeat(3 - r.stars)} in ${r.points} points` : "Fewest points that beat the clock"; })(),
       champ: this.champ ? (isOver(this.champ) ? "Season over" : `Round ${this.champ.done + 1} of ${this.champ.rounds.length}`) : `${ROUNDS} races, one title`,
     }), "tiles");
@@ -606,6 +619,7 @@ export class Game {
     this.on(el, "#h-quick", () => this.openSetup("quick"));
     this.on(el, "#h-weekend", () => this.openSetup("weekend"));
     this.on(el, "#h-champ", () => this.go("championship"));
+    this.on(el, "#h-career", () => this.go("career"));
     this.on(el, "#h-trial", () => this.openSetup("trial"));
     this.on(el, "#h-daily", () => this.startDaily());
     this.on(el, "#h-golf", () => this.startGolf());
@@ -1014,12 +1028,31 @@ export class Game {
     wireControls(el, { change: (id, v) => { if (id === "champ-vehicle" && isVehicleId(v)) { pick.vehicle = v; this.renderChampionship(); } } });
   }
 
-  /** The next round of the season: a qualifier, then the race. */
-  private startChampRound(): void {
-    const c = this.champ;
+  /** The career: the ladder of rungs, and the season on the player's own. */
+  private renderCareer(): void {
+    const c = this.career, cur = c.current;
+    const el = this.menuPanel(careerHtml({
+      tiers: CAREER_TIERS.map((t, i) => ({ name: t.name, vehicle: VEHICLES[t.vehicle].plural, difficulty: DIFFICULTY_NAMES[t.difficulty], laps: t.laps, field: t.rivals + 1, state: i < c.tier ? "done" : i === c.tier ? "now" : "locked", best: c.best[i] ?? null })),
+      season: cur ? { round: cur.done, of: cur.rounds.length, next: nextPhrase(cur), rows: standings(cur).slice(0, 8).map((r) => ({ name: r.name, points: r.points, wins: r.wins, me: r.id === ME })) } : null,
+      promote: PROMOTE_PLACE,
+    }), "wide");
+    this.on(el, "#back", () => this.go("race"));
+    this.on(el, "#career-start", () => { this.career = startSeason(this.career, (Math.random() * 2 ** 32) >>> 0); void save("career", this.career); this.startChampRound(true); });
+    this.on(el, "#career-go", () => this.startChampRound(true));
+    this.on(el, "#career-quit", () => {
+      void (async () => {
+        if (!(await this.confirmDialog("Abandon the season?", "The points so far are lost; the rung stays open.", "Abandon it"))) return;
+        this.career = { ...this.career, current: null }; void save("career", this.career); this.renderCareer();
+      })();
+    });
+  }
+
+  /** The next round of the season (the career's, or the championship's): a qualifier, then the race. */
+  private startChampRound(career = false): void {
+    const c = career ? this.career.current : this.champ;
     const phrase = c ? nextPhrase(c) : null;
     if (!c || !phrase) return;
-    this.beginSpecial({ kind: "champ" }, { phrase, laps: c.laps, rivals: c.rivals, difficulty: c.difficulty, realism: true }, "weekend");
+    this.beginSpecial({ kind: "champ", career }, { phrase, laps: c.laps, rivals: c.rivals, difficulty: c.difficulty, realism: true }, "weekend");
     this.weekend = skipTo(newWeekend(), "qualifying");
     this.practiceSecs = 0;
     this.run = this.runFor("weekend", "qualifying");
@@ -1110,7 +1143,7 @@ export class Game {
   /** The machine for a track: the one chosen in setup if the track offers it, else its own (the first of its choices). */
   private pickVehicle(choices: VehicleId[]): VehicleId {
     // a Daily and a Championship race the machine they say; a Challenge the one it names, if the track has it
-    if (this.special?.kind === "champ" && this.champ && choices.includes(this.champ.vehicle)) return this.champ.vehicle;
+    { const c = this.special?.kind === "champ" ? this.season() : null; if (c && choices.includes(c.vehicle)) return c.vehicle; }
     if (this.special?.kind === "challenge") { const c = challengeById(this.special.id); return c?.vehicle && choices.includes(c.vehicle) ? c.vehicle : choices[0]!; }
     if (this.special?.kind === "daily" || this.special?.kind === "golf") return choices[0]!;
     if (this.special?.kind === "duel") { const v = this.special.vehicle; return choices.includes(v as VehicleId) ? (v as VehicleId) : choices[0]!; }
@@ -1236,7 +1269,7 @@ export class Game {
   private makeRivals(count: number): Entrant[] {
     const out: Entrant[] = [];
     const d = this.run.difficulty;
-    if (this.special?.kind === "champ" && this.champ) return makeBots(this.track, this.vehicle, 0, count, d, rosterOf(this.champ));
+    { const c = this.special?.kind === "champ" ? this.season() : null; if (c) return makeBots(this.track, this.vehicle, 0, count, d, rosterOf(c)); }
     // a duel: the challenger's lap and car, and nobody else (their line is the same on every lap: it is the lap they sent)
     if (this.special?.kind === "duel") return [{ id: "duel", name: this.special.name, car: { ...this.special.car, type: this.vehicle }, lines: [roundLine(this.special.line)] }];
     if (this.special || !ghostsAllowed(d)) return makeBots(this.track, this.vehicle, 0, count, d);
@@ -1899,7 +1932,7 @@ export class Game {
     // the race of a weekend starts from the qualifying order
     const grid = r.flow === "weekend" && r.kind === "race" ? this.weekend?.grid : undefined;
     if (grid) for (const e of entrants) if (grid[e.id] !== undefined) e.gridSlot = grid[e.id];
-    const baseRules = r.kind !== "race" ? sessionRules(r.kind) : r.realism ? { ...sessionRules("race", { wearMult: { fuel: r.wearFuel, tyre: r.wearTyre }, mandatory: r.mandatory }), weather: true } : { realism: false, weather: false };
+    const baseRules = r.kind !== "race" ? sessionRules(r.kind) : r.realism ? { ...sessionRules("race", { wearMult: { fuel: r.wearFuel, tyre: r.wearTyre }, mandatory: r.mandatory }), weather: true } : { realism: false, weather: false, flags: true };
     // the rubber the weekend's earlier sessions laid down stays on the road (not on hard, whose races the server replays from scratch)
     const rubber = r.flow === "weekend" && r.difficulty !== "hard" ? this.weekend?.rubber : undefined;
     const rules = { ...baseRules, ...(rubber ? { rubber } : {}), ...(r.elimination ? { elimination: true } : {}) };
@@ -1980,6 +2013,9 @@ export class Game {
     // a race starts from the grid with the lights: five red, a pause, and out
     if (fromTick === 0 && this.run.kind === "race") this.play.start = { t: 0, lit: 0, out: START_FIRST + START_GAP * 4 + 0.8 + (phraseToSeed(this.settings.phrase) % 1000) / 1000, done: false };
     else this.endStartLights();
+    // (the safety car is out at the play head if the last call before it was out, not in)
+    this.scOn = false;
+    for (const e of race.events) { if (e.tick >= fromTick) break; if (e.type === "sc") this.scOn = true; else if (e.type === "scEnd") this.scOn = false; }
     const first = race.events.findIndex((e) => e.tick >= fromTick);
     this.eventIdx = first < 0 ? race.events.length : first;
     this.skidTick = fromTick;
@@ -2012,6 +2048,8 @@ export class Game {
 
   /** Recording a clip of the race: the canvas as a video, saved as a WebM file when it stops (or after `REC_MAX_MS`). */
   private rec: { r: MediaRecorder; chunks: Blob[]; timer: number } | null = null;
+  /** the safety car is out at the play head (from the race's events) */
+  private scOn = false;
   private toggleRecord(): void {
     if (this.rec) { this.rec.r.stop(); return; }
     let stream: MediaStream;
@@ -2406,6 +2444,8 @@ export class Game {
         if (p.speed <= 2 && (ev.id === ME || ev.other === ME)) this.audio.bump(ev.strength ?? 0);
         continue;
       }
+      if (ev.type === "sc") { this.scOn = true; this.toast("<b>Safety car</b>: the road is blocked. Hold your place, the field closes up", "sc"); continue; }
+      if (ev.type === "scEnd") { this.scOn = false; this.toast("<b>Safety car in</b>: racing again", "good"); continue; }
       if (ev.type === "elim") { const who = race.cars.find((c) => c.entrant.id === ev.id); this.toast(ev.id === ME ? "<b>You're out!</b> Last on the road as the leader started the lap" : `<b>${esc(who?.entrant.name ?? "")}</b> is out`, ev.id === ME ? "bad" : ""); continue; }
       if (ev.id !== ME || p.speed > 2) continue;
       if (ev.type === "cross") this.audio.cheer();
@@ -2441,7 +2481,7 @@ export class Game {
       el = this.show("top hud", `<h2 id="hud-head"></h2><div id="hud-weather"></div><div id="hud-best"></div><div id="hud-laps"></div><div id="hud-status"></div><table id="hud-table"></table><div id="hud-gauges" class="bubbles"></div>`);
     }
     const set = (sel: string, html: string) => { const n = el!.querySelector(sel); if (n && n.innerHTML !== html) n.innerHTML = html; };
-    set("#hud-head", `${this.lapText(lap)} <span class="dim">${fmt(now)}</span>`);
+    set("#hud-head", `${this.lapText(lap)} <span class="dim">${fmt(now)}</span>${this.scOn ? ' <span class="scflag">SAFETY CAR</span>' : ""}`);
     const fc = this.forecastFor(this.track.phrase, this.run.laps, this.vehicle);
     set("#hud-weather", fc ? weatherGrid(fc, 75, Math.min(2, Math.floor(((lap - 1) / this.run.laps) * 3))) : "");
     // a time trial or practice: the best lap in a box of its own, with the last three laps listed under it, newest first
@@ -2658,12 +2698,20 @@ export class Game {
     }
     // a round of the Championship: score it
     let season = "";
-    if (this.special?.kind === "champ" && this.champ && !isOver(this.champ)) {
-      this.champ = applyRound(this.champ, res.map((x) => ({ id: x.id, name: x.name, position: x.position })));
-      void save("championship", this.champ);
-      const rows = standings(this.champ);
-      season = `<h3>Season standings · round ${this.champ.done} of ${this.champ.rounds.length}</h3><table><tr><th>#</th><th>Driver</th><th class="num">Points</th></tr>${rows.slice(0, 8).map((x, i) => `<tr class="${x.id === ME ? "me" : ""}"><td>${i + 1}</td><td>${esc(x.name)}</td><td class="num">${x.points}</td></tr>`).join("")}</table>`;
-      if (isOver(this.champ)) season += `<p class="good">${rows[0]?.id === ME ? "You are the champion!" : `${esc(rows[0]?.name ?? "")} wins the championship.`}</p>`;
+    const sea = this.special?.kind === "champ" ? this.season() : null;
+    const inCareer = this.special?.kind === "champ" && !!this.special.career;
+    if (sea && !isOver(sea)) {
+      const done = applyRound(sea, res.map((x) => ({ id: x.id, name: x.name, position: x.position })));
+      this.saveSeason(done);
+      const rows = standings(done);
+      season = `<h3>Season standings · round ${done.done} of ${done.rounds.length}</h3><table><tr><th>#</th><th>Driver</th><th class="num">Points</th></tr>${rows.slice(0, 8).map((x, i) => `<tr class="${x.id === ME ? "me" : ""}"><td>${i + 1}</td><td>${esc(x.name)}</td><td class="num">${x.points}</td></tr>`).join("")}</table>`;
+      if (isOver(done)) season += `<p class="good">${rows[0]?.id === ME ? "You are the champion!" : `${esc(rows[0]?.name ?? "")} wins the championship.`}</p>`;
+      if (isOver(done) && inCareer) {
+        const place = rows.findIndex((x) => x.id === ME) + 1, was = this.career.tier;
+        this.career = finishSeason(this.career, place);
+        void save("career", this.career);
+        season += this.career.tier > was ? `<p class="good">P${place} in the season: <b>promoted to ${esc(CAREER_TIERS[this.career.tier]!.name)}</b>!</p>` : place <= PROMOTE_PLACE ? `<p class="good">P${place}: the top of the ladder. Run it again for the title.</p>` : `<p class="dim">P${place} in the season: a top-${PROMOTE_PLACE} finish moves you up. Run the season again.</p>`;
+      }
     }
     if (r.flow === "weekend" && this.weekend) this.weekend = finishSession(this.weekend, "race", null);
     if (r.flow === "tutorial" && this.tutBackup) { this.tutBackup.tutorialDone = true; this.persist(); }
@@ -2687,11 +2735,11 @@ export class Game {
       <p class="dim">Your laps: ${mine.lapTimes.map(fmt).join(" · ")}</p>
       ${this.lineDeltas()}
       ${season}
-      ${this.special?.kind === "champ" ? `<button class="primary" id="next-round">${this.champ && isOver(this.champ) ? "Final standings" : "Next round"}</button>` : `<button class="primary" id="again">${r.flow === "weekend" ? "Weekend again" : "Race again"}</button>`}${this.keepThisRace(title, mine.position) ? '<button id="watch">Watch replay</button>' : ""}${this.duelButton(this.special?.kind === "duel" ? "Send your line back" : "Challenge a friend")}<button id="res-menu">Menu</button>`);
+      ${this.special?.kind === "champ" ? `<button class="primary" id="next-round">${(() => { const c = this.season(); return !c || isOver(c) ? (inCareer ? "Career" : "Final standings") : "Next round"; })()}</button>` : `<button class="primary" id="again">${r.flow === "weekend" ? "Weekend again" : "Race again"}</button>`}${this.keepThisRace(title, mine.position) ? '<button id="watch">Watch replay</button>' : ""}${this.duelButton(this.special?.kind === "duel" ? "Send your line back" : "Challenge a friend")}<button id="res-menu">Menu</button>`);
     this.on(el, "#res-menu", () => this.showMenu());
     this.wireDuelButton(el);
     this.on(el, "#watch", () => { const rep = this.replays[0]; if (rep) this.watchReplay(rep); });
-    this.on(el, "#next-round", () => { if (this.champ && isOver(this.champ)) { this.showMenu(); this.go("championship"); } else this.startChampRound(); });
+    this.on(el, "#next-round", () => { const c = this.season(); if (!c || isOver(c)) { this.showMenu(); this.go(inCareer ? "career" : "championship"); } else this.startChampRound(inCareer); });
     this.on(el, "#again", () => {
       this.audio.unlock();
       if (r.flow === "weekend") { this.weekend = newWeekend(); this.practiceSecs = 0; this.run = this.runFor("weekend", "practice"); }

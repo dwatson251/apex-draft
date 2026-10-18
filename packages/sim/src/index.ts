@@ -43,3 +43,4 @@ export * from "./daily.ts";
 export * from "./championship.ts";
 export * from "./challenges.ts";
 export * from "./golf.ts";
+export * from "./career.ts";

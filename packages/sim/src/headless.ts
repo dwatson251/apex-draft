@@ -177,7 +177,7 @@ export function runRace(i: RaceInput): RaceOutcome {
   };
   const ghosts: Entrant[] = i.ghosts.slice(0, i.rivals).map((g, n) => ({ id: `ghost:${g.id}`, name: g.name, car: { ...g.car, type: vehicle }, lines: [g.line], gridTime: g.time, bestLap: g.time }));
   const bots = makeBots(track, vehicle, ghosts.length, i.rivals);
-  const rules: RaceRules = i.realism ? { ...sessionRules("race", { wearMult: { fuel: i.wearFuel ?? 1, tyre: i.wearTyre ?? 1 }, mandatory: i.mandatory ?? [] } as SessionOptions), weather: true } : { realism: false, weather: false };
+  const rules: RaceRules = i.realism ? { ...sessionRules("race", { wearMult: { fuel: i.wearFuel ?? 1, tyre: i.wearTyre ?? 1 }, mandatory: i.mandatory ?? [] } as SessionOptions), weather: true } : { realism: false, weather: false, flags: true };
   const race = new Race(track, [me, ...ghosts, ...bots], i.laps, rules);
   race.runToEnd();
   const ghostIds = new Set(ghosts.map((g) => g.id));

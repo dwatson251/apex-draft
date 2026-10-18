@@ -23,7 +23,7 @@ export interface SessionOptions {
 /** Rules for the Race that runs a session: tyres and fuel only matter in the race. */
 export function sessionRules(kind: SessionKind, o: SessionOptions = {}): RaceRules {
   if (kind !== "race") return { realism: false, weather: false };
-  return { realism: true, wearMult: { fuel: clampWear(o.wearMult?.fuel), tyre: clampWear(o.wearMult?.tyre) }, mandatory: o.mandatory ?? [] };
+  return { realism: true, flags: true, wearMult: { fuel: clampWear(o.wearMult?.fuel), tyre: clampWear(o.wearMult?.tyre) }, mandatory: o.mandatory ?? [] };
 }
 
 /** A session's time: the best of its timed laps, with the outlap and the cooldown lap left out. Null if none was set. */

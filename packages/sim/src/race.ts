@@ -280,7 +280,23 @@ export interface RaceRules {
   mandatory?: Compound[];
   /** an elimination race: each time the leader starts a new lap, the last car still running is out (it takes the flag there) */
   elimination?: boolean;
+  /** yellow flags round a wreck, and the safety car when the road is blocked (races; see `updateFlags`) */
+  flags?: boolean;
 }
+
+/** Yellow flags: a car this close to a wreck (in a spin, or getting going again) slows to this share of what its line allows. */
+export const YELLOW_REACH = 140;
+export const YELLOW_SLOW = 0.7;
+/** The safety car comes out when this many cars are in trouble at once, or one has been for `SC_STUCK_TICKS`. */
+export const SC_WRECKS = 2;
+export const SC_STUCK_TICKS = 240;
+/** It stays out at least `SC_MIN_TICKS`, and until `SC_AFTER_TICKS` after the last wreck is going again. */
+export const SC_MIN_TICKS = 1800;
+export const SC_AFTER_TICKS = 1200;
+/** Behind it the leader is held to this share of its top speed; a car further than `SC_CLOSE` behind the one ahead may go `SC_CATCHUP` times as fast, so the field closes up. */
+export const SC_PACE = 0.45;
+export const SC_CLOSE = 30;
+export const SC_CATCHUP = 1.5;
 
 /** The most the fuel burn or tyre wear can be turned up. */
 export const MAX_WEAR_MULT = 40;
@@ -300,7 +316,7 @@ export interface PitStop { lap: number; tyre?: Compound; /** how to drive the st
 /** The most stops that can be queued at once (stops already made do not count). */
 export const MAX_PIT_STOPS = 5;
 
-export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump" | "spin" | "rain" | "pad" | "elim";
+export type RaceEventType = "cross" | "pitStart" | "pitEnd" | "dry" | "out" | "bump" | "spin" | "rain" | "pad" | "elim" | "sc" | "scEnd";
 export interface RaceEvent {
   tick: number;
   id: string;
@@ -502,6 +518,8 @@ export interface RaceCar {
   gripBuilt: number;
   /** elimination race: the order it went out in (1 first), 0 while it is still in */
   elim: number;
+  /** ticks it has been in a spin or getting going again (for the safety car) */
+  recFor: number;
   /** tyre temperature once a second of ticks, for the interface */
   readonly tmtrace: Float32Array;
   /** 0 soft, 1 medium, 2 wet, at every tick */
@@ -541,6 +559,12 @@ export class Race {
   readonly events: RaceEvent[] = [];
   tick = 0;
   private profiles = new Map<string, Profile>();
+  /** the safety car, while it is out: when it came out and when it may go in (Infinity while a wreck is still in the road); and the wrecks of this tick */
+  private sc: { from: number; clearAt: number } | null = null;
+  private wrecks: RaceCar[] = [];
+  /** under the safety car: the car ahead of each car on the road, and how far ahead it is (units) */
+  private scAhead = new Map<RaceCar, { gap: number }>();
+  private scPace = 0;
   /** elimination race: the furthest lap any car has started, and how many cars are out */
   private leadLap = 0;
   private elimOut = 0;
@@ -619,7 +643,7 @@ export class Race {
         ghost: false, stuck: 0, air: 0, airT: 0, peak: 0, pad: 0, ghostFor: 0, powered: false, freeUntil: 0, pushUntil: 0, aimWant: 0, tlVal: 0, tlAt: -1e9, cellAtX: NaN, cellAtY: NaN, cellIdx: -1, aim: 0, park: 0, parkT: 0, noPark: false, lapStart: slot === 0 ? [0] : [], finishTime: null,
         fuel: TANK, tyre: 1, pits: 0, pitIn: false, pitOut: false, pitDone: false, dwell: 0, boxed: false, ready: false, limp: false, emergency: false, emergencies: 0, out: false, outProg: 0,
         needProf: false, prof: p0, perUnit: fuelPerUnit(e.car, laps * this.lapLen), wearMul: (0.8 + 0.04 * e.car.grip) * vehicleOf(e.car.type).wear,
-        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, gripBuilt: 1, elim: 0, wake: 0, used: [],
+        compound: e.startTyre ?? (slot % 3 === 0 && !e.isPlayer ? "soft" : "medium"), nextTyre: null, nextTactic: null, held: 0, fol: 0, passTo: null, passOn: null, lastPassed: null, passUntil: 0, stopFuel: 0, stopTyre: 0, stopTotal: 0, dv: 0, tlBy: null, tlWhy: 0, tactic: e.startTactic ?? "balanced", temp: TEMP_START, gripBuilt: 1, elim: 0, recFor: 0, wake: 0, used: [],
         hp: 0, off: 0, offV: 0, beta: 0, rec: false, back: false, backT: 0, psi: 0, phi: 0, yaw: 0, radius: (vehicleOf(e.car.type).length + vehicleOf(e.car.type).width) / 4, length: vehicleOf(e.car.type).length, width: vehicleOf(e.car.type).width, circ: Math.hypot(vehicleOf(e.car.type).length, vehicleOf(e.car.type).width) / 2, mass: vehicleOf(e.car.type).mass, anchored: false,
       });
       c.used.push(c.compound);
@@ -675,6 +699,35 @@ export class Race {
   }
 
   private alive = (c: RaceCar): boolean => c.finishTime === null && !c.out;
+
+  /**
+   * Yellow flags and the safety car. A wreck (a car in its spin-and-recover routine) slows the cars that come by it. When two are in trouble at once,
+   * or one has been for `SC_STUCK_TICKS`, the safety car comes out (not on the last lap): the leader is held to `SC_PACE` of its top speed and the
+   * rest close up on the car ahead and then hold station behind it, until the road has been clear for `SC_AFTER_TICKS` and it has been out
+   * `SC_MIN_TICKS`. It is not a car on the road: the cap is the safety car.
+   */
+  private updateFlags(racing: RaceCar[]): void {
+    this.wrecks = [];
+    for (const c of racing) { c.recFor = c.rec ? c.recFor + 1 : 0; if (c.rec) this.wrecks.push(c); }
+    // (the order behind the safety car leaves the wrecks out: a car held up by one is not closed up on the car ahead, it is behind a wreck)
+    const order = racing.filter((c) => !c.rec).sort((a, b) => this.progress(b) - this.progress(a));
+    const leader = order[0];
+    if (!this.sc && leader && leader.lap < this.laps - 1 && (this.wrecks.length >= SC_WRECKS || this.wrecks.some((c) => c.recFor >= SC_STUCK_TICKS))) {
+      this.sc = { from: this.tick, clearAt: Infinity };
+      this.emit("", "sc");
+    }
+    if (!this.sc) return;
+    if (this.wrecks.length) this.sc.clearAt = Infinity;
+    else if (this.sc.clearAt === Infinity) this.sc.clearAt = this.tick + SC_AFTER_TICKS;
+    if (this.tick >= Math.max(this.sc.clearAt, this.sc.from + SC_MIN_TICKS)) { this.sc = null; this.scAhead.clear(); this.emit("", "scEnd"); return; }
+    this.scPace = SC_PACE * this.stats(leader!).vTop;
+    this.scAhead.clear();
+    this.scAhead.set(leader!, { gap: 0 });
+    for (let k = 1; k < order.length; k++) {
+      const a = order[k - 1]!, c = order[k]!;
+      this.scAhead.set(c, { gap: (a.lap - c.lap) * this.lapLen + this.pos(a) - this.pos(c) });
+    }
+  }
 
   /** Elimination race: the leader (`leader`) has just started a new lap, so the last car still running is out, as long as two are left. */
   private eliminate(t: number, leader: RaceCar): void {
@@ -1511,6 +1564,7 @@ export class Race {
     while (this.pending.length && this.pending[0]!.tick <= this.tick) this.apply(this.pending.shift()!);
     const racing = this.cars.filter(this.alive);
     this.live = racing;
+    if (this.rules.flags) this.updateFlags(racing);
     this.buildNear(racing);
     this.weatherStep(racing);
     for (const c of racing) if (c.needProf) { c.needProf = false; this.startLap(c, true); }
@@ -1525,6 +1579,12 @@ export class Race {
       if (this.rules.realism && target < st.vTop * 0.97) {
         const now = wornGrip(c.tyre) * tempGrip(c.compound, c.temp);
         if (now < c.gripBuilt) target *= Math.sqrt(now / c.gripBuilt);
+      }
+      // yellow flags by a wreck, and the safety car (not for a wreck itself, nor in the pit lane, which has its own limit)
+      if (this.rules.flags && !c.rec && !p.lane[i]) {
+        for (const w of this.wrecks) if (w !== c && !this.apart(c, w) && Math.hypot(w.x - c.x, w.y - c.y) < YELLOW_REACH) { target *= YELLOW_SLOW; break; }
+        const sc = this.sc ? this.scAhead.get(c) : undefined;
+        if (sc) target = Math.min(target, this.scPace * (sc.gap > SC_CLOSE ? SC_CATCHUP : 1));
       }
       // in a slipstream: a little more top speed (only where the car is at its top speed, not in a bend) and quicker acceleration
       const dr = this.draft(c, racing);

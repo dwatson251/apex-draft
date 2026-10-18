@@ -540,3 +540,20 @@ button.big { background-color: #3a4b82; }
 .replays { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .replays .replay { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; text-align: left; padding: 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); color: inherit; cursor: pointer; }
 .replays .replay:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); } .replays .replay:disabled { opacity: 0.5; cursor: default; }
+
+/* the safety car: a flag in the race panel, and its toast */
+.scflag { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 6px; background: #ffcf3f; color: #1b1b1b; font-size: 11px; font-weight: 900; letter-spacing: 0.06em; animation: scflash 1s steps(2) infinite; }
+@keyframes scflash { 50% { background: #f2a900; } }
+@media (prefers-reduced-motion: reduce) { .scflag { animation: none; } }
+.toast.sc { border-color: #ffcf3f; }
+
+/* the Race group with four modes, and the career ladder */
+.tilegrid.group.four { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 900px) { .tilegrid.group.four { grid-template-columns: 1fr 1fr; } }
+.career { display: grid; grid-template-columns: minmax(220px, 1fr) 1.4fr; gap: 16px; align-items: start; }
+@media (max-width: 700px) { .career { grid-template-columns: 1fr; } }
+.ladder { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rung { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+.rung i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.12); font-weight: 800; font-size: 12px; }
+.rung div { flex: 1; display: flex; flex-direction: column; } .rung span { font-size: 12px; } .rung em { font-style: normal; font-size: 12px; }
+.rung.now { border-color: #f08c00; background: rgba(240, 140, 0, 0.14); } .rung.done i { background: #2fbf71; color: #08140c; } .rung.locked { opacity: 0.5; }

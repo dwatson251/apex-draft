@@ -26,13 +26,14 @@ export function homeHtml(o: { version: string; quit: boolean; note: string; chal
 }
 
 /** A group of modes behind one tile on the home screen: Race (against rivals) or Time Attack (against the clock). */
-export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: string; golf: string }): string {
+export function groupHtml(kind: "race" | "attack", o: { daily: string; champ: string; golf: string; career: string }): string {
   const t = (spec: TileSpec) => tile(spec, esc);
   const head = (title: string, sub: string) => `<header class="tilehead"><button class="back" id="back">← Back</button><div><h2>${title}</h2><p class="dim">${sub}</p></div></header>`;
   return kind === "race"
-    ? `${head("Race", "Rivals on the track")}<div class="tilegrid group">
+    ? `${head("Race", "Rivals on the track")}<div class="tilegrid group four">
         ${t({ id: "h-quick", art: "quick", colour: "#ff6a2b", title: "Quick Race", sub: "One race: rivals, tyres and fuel" })}
         ${t({ id: "h-weekend", art: "weekend", colour: "#e0409a", title: "Race Weekend", sub: "Practice, qualifier, race" })}
+        ${t({ id: "h-career", art: "career", colour: "#f08c00", title: "Career", sub: o.career })}
         ${t({ id: "h-champ", art: "champ", colour: "#d6283f", title: "Championship", sub: o.champ })}</div>`
     : `${head("Time Attack", "You, the track and the clock")}<div class="tilegrid group">
         ${t({ id: "h-trial", art: "trial", colour: "#f2b705", title: "Solo Time Trial", sub: "Any track, as many tries as you like" })}
@@ -215,4 +216,20 @@ export function championshipHtml(o: {
 /** The tactic chips (attack, balanced, defend) for the start of a race or a pit stop. */
 export function tacticChips(id: string, current: Tactic): string {
   return `<div class="chips tactics" role="group" aria-label="Tactic">${TACTICS.map((t) => `<button class="chip tac${t === current ? " on" : ""}" data-tac="${id}:${t}" title="${esc(TACTIC_INFO[t].blurb)}">${TACTIC_INFO[t].name}</button>`).join("")}</div>`;
+}
+
+/** The career ladder: every rung (done, the player's, or locked), and the season on the player's rung or the button to start one. */
+export function careerHtml(o: {
+  tiers: { name: string; vehicle: string; difficulty: string; laps: number; field: number; state: "done" | "now" | "locked"; best: number | null }[];
+  season: { round: number; of: number; next: string | null; rows: { name: string; points: number; wins: number; me: boolean }[] } | null;
+  promote: number;
+}): string {
+  const rung = (r: (typeof o.tiers)[number], i: number) => `<li class="rung ${r.state}"><i>${i + 1}</i><div><b>${esc(r.name)}</b><span class="dim">${esc(r.vehicle)} · ${esc(r.difficulty)} · ${r.laps} laps · ${r.field} cars</span></div><em>${r.state === "locked" ? "🔒" : r.best ? `best P${r.best}` : r.state === "now" ? "here" : ""}</em></li>`;
+  const s = o.season;
+  return `<div class="head"><button class="back" id="back">← Back</button><div><h2>Career</h2><p class="dim">A season a rung, karts to hypercars. Finish in the top ${o.promote} to move up.</p></div></div>
+    <div class="career"><ol class="ladder">${o.tiers.map(rung).reverse().join("")}</ol>
+    <div class="season">${s ? `<h3>This season · round ${s.round + 1} of ${s.of}</h3>${s.next ? `<p class="dim">Next: ${esc(s.next)}</p>` : ""}
+      <table><tr><th>#</th><th>Driver</th><th class="num">Wins</th><th class="num">Points</th></tr>${s.rows.map((r, i) => `<tr class="${r.me ? "me" : ""}"><td>${i + 1}</td><td>${esc(r.name)}</td><td class="num">${r.wins}</td><td class="num">${r.points}</td></tr>`).join("")}</table>
+      <div class="bigbtns"><button class="big yellow wide" id="career-go">Race round ${s.round + 1}</button><button class="big grey" id="career-quit">Abandon</button></div>`
+      : `<p>Each round is a qualifier and a race, against the same rivals all season.</p><div class="bigbtns"><button class="big yellow wide" id="career-start">Start the season</button></div>`}</div></div>`;
 }
