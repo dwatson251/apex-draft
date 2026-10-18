@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-beta.1
+
+A playtest build before the release: new modes (Play now, Career, Elimination, Line Golf, Duels), replays and clips, a physics pass, the speed colours, the safety car, new places and classes, a drum and bass soundtrack, and a lot of fixes. Built without the Mario Kart fan pack.
 
 - **A new soundtrack: drum and bass.** One sound for the whole game (liquid drum and bass at about 174 bpm, picked from three style sketches), with each place playing it its own way: Rhodes and pads on the title, acoustic guitar in the countryside, twang in the desert, bells in the snow, neon stabs in the city, deep pads on the Moon, steel drums on the coast, marimba in the jungle and a dark reese bass on the volcano. The coast, jungle and volcano have music of their own for the first time (mountains play the snow's, open water the coast's). The loops are 88 to 94 seconds long, where the old ones were 16 to 21, so a long race hears each about a fifth as often; the drums still come in for the race and swell when it gets tense. `make_loops.py` now finds a loop's length from the music itself and falls back to a shorter loop when a track does not repeat cleanly.
 - **Every computer driver has a line of its own.** Their lines used to be the same racing line give or take a slow wander, which on Hard was a couple of units: the field drove one line. Now each driver has a style from its seed, whatever its skill: its own recipe for the racing line (more of the shortest path or more of the smoothest), a preferred width, and a shift of its own in every segment (an earlier or later apex, a wider or tighter entry), smoothed so the line never weaves and stays one a good driver could drive. Lines run about three times as far apart, for well under 3% of a lap. Reference lines (Line Golf's par, the comparison on the results, *Finish for me*) stay exact.
@@ -41,7 +43,7 @@
 - **The kart courses are a fan pack now, not part of the game.** Release builds and the online server leave them out; dev builds, the tests and a build made with `VITE_KART_PACK=1` (or a server with `APEX_KART_PACK=1`) put them back. Without the pack a course's name is an ordinary phrase. See DEVELOPER.md.
 - **The rain forecast is for the machine you drive.** It was worked out for the track's own class, while the race lays out its showers over the length of the race in your machine, so on a circuit raced in another class the forecast could name the wrong part of the race.
 
-## 0.1.0-alpha.10
+### Also in this release: 0.1.0-alpha.10 (never published on its own)
 
 - **Bowser's Castle (Mario Kart 64) has its tower.** The lap now makes the real course's 270-degree counter-clockwise loop round a circular tower and passes over the road it came in on (a bridge and an under-road, the same crossing as Rainbow Road's), climbing as it goes: the road gains 10 units round the tower and comes back down on the way home (uphill is slower, downhill quicker). Kart courses can now have a `climb` in their shape file (see DEVELOPER.md). The lap is about the same length as before. The gap jump it had is gone for now: the castle's bends leave no straight long enough for a ramp to land on.
 - **Speed pads boost.** Driving onto one now kicks the car forward at once (28% of its top speed, up to 1.32x top speed) and gives it a fading extra push for about a second on a clear straight, on top of the higher top speed and acceleration over the pad itself. A car in the air or in recovery rides over it.
