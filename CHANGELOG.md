@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-beta.3
+
+The third playtest build: gear changes in the physics, pit stops planned by you (or by the pit wall on Easy), and the waveguide engines to try.
 
 - **Pit stops are yours to plan, except on Easy.** The *Let the pit wall call the stops* switch is gone. On Medium and Hard you queue your own stops (and a car that is never brought in runs dry). On Easy the pit wall makes every call (when to stop, which tyres, how hard to drive) and the pit strategy panel and the tyre rules are not offered: you only edit your segments in the pits. Easy races can now have tyres, fuel and pit stops (Realism), which before were only on Medium and Hard.
 - **Waveguide engines (an experiment).** Settings → Engine sound switches the engines to a simulation of each cylinder and the exhaust (a port of Antonio-R1's engine-sound-generator, MIT), with a meter of what they cost; a governor keeps them under the audio thread's limit. The engine sound follows the race's gears, and the engines sit at twice the music's level.
